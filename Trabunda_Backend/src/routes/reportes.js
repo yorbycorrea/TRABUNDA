@@ -3,14 +3,105 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 const { authMiddleware } = require("../middlewares/auth");
+const PDFDocument = require("pdfkit");
+const { width } = require("pdfkit/js/page");
 
 function esTipoReporteValido(tipo) {
   return ["SANEAMIENTO", "APOYO_HORAS", "TRABAJO_AVANCE"].includes(tipo);
 }
 
 function esTurnoValido(turno) {
-  return ["Mañana", "Tarde", "Noche", "Día"].includes(turno);
+  return ["Noche", "Día"].includes(turno);
 }
+
+function nombreTipoReporte(tipo){
+  switch (tipo){
+    case "SANEAMIENTO":
+      return "Saneamiento";
+    case "APOYOS_HORAS":
+      return "Apoyo por horas";
+    case "TRABAJO_AVANCE":
+      return "Trabajo por avance";
+    case "CONTEO_RAPIDO":
+      return "Conteo rapido";
+    default:
+      return tipo || "Reporte";      
+  }
+}
+
+function textoSeguro(valor) {
+  if (valor === null || valor === undefined || valor === ""){
+    return "-";
+
+  }
+  return String(valor);
+}
+
+function agregarFilaTabla(doc, y, columnas ){
+  const alturaFila = 18;
+  const margenInferior = doc.page.height - doc.page.margins.bottom;
+  if (y + alturaFila > margenInferior){
+    doc.addPage();
+    return agregarFilaTabla(doc, doc.y, columnas);
+
+  }
+
+  columnas.forEach((columna) => {
+    doc.text(columna.texto, columna.x, y, {
+      width: columna.ancho,
+      align: columna.align || "left",
+
+    });
+
+  });
+  return y + alturaFila;
+}
+
+function renderTablaHoras (doc, lineas){
+  doc.fontSize(12).text("Detalle por trabajador", {underline: true});
+  doc.moveDown(0.5);
+
+  const inicioX = doc.page.margins.left;
+  const columnas = [
+    {titulo: "Trabajador", x: inicioX, ancho:200},
+    {titulo: "Cuadrilla", x:inicioX + 230, ancho: 140},
+    {titulo: "Kilos", x:inicioX + 380, ancho: 60, align: "right"},
+    {titulo: "Labores", x:inicioX +450, ancho: 100},
+  ];
+
+  y = doc.y;
+  y = agregarFilaTabla(
+    doc,
+    y,
+    columnasLineas.map((columna) => ({
+      texto: columna.titulo,
+      x: columna.x,
+      ancho: columna.ancho,
+      align: columna.align,
+
+    }))
+  );
+  doc.moveTo(inicioX, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
+
+  lineas.forEach((linea) =>{
+    y = agregarFilaTabla(doc, y, [
+      {texto: textoSeguro(linea.trabajador_nombre), x: columnasLineas[0].x, ancho: columnasLineas[0].ancho },
+      {texto: textoSeguro(linea.cuadrilla_nombre), x:columnasLineas[1].x, ancho: columnasLineas[1].ancho},
+
+      {
+        texto: textoSeguro(linea.kilos),
+        x: columnasLineas[2].x,
+        ancho: columnasLineas[2].ancho,
+        align: "right",
+      },
+      {texto: textoSeguro(linea.labores), x:columnasLineas[3].x, ancho: columnasLineas[3].ancho},
+
+    ]);
+  });
+}
+
+
+
 
 // según el tipo_reporte, qué flag de la tabla areas debe estar en 1
 function flagParaTipoReporte(tipo) {
@@ -23,7 +114,7 @@ function flagParaTipoReporte(tipo) {
       // por ahora usamos es_conteo_rapido
       return "es_conteo_rapido";
     default:
-      return null;
+      return tipo || "Reporte";
   }
 }
 
@@ -249,6 +340,30 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ error: "Error interno al obtener el reporte" });
   }
 });
+
+// ===============================================
+// GET /reportes/:id/pdf -> PDF
+// ===============================================
+
+router.get("/:id/pdf", authMiddleware, async(req, res) => {
+  try {
+    const {id} = req.params;
+
+    const [rows] = await pool.query(
+      `SELECT
+        r.id,
+        r.fecha,
+        r.turno,
+        r.tipo_reporte,
+        r.area_id,
+        a.nombre AS area_nombre,
+        r.creado_por_user_id,
+        r.creado_por_nombre,
+        r.observaciones,
+        r.creado_en`
+    )
+  }
+})
 
 
 // =====================================
