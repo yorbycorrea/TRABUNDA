@@ -3,6 +3,24 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 
+function parseFlag(value, fieldName){
+  if (value == undefined){
+    return undefined;
+  }
+  if (value === true || value === false){
+    return value ? 1: 0;
+  }
+
+  if(value === 1 || value === 0){
+    return value;
+  }
+
+  if(value === "1" || value === "0"){
+    return Number(value);
+  }
+  throw new Error(`Valor invalido para ${fieldName}`)
+}
+
 // Mapea tipo_reporte -> flag en tabla areas
 function flagPorTipo(tipo) {
   switch (tipo) {
@@ -59,5 +77,157 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Error interno al listar áreas" });
   }
 });
+
+// ======================================
+// POST /areas
+// ======================================
+router.post("/", async(req, res) => {
+  try {
+    const { nombre, es_apoyo_horas, es_trabajo_avance, es_conteo_rapido, activo} = req.body;
+
+    if (!nombre || typeof nombre !== "string" || !nombre.trim()){
+      return res.status(400).json({error: "nombre es requerido"});
+    } 
+
+    const flags = {};
+    try{
+      flags.es_apoyo_horas = parseFlag(es_apoyo_horas, "es_apoyo_horas");
+      flags.es_trabajo_avance = parseFlag(es_trabajo_avance, "es_trabajo_avance");
+      flags.es_conteo_rapido = parseFlag(es_conteo_rapido, "es_conteo_rapido");
+      
+    }catch (error){
+      return res.status(400).json({error: error.message});
+    }
+
+    const [result] = await pool.query(`INSERT INTO areas (nombre, es_apoyo_horas, es_trabajo_avance, es_conteo_rapido, activo)
+      VALUES (?,?,?,?,?)`, 
+      [
+        nombre.trim(),
+        flags.es_apoyo_horas ?? 0,
+        flags.es_trabajo_avance ?? 0,
+        flags.es_conteo_rapido ?? 0,
+        flags.activo ?? 1,
+
+      ]  
+    );
+
+    return res.status(201).json({id: result.insertId});
+
+  }catch (err){
+    console.error("Error al crear area: ", err);
+    return res.status(500).json({error:"Error interno al crear area"});
+  }
+});
+
+// ============================================
+// PUT /areas/:id
+// Para actualizar el nombre y las indicaciones con las comprobaciones necesarias
+// Edita nombre y flags
+// ============================================
+
+router.put("/:id", async(req, res) => {
+  try{
+    const areaId = Number(req.params.id);
+    if (!Number.isInteger(areaId) || areaId <= 0){
+      return res.status(400).json({error: "id invalido"});
+    }
+    
+    const {nombre, es_apoyo_horas, es_trabajo_avance, es_conteo_rapido,activo} = req.body;
+
+    if(!nombre || typeof nombre !== "string" || !nombre.trim()){
+      return res.status(400).json({error: "nonbre es requerido"});
+    }
+    let flags;
+    try {
+      flags = {
+        es_apoyo_horas: parseFlag(es_apoyo_horas, "es_apoyo_horas"),
+        es_trabajo_avance: parseFlag(es_trabajo_avance, "es_trabajo_avance"),
+        es_conteo_rapido: parseFlag(es_conteo_rapido, "es_conteo_rapido"),
+        activo: parseFlag(activo, "activo"),
+      };
+
+    }catch(error){
+      return res.status(400).json({error: error.message});
+    }
+
+    if (Object.values(flags).some((value) => value === undefined)){
+      return res.status(400).json({
+        error: "Debes enviar es_apoyo_horas, es_trabajo_avance, es_conteo_rapido y activo", 
+      });
+
+    }
+
+    const [result] = await pool.query(`
+      UPDATE areas
+      SET nombre = ?, es_apoyo_horas = ?, es_trabajo_avance = ?, es_conteo_rapido = ?. activo = ?
+      WHERE id = ?`,
+      [
+        nombre.trim(),
+        flags.es_apoyo_horas,
+        flags.es_trabajo_avance,
+        flags.es_conteo_rapido,
+        flags.activo,
+        areaId,
+      ]
+      
+      );
+
+      if (result.affectedRows === 0){
+        return res.status(404).json({error: "Area no encontrada"});
+      }
+      
+      return res.json({message: "Area actualizada"});
+  }catch(err){
+    console.error("Error al actualizar area:", err);
+    return res.status(500).json({error: "Error interno al actualizar area"});
+
+
+  }
+
+});
+
+// ===============================================
+// PATCH /areas/:id/activar 
+// ednpoint para activar y desactivar el estado con validacion
+// Activa o desactiva una area
+// ================================================
+
+router.patch("/:id/activar", async(req, res) => {
+  try {
+    const areaId = Number(req.params.id);
+    if(!Number.isInteger(areaId)|| areaId <= 0){
+      return res.status(400).json({error: "id invalido"});
+    }
+    let activo 
+    try {
+      activo = parseFlag(req.body.activo, "activo");
+
+    }catch(error){
+      return res.status(400).json({error: error.message});
+    }
+    if (activo === undefined){
+      return res.status(400).json({error: "activo es requerido"});
+    }
+    const [result] = await pool.query(
+      `UPDATE areas
+      SET activo = ?
+      WHERE id = ?`,
+      [activo, areaId]
+    );
+
+    if (result.affectedRows === 0){
+      return res.status(404).json({error: "Area no encontrada"});
+
+    }
+
+    return res.json({message: "Estado actualizado"});
+
+  }catch(err){
+    console.error("Error al actualizar el estado del area:", err);
+    return res.status(500).json({
+      error: "Error al actualizar el estado del area"
+    });
+  }
+})
 
 module.exports = router;
