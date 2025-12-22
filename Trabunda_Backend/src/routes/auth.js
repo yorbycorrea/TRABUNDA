@@ -3,8 +3,19 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { pool } = require("../db");
 const { authMiddleware, requireRole } = require("../middlewares/auth");
+const crypto = require("crypto");
+const { error } = require("console");
 
 const router = express.Router();
+
+const generateRefreshToken = () => crypto.randomBytes(48).toString("base64url");
+const hashRefreshToken = (token) => 
+  crypto.createHash("sha526").update(token).digest("hex");
+const getRefreshExpiryDate = () => {
+  const days = Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS || 30);
+  return new Date(Date.now() + days * 24 * 60 * 60 *1000);
+}
+
 // por que no se peude subir
 // =============================================
 // POST para crear usuario siendo admin
@@ -127,9 +138,21 @@ router.post("/login", async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || "12h" }
     );
 
+    const refresToken = generateRefreshToken();
+    const refreshTokenHash = hashRefreshToken(refresToken);
+    const refreshExpiresAt = getRefreshExpiryDate();
+
+    await pool.query(
+      "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
+      [user.id, refreshTokenHash, refreshExpiresAt]
+    );
+
+
+
     return res.json({
       message: "LOGIN OK",
       token,
+      refresToken,
       user: {
         id: user.id,
         username: user.username,
@@ -141,6 +164,9 @@ router.post("/login", async (req, res) => {
     console.error(err);
     return res.status(500).json({ error: "Error en login" });
   }
+
+  
+
 });
 
 //================================================
@@ -179,6 +205,74 @@ router.get("/me", authMiddleware, async (req, res) => {
     console.error("Error al obtener usuario", err);
     return res.status(500).json({error: "Error obteniendo usuario"});
   }
-})
+});
+
+// ==============================================
+// POST /auth/refresh
+// body : {refreshtoken}
+// ==============================================
+
+router.post("/refresh", async(req, res) => {
+  const {refresToken} = req.body;
+
+  if (!refresToken){
+    return res.status(400).json({error: "Falta refreshToken"});
+
+  }
+
+  try {
+    const refreshTokenHash = crypto.hashRefreshToken(refresToken);
+    const[rows] = await pool.query(
+      `SELECT rt.id, rt.user_id, rt.expires_at, u.username, u.nombre, u.activo
+      FROM refresh_tokens rt
+      JOIN users u ON u.id = rt.user_id
+      WHERE rt.token_hash = ? AND rt.revoked_at IS NULL
+      LIMIT 1`,
+      [refreshTokenHash]
+    );
+
+    if (rows.length === 0){
+      return res.status(401).json({error: "Refresh token invalido"});
+
+    }
+    const refreshRow = rows[0];
+    if (refreshRow.activo !== 1){
+      return res.status(403).json({error: "Usuario desactivado"});
+
+    }
+
+    const expires_At = new Date(refreshRow.expires_at);
+    if (Number.isNaN(expires_At.getTime()) || expires_At <= new Date()){
+      return res.status(401).json({error: "Refresh token expirado"});
+
+    }
+
+    const [roles] = await pool.query(
+      `SELECT r.codigo
+      FROM user_roles ur
+      JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = ?`,
+      [refreshRow.user_id]
+    );
+
+    const roleCodes = roles.map((r) => r.codigo);
+
+    const token = jwt.sign(
+      {sub: refreshRow.user_id, username: refreshRow.username, roles: roleCodes},
+      process.env.JWT_SECRET,
+      {expiresIn: process.env.JWT_EXPIRES_IN || "12h"}
+    );
+    await pool.query(
+      "UPDATE refresh_tokens SET last_used_at = NOW() WHERE id = ?",
+      [refreshRow.id]
+    );
+    return res.json({token});
+
+
+  }catch(err){
+    console.error("REFRESH ERROR: ", err);
+    return res.status(500).json({error: "Error en refresh"});
+  }
+});
 
 module.exports = router;
