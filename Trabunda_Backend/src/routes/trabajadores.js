@@ -8,13 +8,67 @@ const { pool } = require("../db");
 // ===========================================
 router.get("/", async (req, res) => {
   try {
+    const {page = 1, limit = 20, activo, q} = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
+    const offset = (pageNum - 1) * limitNum;
+    
+    const where = [];
+    const params = [];
+
+    if (activo !== undefined){
+      const activoValue = 
+        activo === "true" ? 1 : activo === "false" ? 0 : Number(activo);
+      if (!Number.isNaN(activoValue)){
+        where.push("activo = ? ");
+        params.push(activoValue);
+      }
+
+    }
+
+    if (q){
+      where.push(
+        "(nombre_completo LIKE ? OR dni LIKE ? OR codigo LIKE ?)"
+      );
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS total FROM trabajadores ${whereSql}`,
+      params
+    );
+
+    const total = countRows[0]?.total || 0;
+    const total_pages = Math.ceil(total / limitNum);
+    
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre_completo, dni, sexo, activo FROM trabajadores ORDER BY nombre_completo"
+      `SELECT id, codigo, nombre_completo, dni, sexo, activo
+      FROM trabajadores
+      ${whereSql}
+      ORDER BY nombre_completo
+      LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
     );
     res.json(rows);
-  } catch (err) {
-    console.error("Error al listar trabajadores:", err);
-    res.status(500).json({ error: "Error al listar trabajadores" });
+
+    res.json({
+      page: pageNum,
+      limit: limitNum,
+      total,
+      total_pages,
+      items: rows,
+
+    });
+
+
+  }catch(err){
+    console.error("Error al listar trabajadores: ", err);
+    res.status(500).json({error: "Error al listar trabajadores"});
+
   }
 });
 
