@@ -143,4 +143,42 @@ router.post("/login", async (req, res) => {
   }
 });
 
+//================================================
+// GET /auth/me
+// ==============================================
+
+router.get("/me", authMiddleware, async (req, res) => {
+  try{
+    const[users] = await pool.query(
+      "SELECT id, username, nombre FROM users WHERE id = ? LIMIT 1",
+      [req.user.id]
+    );
+
+    if(users.length === 0){
+      return res.status(404).json({error: "Usuario no encontrado"});
+    }
+
+    const user = users[0];
+    const [roles ] = await pool.query(
+      "SELECT r.codigo FROM user_roles ur JOIN roles or ON r.id = ur.role_id WHERE ur.user_id = ?",
+      [user.id]
+    );
+    const roleCodes = roles.map((r) => r.codigo);
+
+    return res.json({
+      user:{
+        id: user.id,
+        username: user.username,
+        nombre: user.nombre,
+        roles: roleCodes,
+      },
+
+    });
+
+  }catch(err) {
+    console.error("Error al obtener usuario", err);
+    return res.status(500).json({error: "Error obteniendo usuario"});
+  }
+})
+
 module.exports = router;
