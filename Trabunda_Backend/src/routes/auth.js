@@ -5,6 +5,7 @@ const { pool } = require("../db");
 const { authMiddleware, requireRole } = require("../middlewares/auth");
 const crypto = require("crypto");
 const { error } = require("console");
+const {asyncHandler} = require("../middlewares/asyncHandler");
 
 const router = express.Router();
 
@@ -25,149 +26,141 @@ router.post(
   "/register",
   authMiddleware,
   requireRole("ADMIN"),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const { username, password, nombre, roles } = req.body;
 
     if (!username || !password || !nombre) {
-      return res.status(400).json({
-        error: "Faltan campos: username, password, nombre",
-      });
+      return res.status(400).json({ error: "Faltan campos obligatorios" });
     }
 
-    //Si roles no viene como array, ponemos uno por defecto
-    const rolesFinal =
-      Array.isArray(roles) && roles.length > 0 ? roles : ["PLANILLERO"];
+    const rolesFinal = Array.isArray(roles) && roles.length > 0 ? roles : ["PLANILLERO"];
 
+    // Iniciamos una conexión para la transacción
+    const connection = await pool.getConnection();
     try {
-      // 1) Verificar username único
-      const [existe] = await pool.query(
-        "SELECT id FROM users WHERE username = ? LIMIT 1",
-        [username]
-      );
+      await connection.beginTransaction();
 
+      // 1) Verificar username
+      const [existe] = await connection.query("SELECT id FROM users WHERE username = ? LIMIT 1", [username]);
       if (existe.length > 0) {
+        await connection.release();
         return res.status(400).json({ error: "El username ya existe" });
       }
 
-      // 2) Hashear password
+      // 2) Hashear
       const password_hash = await bcrypt.hash(password, 10);
 
       // 3) Crear usuario
-      const [result] = await pool.query(
+      const [result] = await connection.query(
         "INSERT INTO users(username, password_hash, nombre) VALUES (?,?,?)",
         [username, password_hash, nombre]
       );
-
       const userId = result.insertId;
 
-      //  4) Buscar roles por codigo
-      const placeholders = rolesFinal.map(() => "?").join(",");
-      const [rowsRoles] = await pool.query(
-        `SELECT id, codigo FROM roles WHERE codigo IN (${placeholders})`,
-        rolesFinal
+      // 4) Buscar IDs de roles
+      const [rowsRoles] = await connection.query(
+        `SELECT id FROM roles WHERE codigo IN (?)`,
+        [rolesFinal]
       );
 
       if (rowsRoles.length !== rolesFinal.length) {
-        return res.status(400).json({ error: "Uno o más roles no existen" });
+        throw new Error("Uno o más roles enviados no son válidos");
       }
 
-      // 5) Insertar en user_roles
-      for (const r of rowsRoles) {
-        await pool.query(
-          "INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)",
-          [userId, r.id]
-        );
-      }
+      // 5) Insertar todos los roles en una sola consulta
+      const roleValues = rowsRoles.map(r => [userId, r.id]);
+      await connection.query(
+        "INSERT INTO user_roles (user_id, role_id) VALUES ?",
+        [roleValues]
+      );
 
-      return res.json({
-        message: "Usuario creado",
-        user_id: userId,
-        roles: rolesFinal,
-      });
-    } catch (err) {
-      console.error("REGISTER ERROR:", err);
-      return res.status(500).json({ error: "Error creando usuario" });
+      // Si todo salió bien, confirmamos los cambios
+      await connection.commit();
+      
+      res.json({ message: "Usuario creado exitosamente", user_id: userId, roles: rolesFinal });
+
+    } catch (error) {
+      // Si algo falla, deshacemos todo (no se crea el usuario ni los roles)
+      await connection.rollback();
+      res.status(500).json({ error: error.message || "Error al registrar usuario" });
+    } finally {
+      connection.release(); // Liberar la conexión siempre
     }
-  }
+  })
 );
 
 // =================================================
 // POST /auth/login
-// body : {username, password}
 // =================================================
-
-router.post("/login", async (req, res) => {
+router.post("/login", asyncHandler(async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: "Faltan campos: username, password" });
   }
 
-  try {
-    // buscar user
-    const [users] = await pool.query(
-      "SELECT id, username, password_hash, nombre, activo FROM users WHERE username = ? LIMIT 1",
-      [username]
-    );
+  // 1. Buscar usuario
+  const [users] = await pool.query(
+    "SELECT id, username, password_hash, nombre, activo FROM users WHERE username = ? LIMIT 1",
+    [username]
+  );
 
-    if (users.length === 0)
-      return res.status(401).json({ error: "Credenciales invalidas" });
-
-    const user = users[0];
-
-    if (user.activo !== 1)
-      return res.status(403).json({ error: "Usuario desactivado" });
-
-    // Comparar password
-
-    const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: "Credenciales invalidas" });
-
-    // verificar a que rol pertence y traerlos
-    const [roles] = await pool.query(
-      `SELECT r.codigo FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?`,
-      [user.id]
-    );
-
-    const roleCodes = roles.map((r) => r.codigo);
-
-    // FIRMAR TOKEN
-    const token = jwt.sign(
-      { sub: user.id, username: user.username, roles: roleCodes },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "12h" }
-    );
-
-    const refresToken = generateRefreshToken();
-    const refreshTokenHash = hashRefreshToken(refresToken);
-    const refreshExpiresAt = getRefreshExpiryDate();
-
-    await pool.query(
-      "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
-      [user.id, refreshTokenHash, refreshExpiresAt]
-    );
-
-
-
-    return res.json({
-      message: "LOGIN OK",
-      token,
-      refresToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        nombre: user.nombre,
-        roles: roleCodes,
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Error en login" });
+  if (users.length === 0) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
   }
 
-  
+  const user = users[0];
 
-});
+  // 2. Verificar si está activo
+  if (user.activo !== 1) {
+    return res.status(403).json({ error: "Usuario desactivado" });
+  }
+
+  // 3. Comparar password
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
+  }
+
+  // 4. Obtener roles
+  const [roles] = await pool.query(
+    `SELECT r.codigo FROM user_roles ur 
+     JOIN roles r ON r.id = ur.role_id 
+     WHERE ur.user_id = ?`,
+    [user.id]
+  );
+  const roleCodes = roles.map((r) => r.codigo);
+
+  // 5. Firmar Access Token
+  const token = jwt.sign(
+    { sub: user.id, username: user.username, roles: roleCodes },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || "12h" }
+  );
+
+  // 6. Manejo de Refresh Token 
+  const refreshToken = generateRefreshToken();
+  const refreshTokenHash = hashRefreshToken(refreshToken);
+  const refreshExpiresAt = getRefreshExpiryDate();
+
+  await pool.query(
+    "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
+    [user.id, refreshTokenHash, refreshExpiresAt]
+  );
+
+  return res.json({
+    message: "LOGIN OK",
+    token,
+    refreshToken, // Corregido de 'refresToken'
+    user: {
+      id: user.id,
+      username: user.username,
+      nombre: user.nombre,
+      roles: roleCodes,
+    },
+  });
+}));
+
 
 //================================================
 // GET /auth/me

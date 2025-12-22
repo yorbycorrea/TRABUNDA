@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
+const {asyncHandler} = require("../middlewares/asyncHandler")
 
 function parseFlag(value, fieldName){
   if (value == undefined){
@@ -41,42 +42,40 @@ function flagPorTipo(tipo) {
  * /areas?tipo=APOYO_HORAS | TRABAJO_AVANCE | SANEAMIENTO
  * Si se mandas tipo, devuelve todas las áreas activas.
  */
-router.get("/", async (req, res) => {
-  try {
+router.get("/", asyncHandler(async (req, res) => {
     const { tipo } = req.query;
 
-    // Si NO hay tipo, traemos todas las activas
+    // 1. Caso: No se envía tipo -> Devolver todas las activas
     if (!tipo) {
-      const [rows] = await pool.query(
-        `SELECT id, nombre, es_apoyo_horas, es_conteo_rapido, es_trabajo_avance, activo
-         FROM areas
-         WHERE activo = 1
-         ORDER BY nombre`
-      );
-      return res.json(rows);
+        const [rows] = await pool.query(
+            `SELECT id, nombre, es_apoyo_horas, es_conteo_rapido, es_trabajo_avance, activo 
+             FROM areas 
+             WHERE activo = 1 
+             ORDER BY nombre`
+        );
+        return res.json(rows);
     }
 
-    // Si hay tipo, validamos y filtramos por flag
+    // 2. Caso: Se envía tipo -> Validar y filtrar
     const flag = flagPorTipo(tipo);
     if (!flag) {
-      return res.status(400).json({
-        error: "tipo inválido. Usa: APOYO_HORAS | TRABAJO_AVANCE | SANEAMIENTO",
-      });
+        return res.status(400).json({
+            error: "tipo inválido. Usa: APOYO_HORAS | TRABAJO_AVANCE | SANEAMIENTO",
+        });
     }
 
+    // Nota: Aunque flag viene de una función controlada, 
+    // lo ideal es mapear a nombres de columnas fijos para evitar inyección.
     const [rows] = await pool.query(
-      `SELECT id, nombre
-       FROM areas
-       WHERE activo = 1 AND ${flag} = 1
-       ORDER BY nombre`
+        `SELECT id, nombre 
+         FROM areas 
+         WHERE activo = 1 AND ?? = 1 
+         ORDER BY nombre`,
+        [flag] // El uso de '??' en librerías como mysql2 escapa nombres de columnas
     );
 
     return res.json(rows);
-  } catch (err) {
-    console.error("Error al listar áreas:", err);
-    res.status(500).json({ error: "Error interno al listar áreas" });
-  }
-});
+}));
 
 // ======================================
 // POST /areas

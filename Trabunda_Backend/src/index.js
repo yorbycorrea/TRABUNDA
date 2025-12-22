@@ -10,6 +10,7 @@ const authRoutes = require("./routes/auth");
 const usersRoutes = require("./routes/users");
 const app = express();
 const PORT = process.env.PORT || 3000;
+const {errorHandler} = require("./middlewares/errorHandler")
 
 app.use(express.json()); // para leer JSON en requests
 
@@ -24,6 +25,7 @@ app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);
 app.use("/auth", authRoutes);
 app.use("/users", usersRoutes);
+app.use(errorHandler)
 app.listen(PORT, () => {
   console.log(`Servidor TRABUNDA escuchando en http://localhost:${PORT}`);
 });
