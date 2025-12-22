@@ -96,7 +96,7 @@ router.post("/", authMiddleware, async (req, res) => {
         fecha,
         turno,
         tipo_reporte,
-        area.nombre, // compatibilidad con columna texto
+        area.nombre, 
         area_id,
         creado_por_user_id,
         creado_por_nombre,
@@ -227,6 +227,7 @@ router.get("/:id", async (req, res) => {
          r.turno,
          r.tipo_reporte,
          r.area_id,
+         r.activo,
          a.nombre       AS area_nombre,
          r.creado_por_user_id,
          r.creado_por_nombre,
@@ -279,6 +280,7 @@ router.get("/", authMiddleware, async (req, res) => {
       tipo,
       area_id,
       turno,
+      activo,
       creador_id,
       q,
       page = 1,
@@ -331,6 +333,12 @@ router.get("/", authMiddleware, async (req, res) => {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
+    if (activo !== undefined){
+      where.push("r.acivo = ?");
+      params.push(activo === "1" || activo === 1 ? 1: 0);
+    }
+
+
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
     // 1) total para paginación
@@ -352,6 +360,7 @@ router.get("/", authMiddleware, async (req, res) => {
          r.turno,
          r.tipo_reporte,
          r.area_id,
+         r.activo,
          a.nombre        AS area_nombre,
          r.creado_por_user_id,
          r.creado_por_nombre,
@@ -375,6 +384,39 @@ router.get("/", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("Error al listar reportes:", err);
     return res.status(500).json({ error: "Error interno al listar reportes" });
+  }
+});
+
+
+// ======================================
+// PATCH activar/desactivar reporte
+// =======================================
+
+router.patch("/:id/activar", authMiddleware, async (req, res) =>{
+  try {
+    const {id} = req.params;
+    const {activo = 1} = req.body;
+
+    const activoValue = activo === 1 || activo === "1" ? 1 : 0;
+
+    const [result] = await pool.query(
+      "UPDATE reportes SET activo = ? WHERE id = ?", [activoValue, id]
+    );
+    
+    if(result.affectedRows === 0){
+      return res.status(404).json({error: "Reporte no encontrado"});
+
+    }
+    return res.json({
+      message: "Estado del reporte actualizado",
+      reporte_id: id,
+      activo: activoValue,
+    });
+
+
+  }catch(err){
+    console.error("Error al actualizar reporte: ", err);
+    return res.status(500).json({error:"Error interno al actualizar reporte "});
   }
 });
 
