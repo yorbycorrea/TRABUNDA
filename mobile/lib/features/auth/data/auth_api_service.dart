@@ -23,12 +23,13 @@ class AuthApiService {
 
     // token
     final token = data['token'] as String;
+    final refreshToken = data['refreshToken'] as String?;
 
     //Usuario
     final userJson = data['user'] as Map<String, dynamic>;
 
     // Guardar token
-    await api.tokens.saveTokens(access: token);
+    await api.tokens.saveTokens(access: token, refresh: refreshToken);
     return AppUser.fromJson(userJson);
   }
 

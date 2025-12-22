@@ -11,7 +11,7 @@ class AppUser {
     required this.roles,
   });
 
-  String get primaryRole => roles.isNotEmpty ? roles.first : 'UNKNOW';
+  String get primaryRole => roles.isNotEmpty ? roles.first : 'UNKNOWN';
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(

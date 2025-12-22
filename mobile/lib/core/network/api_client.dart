@@ -17,7 +17,7 @@ class ApiClient {
     final access = await tokens.readAccess();
     final h = <String, String>{'Content-Type': 'application/json'};
     if (access != null && access.isNotEmpty) {
-      h['Autorization'] = 'Bearer $access';
+      h['Authorization'] = 'Bearer $access';
     }
     return h;
   }

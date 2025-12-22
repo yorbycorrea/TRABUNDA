@@ -1,4 +1,3 @@
-
 const express = require("express");
 require("dotenv").config();
 const { pool } = require("./db");
@@ -8,7 +7,7 @@ const trabajadoresRoutes = require("./routes/trabajadores");
 const reportesRoutes = require("./routes/reportes");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
-
+const usersRoutes = require("./routes/users");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -24,7 +23,7 @@ app.use("/trabajadores", trabajadoresRoutes);
 app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);
 app.use("/auth", authRoutes);
-
+app.use("/users", usersRoutes);
 app.listen(PORT, () => {
   console.log(`Servidor TRABUNDA escuchando en http://localhost:${PORT}`);
 });
