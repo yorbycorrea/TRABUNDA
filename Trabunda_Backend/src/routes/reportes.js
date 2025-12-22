@@ -116,6 +116,102 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
+// =========================================================
+// PUT /reportes/:id para actualizar los campos editables del informe con validacion
+// =========================================================
+
+router.put("/:id", authMiddleware, async(req, res) =>{
+  try {
+    const {id} = req.params;
+    const {fecha, turno, area_id, observaciones} = req.body;
+
+    cons [rows] = await pool.query(
+      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1", [id]
+    );
+
+    if (rows.length === 0){
+      return res.status(404).json({error: "Reporte no encontrado"});
+    }
+
+    const tipoReporte = rows[0].tipo_reporte;
+    const updates = [];
+    const params = [];
+
+    if (fecha !== undefined){
+      updates.push("fecha = ?");
+      params.push(fecha);
+
+    }
+
+    if(turno !== undefined){
+      if(!esTurnoValido(turno)){
+        return res.status(400).json({error: "turno no valido"});
+
+      }
+
+      updates.push("turno = ?");
+      params.push(turno);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")){
+      updates.push("observaciones = ?");
+      params.push(observaciones || null);
+    }
+
+    let areaNombre = null;
+    if (area_id !== undefined){
+      const flag = flagParaTipoReporte(tipoReporte);
+      if(!flag){
+        return res.status(400).json({
+          error: "No se pudo determinar el modulo para este tipo_reporte",
+        });
+      }
+
+      const [areas] = await pool.query(
+        `SELECT id, nombre
+        FROM areas
+        WHERE id = ? AND ${flag} = 1 AND activo = 1`,
+        [area_id]
+      );
+
+      if(areas.length === 0){
+        return res.status(400).json({
+          error: "El area seleccionada no es valida para este tipo de reporte",
+        });
+
+      }
+      areaNombre = areas[0].nombre;
+      updates.push("area_id = ?");
+      params.push(area_id);
+      updates.push("area = ?");
+      params.push(areaNombre);
+    }
+
+    if(updates.length === 0){
+      return res.status(400).json({
+        error: "No hay campos editables para actualizar",
+      });
+
+    }
+
+    params.push(id);
+    await pool.query(
+      `UPDATE reportes SET ${updates.join(", ")} WHERE id = ?`, params
+    );
+
+    return res.json({
+      message: "REPORTE ACTUALIZADO CORRECTAMENTE",
+      area_nombre: areaNombre,
+    });
+
+  }catch(err){
+    console.error("Error al actualizar reporte: ", err);
+    return res.status(500).json({error: "Error interno al actualizar el reporte"});
+
+  }
+});
+
+
 //
 // === GET /reportes/:id → cabecera ======================
 // (este puede ser público o protegido, tú decides)
