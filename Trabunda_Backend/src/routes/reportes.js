@@ -7,15 +7,20 @@ const PDFDocument = require("pdfkit");
 const { width } = require("pdfkit/js/page");
 
 function esTipoReporteValido(tipo) {
-  return ["SANEAMIENTO", "APOYO_HORAS", "TRABAJO_AVANCE"].includes(tipo);
+  return [
+    "SANEAMIENTO",
+    "APOYO_HORAS",
+    "TRABAJO_AVANCE",
+    "CONTEO_RAPIDO",
+  ].includes(tipo);
 }
 
 function esTurnoValido(turno) {
   return ["Noche", "Día"].includes(turno);
 }
 
-function nombreTipoReporte(tipo){
-  switch (tipo){
+function nombreTipoReporte(tipo) {
+  switch (tipo) {
     case "SANEAMIENTO":
       return "Saneamiento";
     case "APOYOS_HORAS":
@@ -25,83 +30,92 @@ function nombreTipoReporte(tipo){
     case "CONTEO_RAPIDO":
       return "Conteo rapido";
     default:
-      return tipo || "Reporte";      
+      return tipo || "Reporte";
   }
 }
 
 function textoSeguro(valor) {
-  if (valor === null || valor === undefined || valor === ""){
+  if (valor === null || valor === undefined || valor === "") {
     return "-";
-
   }
   return String(valor);
 }
 
-function agregarFilaTabla(doc, y, columnas ){
+function agregarFilaTabla(doc, y, columnas) {
   const alturaFila = 18;
   const margenInferior = doc.page.height - doc.page.margins.bottom;
-  if (y + alturaFila > margenInferior){
+  if (y + alturaFila > margenInferior) {
     doc.addPage();
     return agregarFilaTabla(doc, doc.y, columnas);
-
   }
 
   columnas.forEach((columna) => {
     doc.text(columna.texto, columna.x, y, {
       width: columna.ancho,
       align: columna.align || "left",
-
     });
-
   });
   return y + alturaFila;
 }
 
-function renderTablaHoras (doc, lineas){
-  doc.fontSize(12).text("Detalle por trabajador", {underline: true});
+function renderTablaHoras(doc, lineas) {
+  doc.fontSize(12).text("Detalle por trabajador", { underline: true });
   doc.moveDown(0.5);
 
   const inicioX = doc.page.margins.left;
   const columnas = [
-    {titulo: "Trabajador", x: inicioX, ancho:200},
-    {titulo: "Cuadrilla", x:inicioX + 230, ancho: 140},
-    {titulo: "Kilos", x:inicioX + 380, ancho: 60, align: "right"},
-    {titulo: "Labores", x:inicioX +450, ancho: 100},
+    { titulo: "Trabajador", x: inicioX, ancho: 200 },
+    { titulo: "Cuadrilla", x: inicioX + 230, ancho: 140 },
+    { titulo: "Kilos", x: inicioX + 380, ancho: 60, align: "right" },
+    { titulo: "Labores", x: inicioX + 450, ancho: 100 },
   ];
 
-  y = doc.y;
+  let y = doc.y;
+
+  // Header
   y = agregarFilaTabla(
     doc,
     y,
-    columnasLineas.map((columna) => ({
-      texto: columna.titulo,
-      x: columna.x,
-      ancho: columna.ancho,
-      align: columna.align,
-
+    columnas.map((c) => ({
+      texto: c.titulo,
+      x: c.x,
+      ancho: c.ancho,
+      align: c.align,
     }))
   );
-  doc.moveTo(inicioX, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
 
-  lineas.forEach((linea) =>{
+  doc
+    .moveTo(inicioX, y - 4)
+    .lineTo(doc.page.width - doc.page.margins.right, y - 4)
+    .stroke();
+
+  // Rows
+  lineas.forEach((linea) => {
     y = agregarFilaTabla(doc, y, [
-      {texto: textoSeguro(linea.trabajador_nombre), x: columnasLineas[0].x, ancho: columnasLineas[0].ancho },
-      {texto: textoSeguro(linea.cuadrilla_nombre), x:columnasLineas[1].x, ancho: columnasLineas[1].ancho},
-
+      {
+        texto: textoSeguro(linea.trabajador_nombre),
+        x: columnas[0].x,
+        ancho: columnas[0].ancho,
+      },
+      {
+        texto: textoSeguro(linea.cuadrilla_nombre),
+        x: columnas[1].x,
+        ancho: columnas[1].ancho,
+      },
       {
         texto: textoSeguro(linea.kilos),
-        x: columnasLineas[2].x,
-        ancho: columnasLineas[2].ancho,
+        x: columnas[2].x,
+        ancho: columnas[2].ancho,
         align: "right",
       },
-      {texto: textoSeguro(linea.labores), x:columnasLineas[3].x, ancho: columnasLineas[3].ancho},
-
+      {
+        texto: textoSeguro(linea.labores),
+        x: columnas[3].x,
+        ancho: columnas[3].ancho,
+      },
     ]);
   });
 }
-
-
-
 
 // según el tipo_reporte, qué flag de la tabla areas debe estar en 1
 function flagParaTipoReporte(tipo) {
@@ -114,7 +128,7 @@ function flagParaTipoReporte(tipo) {
       // por ahora usamos es_conteo_rapido
       return "es_conteo_rapido";
     default:
-      return tipo || "Reporte";
+      return null;
   }
 }
 
@@ -128,10 +142,11 @@ router.post("/", authMiddleware, async (req, res) => {
     //  user real viene del token
     const creado_por_user_id = req.user.id;
 
-    // 1) Validar campos obligatorios 
+    // 1) Validar campos obligatorios
     if (!fecha || !turno || !tipo_reporte || !area_id) {
       return res.status(400).json({
-        error: "Faltan campos obligatorios: fecha, turno, tipo_reporte, area_id",
+        error:
+          "Faltan campos obligatorios: fecha, turno, tipo_reporte, area_id",
       });
     }
 
@@ -187,7 +202,7 @@ router.post("/", authMiddleware, async (req, res) => {
         fecha,
         turno,
         tipo_reporte,
-        area.nombre, 
+        area.nombre,
         area_id,
         creado_por_user_id,
         creado_por_nombre,
@@ -211,48 +226,47 @@ router.post("/", authMiddleware, async (req, res) => {
 // PUT /reportes/:id para actualizar los campos editables del informe con validacion
 // =========================================================
 
-router.put("/:id", authMiddleware, async(req, res) =>{
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const {id} = req.params;
-    const {fecha, turno, area_id, observaciones} = req.body;
+    const { id } = req.params;
+    const { fecha, turno, area_id, observaciones } = req.body;
 
-    cons [rows] = await pool.query(
-      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1", [id]
+    const [rows] = await pool.query(
+      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
+      [id]
     );
 
-    if (rows.length === 0){
-      return res.status(404).json({error: "Reporte no encontrado"});
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
     }
 
     const tipoReporte = rows[0].tipo_reporte;
     const updates = [];
     const params = [];
 
-    if (fecha !== undefined){
+    if (fecha !== undefined) {
       updates.push("fecha = ?");
       params.push(fecha);
-
     }
 
-    if(turno !== undefined){
-      if(!esTurnoValido(turno)){
-        return res.status(400).json({error: "turno no valido"});
-
+    if (turno !== undefined) {
+      if (!esTurnoValido(turno)) {
+        return res.status(400).json({ error: "turno no valido" });
       }
 
       updates.push("turno = ?");
       params.push(turno);
     }
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")){
+    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")) {
       updates.push("observaciones = ?");
       params.push(observaciones || null);
     }
 
     let areaNombre = null;
-    if (area_id !== undefined){
+    if (area_id !== undefined) {
       const flag = flagParaTipoReporte(tipoReporte);
-      if(!flag){
+      if (!flag) {
         return res.status(400).json({
           error: "No se pudo determinar el modulo para este tipo_reporte",
         });
@@ -265,11 +279,10 @@ router.put("/:id", authMiddleware, async(req, res) =>{
         [area_id]
       );
 
-      if(areas.length === 0){
+      if (areas.length === 0) {
         return res.status(400).json({
           error: "El area seleccionada no es valida para este tipo de reporte",
         });
-
       }
       areaNombre = areas[0].nombre;
       updates.push("area_id = ?");
@@ -278,30 +291,29 @@ router.put("/:id", authMiddleware, async(req, res) =>{
       params.push(areaNombre);
     }
 
-    if(updates.length === 0){
+    if (updates.length === 0) {
       return res.status(400).json({
         error: "No hay campos editables para actualizar",
       });
-
     }
 
     params.push(id);
     await pool.query(
-      `UPDATE reportes SET ${updates.join(", ")} WHERE id = ?`, params
+      `UPDATE reportes SET ${updates.join(", ")} WHERE id = ?`,
+      params
     );
 
     return res.json({
       message: "REPORTE ACTUALIZADO CORRECTAMENTE",
       area_nombre: areaNombre,
     });
-
-  }catch(err){
+  } catch (err) {
     console.error("Error al actualizar reporte: ", err);
-    return res.status(500).json({error: "Error interno al actualizar el reporte"});
-
+    return res
+      .status(500)
+      .json({ error: "Error interno al actualizar el reporte" });
   }
 });
-
 
 //
 // === GET /reportes/:id → cabecera ======================
@@ -345,26 +357,9 @@ router.get("/:id", async (req, res) => {
 // GET /reportes/:id/pdf -> PDF
 // ===============================================
 
-router.get("/:id/pdf", authMiddleware, async(req, res) => {
-  try {
-    const {id} = req.params;
-
-    const [rows] = await pool.query(
-      `SELECT
-        r.id,
-        r.fecha,
-        r.turno,
-        r.tipo_reporte,
-        r.area_id,
-        a.nombre AS area_nombre,
-        r.creado_por_user_id,
-        r.creado_por_nombre,
-        r.observaciones,
-        r.creado_en`
-    )
-  }
-})
-
+router.get("/:id/pdf", authMiddleware, async (req, res) => {
+  return res.status(501).json({ error: "PDF aún no implementado" });
+});
 
 // =====================================
 // GET obtener reportes
@@ -408,7 +403,9 @@ router.get("/", authMiddleware, async (req, res) => {
     const camposOrden = new Set(["fecha", "creado_en"]);
     const dirs = new Set(["asc", "desc"]);
     const orderBy = camposOrden.has(ordenar) ? ordenar : "fecha";
-    const orderDir = dirs.has(String(dir).toLowerCase()) ? String(dir).toLowerCase() : "desc";
+    const orderDir = dirs.has(String(dir).toLowerCase())
+      ? String(dir).toLowerCase()
+      : "desc";
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
@@ -444,15 +441,16 @@ router.get("/", authMiddleware, async (req, res) => {
     }
     if (q) {
       // búsqueda simple en 3 campos
-      where.push("(r.observaciones LIKE ? OR a.nombre LIKE ? OR r.creado_por_nombre LIKE ?)");
+      where.push(
+        "(r.observaciones LIKE ? OR a.nombre LIKE ? OR r.creado_por_nombre LIKE ?)"
+      );
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
-    if (activo !== undefined){
+    if (activo !== undefined) {
       where.push("r.acivo = ?");
-      params.push(activo === "1" || activo === 1 ? 1: 0);
+      params.push(activo === "1" || activo === 1 ? 1 : 0);
     }
-
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -502,36 +500,35 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
-
 // ======================================
 // PATCH activar/desactivar reporte
 // =======================================
 
-router.patch("/:id/activar", authMiddleware, async (req, res) =>{
+router.patch("/:id/activar", authMiddleware, async (req, res) => {
   try {
-    const {id} = req.params;
-    const {activo = 1} = req.body;
+    const { id } = req.params;
+    const { activo = 1 } = req.body;
 
     const activoValue = activo === 1 || activo === "1" ? 1 : 0;
 
     const [result] = await pool.query(
-      "UPDATE reportes SET activo = ? WHERE id = ?", [activoValue, id]
+      "UPDATE reportes SET activo = ? WHERE id = ?",
+      [activoValue, id]
     );
-    
-    if(result.affectedRows === 0){
-      return res.status(404).json({error: "Reporte no encontrado"});
 
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
     }
     return res.json({
       message: "Estado del reporte actualizado",
       reporte_id: id,
       activo: activoValue,
     });
-
-
-  }catch(err){
+  } catch (err) {
     console.error("Error al actualizar reporte: ", err);
-    return res.status(500).json({error:"Error interno al actualizar reporte "});
+    return res
+      .status(500)
+      .json({ error: "Error interno al actualizar reporte " });
   }
 });
 

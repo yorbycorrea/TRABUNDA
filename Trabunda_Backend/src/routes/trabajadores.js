@@ -8,35 +8,31 @@ const { pool } = require("../db");
 // ===========================================
 router.get("/", async (req, res) => {
   try {
-    const {page = 1, limit = 20, activo, q} = req.query;
+    const { page = 1, limit = 20, activo, q } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
     const offset = (pageNum - 1) * limitNum;
-    
+
     const where = [];
     const params = [];
 
-    if (activo !== undefined){
-      const activoValue = 
+    if (activo !== undefined) {
+      const activoValue =
         activo === "true" ? 1 : activo === "false" ? 0 : Number(activo);
-      if (!Number.isNaN(activoValue)){
+      if (!Number.isNaN(activoValue)) {
         where.push("activo = ? ");
         params.push(activoValue);
       }
-
     }
 
-    if (q){
-      where.push(
-        "(nombre_completo LIKE ? OR dni LIKE ? OR codigo LIKE ?)"
-      );
+    if (q) {
+      where.push("(nombre_completo LIKE ? OR dni LIKE ? OR codigo LIKE ?)");
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    
+
     const [countRows] = await pool.query(
       `SELECT COUNT(*) AS total FROM trabajadores ${whereSql}`,
       params
@@ -44,7 +40,7 @@ router.get("/", async (req, res) => {
 
     const total = countRows[0]?.total || 0;
     const total_pages = Math.ceil(total / limitNum);
-    
+
     const [rows] = await pool.query(
       `SELECT id, codigo, nombre_completo, dni, sexo, activo
       FROM trabajadores
@@ -53,7 +49,6 @@ router.get("/", async (req, res) => {
       LIMIT ? OFFSET ?`,
       [...params, limitNum, offset]
     );
-    res.json(rows);
 
     res.json({
       page: pageNum,
@@ -61,14 +56,10 @@ router.get("/", async (req, res) => {
       total,
       total_pages,
       items: rows,
-
     });
-
-
-  }catch(err){
+  } catch (err) {
     console.error("Error al listar trabajadores: ", err);
-    res.status(500).json({error: "Error al listar trabajadores"});
-
+    res.status(500).json({ error: "Error al listar trabajadores" });
   }
 });
 
@@ -105,74 +96,71 @@ router.post("/", async (req, res) => {
   }
 });
 
-
 // ====================================
 // GET /trabajadores/:id -> Se obtiene por id
 // ====================================
 
-router.get("/id", async(req, res) => {
-  const {id} = req.params;
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
 
   try {
-    const [ rows ] = await pool.query("SELECT id, codigo, nombre_completo, dni, sexo, activo FROM trabajadores WHERE id = ?", [id]);
-    if (rows.length === 0){
-      return res.status(404).json({error: "Trabajador no encontrado"});
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre_completo, dni, sexo, activo FROM trabajadores WHERE id = ?",
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Trabajador no encontrado" });
     }
 
     res.json(rows[0]);
-  }catch(err){
+  } catch (err) {
     console.error("Error al obtener trabajador: ", err);
-    res.status(500).json({error: "Error al obtener trabajador"});
+    res.status(500).json({ error: "Error al obtener trabajador" });
   }
-
 });
 
 // ================================================
-// PUT /trabajadores/:id -> actualizar campos 
+// PUT /trabajadores/:id -> actualizar campos
 // ================================================
 
-
 router.put("/:id", async (req, res) => {
-  const {id} = req.params;
-  const {nombre_completo, dni, sexo, activo} = req.body;
+  const { id } = req.params;
+  const { nombre_completo, dni, sexo, activo } = req.body;
 
   const fields = [];
   const values = [];
 
-  if (nombre_completo != undefined){
-    fields.push("nombre completo = ?");
+  if (nombre_completo != undefined) {
+    fields.push("nombre_completo = ?");
     values.push(nombre_completo);
-
   }
 
-  if (dni != undefined){
+  if (dni != undefined) {
     fields.push("dni = ?");
     values.push(dni);
   }
 
-  if(sexo != undefined){
+  if (sexo != undefined) {
     fields.push("sexo = ?");
     values.push(sexo);
   }
 
-  if(activo != undefined){
+  if (activo != undefined) {
     fields.push("activo = ?");
     values.push(activo);
   }
-  if (fields.length === 0){
-    return res
-      .status(400)
-      .json({error: "No hay campos para actualizar"});
+  if (fields.length === 0) {
+    return res.status(400).json({ error: "No hay campos para actualizar" });
   }
 
   try {
-    const [exists ] = await pool.query(
-      "SELECT id FROM trabajadores  WHERE id = ?", [id]
+    const [exists] = await pool.query(
+      "SELECT id FROM trabajadores  WHERE id = ?",
+      [id]
     );
 
-    if (exists.length === 0){
-      return res.status(404).json({error: "Trabajador no encontrado"});
-
+    if (exists.length === 0) {
+      return res.status(404).json({ error: "Trabajador no encontrado" });
     }
 
     const query = `UPDATE trabajadores SET ${fields.join(", ")} WHERE id = ? `;
@@ -180,12 +168,10 @@ router.put("/:id", async (req, res) => {
 
     await pool.query(query, values);
 
-    res.json({message: "Trabajador actualizado correctamente"});
-
-
-  } catch(err){
+    res.json({ message: "Trabajador actualizado correctamente" });
+  } catch (err) {
     console.error("Error al actualizar trabajador:", err);
-    res.status(500).json({error: "Error al actualizar trabajador"});
+    res.status(500).json({ error: "Error al actualizar trabajador" });
   }
 });
 
@@ -193,61 +179,52 @@ router.put("/:id", async (req, res) => {
 // DELETE /trabajadores/:id  -> dar de baja o eliminar
 // ============================================
 
-router.delete("/id", async(req, res) => {
-  const{id} = req.params;
+router.delete("/id", async (req, res) => {
+  const { id } = req.params;
 
   try {
-    const [exists] = await pool.query("SELECT id FROM trabajadores WHERE id = ?", [id]);
+    const [exists] = await pool.query(
+      "SELECT id FROM trabajadores WHERE id = ?",
+      [id]
+    );
 
-    if(exists.length === 0){
-      return res.status(404).json({error: "Trabajador no encontrado"});
+    if (exists.length === 0) {
+      return res.status(404).json({ error: "Trabajador no encontrado" });
     }
 
     await pool.query("UPDATE trabajadores SET activo = 0 WHERE id = ?", [id]);
 
-    res.json({message: "Trabajador dado de baja correctamente "});
-
-
-  }catch(err){
+    res.json({ message: "Trabajador dado de baja correctamente " });
+  } catch (err) {
     console.error("Error al dar de bajar al trabajador", err);
-    res.status(500).json({error: "Error al dar de bajar al trabajador"});
+    res.status(500).json({ error: "Error al dar de bajar al trabajador" });
   }
-
-  
-
 });
 
 //================================================
 // PATCH /trabajadores/:id/activar -> activar
 // ===============================================
 
-router.patch("/:id/activar", async(req, res) =>{
-  const {id} = req.params;
+router.patch("/:id/activar", async (req, res) => {
+  const { id } = req.params;
 
   try {
-
     const [exists] = await pool.query(
-      "SELECT id FROM trabajadores WHERE id = ?", [id]
+      "SELECT id FROM trabajadores WHERE id = ?",
+      [id]
     );
 
-    if (exists.length === 0){
-      return res.status(404).json({error: "Trabajador no encontrado"});
-
+    if (exists.length === 0) {
+      return res.status(404).json({ error: "Trabajador no encontrado" });
     }
 
     await pool.query("UPDATE trabajadores SET activo = 1 WHERE id = ?", [id]),
-
-    res.json({message: "Trabajador activo correctamente "});
-
-
-  }catch(err){
-    console.error("Error al activar trabajador" , err);
-    res.status(500).json({error: "Error al activar trabajador"});
+      res.json({ message: "Trabajador activo correctamente " });
+  } catch (err) {
+    console.error("Error al activar trabajador", err);
+    res.status(500).json({ error: "Error al activar trabajador" });
   }
-})
-
-
-
+});
 
 // exportar SOLO el router
 module.exports = router;
