@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Variables de entorno privadas (Token, API Keys, etc)
+.env
+.env.*
+!.env.example

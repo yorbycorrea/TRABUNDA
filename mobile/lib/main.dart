@@ -1,67 +1,98 @@
+// 1. Imports de Flutter/Dart
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// 2. Imports de tu proyecto (ajusta 'trabunda' por el nombre real de tu app)
+
+import 'package:mobile/core/network/token_storage.dart';
+import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/features/auth/data/auth_api_service.dart';
+import 'package:mobile/features/auth/controller/auth_controller.dart';
+import 'package:mobile/env.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inyección de dependencias
+  final tokenStorage = TokenStorage(const FlutterSecureStorage());
+  final apiClient = ApiClient(baseUrl: Env.baseUrl, tokens: tokenStorage);
+  final authController = AuthController(
+    authApi: AuthApiService(apiClient),
+    api: apiClient,
+  );
+
+  runApp(
+    AuthControllerScope(controller: authController, child: const TrabundaApp()),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class TrabundaApp extends StatelessWidget {
+  const TrabundaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'Trabunda App',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.blue),
+      // El MaterialApp envuelve a toda la app una sola vez
+      home: const AuthRouter(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
+class AuthRouter extends StatefulWidget {
+  const AuthRouter({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<AuthRouter> createState() => _AuthRouterState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
+class _AuthRouterState extends State<AuthRouter> {
+  @override
+  void initState() {
+    super.initState();
+    // Disparamos la validación del token al iniciar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthControllerScope.read(context).init();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+    // Escuchamos los cambios de estado
+    final auth = AuthControllerScope.of(context);
 
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+    //
+    switch (auth.status) {
+      case AuthStatus.loading:
+      case AuthStatus.unknown:
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+      case AuthStatus.authenticated:
+        // Placeholder mientras creas MenuPage
+        return const Scaffold(
+          body: Center(child: Text('Sesión Iniciada - Aquí irá MenuPage')),
+        );
+
+      case AuthStatus.unauthenticated:
+      case AuthStatus.error:
+        // Placeholder mientras creas LoginPage
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('No autenticado - Aquí irá LoginPage'),
+                if (auth.errorMessage != null)
+                  Text(
+                    auth.errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+              ],
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
+          ),
+        );
+    }
   }
 }
