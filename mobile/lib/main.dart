@@ -1,17 +1,17 @@
 // 1. Imports de Flutter/Dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-// 2. Imports de tu proyecto (ajusta 'trabunda' por el nombre real de tu app)
-
 import 'package:mobile/core/network/token_storage.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/data/auth_api_service.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/env.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
 
   // Inyección de dependencias
   final tokenStorage = TokenStorage(const FlutterSecureStorage());
