@@ -7,6 +7,8 @@ import 'package:mobile/features/auth/data/auth_api_service.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/env.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mobile/features/auth/presentation/login_page.dart';
+import 'package:mobile/menu/presentation/pages/menu_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +37,13 @@ class TrabundaApp extends StatelessWidget {
       title: 'Trabunda App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      // El MaterialApp envuelve a toda la app una sola vez
+      routes: {
+        '/login': (_) => const LoginPage(),
+        '/home': (_) => const HomeMenuPage(),
+        //'/reports/list': (_) => const ReportsListPage(),
+        //'/reports/create': (_) => const ReportsCreatePage(),
+      },
+
       home: const AuthRouter(),
     );
   }
@@ -70,29 +78,11 @@ class _AuthRouterState extends State<AuthRouter> {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
       case AuthStatus.authenticated:
-        // Placeholder mientras creas MenuPage
-        return const Scaffold(
-          body: Center(child: Text('Sesión Iniciada - Aquí irá MenuPage')),
-        );
+        return const HomeMenuPage();
 
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
-        // Placeholder mientras creas LoginPage
-        return Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('No autenticado - Aquí irá LoginPage'),
-                if (auth.errorMessage != null)
-                  Text(
-                    auth.errorMessage!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-              ],
-            ),
-          ),
-        );
+        return const LoginPage();
     }
   }
 }
