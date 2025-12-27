@@ -448,8 +448,20 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (activo !== undefined) {
+<<<<<<< HEAD
       where.push("r.activo = ?");
       params.push(activo === "1" || activo === 1 ? 1 : 0);
+=======
+      const activoNumber = Number(activo);
+      if (Number.isNaN(activoNumber)) {
+        return res
+          .status(400)
+          .json({ error: "El filtro 'activo' debe ser numérico (0 o 1)" });
+      }
+      const activoValue = activoNumber === 1 ? 1 : 0;
+      where.push("r.activo = ?");
+      params.push(activoValue);
+>>>>>>> 7d490b9e12fe004f4cdf22498df84da42d555bdb
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";

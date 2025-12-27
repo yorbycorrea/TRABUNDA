@@ -179,8 +179,12 @@ router.put("/:id", async (req, res) => {
 // DELETE /trabajadores/:id  -> dar de baja o eliminar
 // ============================================
 
-router.delete("/id", async (req, res) => {
-  const { id } = req.params;
+router.delete("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: "ID inválido" });
+  }
 
   try {
     const [exists] = await pool.query(
