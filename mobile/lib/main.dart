@@ -9,6 +9,7 @@ import 'package:mobile/env.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mobile/features/auth/presentation/login_page.dart';
 import 'package:mobile/menu/presentation/pages/menu_page.dart';
+import 'package:mobile/menu/presentation/pages/report_create_planillero_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,12 +25,17 @@ Future<void> main() async {
   );
 
   runApp(
-    AuthControllerScope(controller: authController, child: const TrabundaApp()),
+    AuthControllerScope(
+      controller: authController,
+      child: TrabundaApp(api: apiClient),
+    ),
   );
 }
 
 class TrabundaApp extends StatelessWidget {
-  const TrabundaApp({super.key});
+  const TrabundaApp({super.key, required this.api});
+
+  final ApiClient api;
 
   @override
   Widget build(BuildContext context) {
@@ -37,11 +43,27 @@ class TrabundaApp extends StatelessWidget {
       title: 'Trabunda App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      routes: {
-        '/login': (_) => const LoginPage(),
-        '/home': (_) => const HomeMenuPage(),
-        //'/reports/list': (_) => const ReportsListPage(),
-        //'/reports/create': (_) => const ReportsCreatePage(),
+
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/login':
+            return MaterialPageRoute(builder: (_) => const LoginPage());
+
+          case '/home':
+            return MaterialPageRoute(builder: (_) => const HomeMenuPage());
+
+          case '/reports/create':
+            return MaterialPageRoute(
+              builder: (_) => ReportCreatePlanilleroPage(api: api),
+            );
+
+          default:
+            return MaterialPageRoute(
+              builder: (_) => const Scaffold(
+                body: Center(child: Text('Ruta no encontrada')),
+              ),
+            );
+        }
       },
 
       home: const AuthRouter(),

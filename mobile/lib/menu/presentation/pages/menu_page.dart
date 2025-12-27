@@ -99,12 +99,12 @@ class HomeMenuPage extends StatelessWidget {
                     _OptionCard(
                       icon: Icons.analytics_outlined,
                       title: 'Ver reportes',
-                      description: 'Consulta y analiza los datos de produccion',
+                      description: 'Consulta los reportes',
                       onTap: () {
                         Navigator.pushNamed(context, '/reports/list');
                       },
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     _OptionCard(
                       icon: Icons.note_add_outlined,
@@ -165,42 +165,46 @@ class _OptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-
-        child: Column(
-          children: [
-            Icon(icon, size: 50, color: Colors.blueAccent),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Colors.black87,
+    return SizedBox(
+      width: 300,
+      height: 170,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 3),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54, fontSize: 14),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 50, color: Colors.blueAccent),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       ),
     );
