@@ -7,7 +7,7 @@ const trabajadoresRoutes = require("./routes/trabajadores");
 const reportesRoutes = require("./routes/reportes");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
-const usersRoutes = require("./routes/users");
+//const userRoutes = require("./routes/user");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const {errorHandler} = require("./middlewares/errorHandler")
@@ -24,8 +24,8 @@ app.use("/trabajadores", trabajadoresRoutes);
 app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);
 app.use("/auth", authRoutes);
-app.use("/users", usersRoutes);
+//app.use("/user", userRoutes);
 app.use(errorHandler)
-app.listen(PORT, () => {
-  console.log(`Servidor TRABUNDA escuchando en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor TRABUNDA escuchando en http://172.16.1.207:${PORT}`);
 });

@@ -4,7 +4,7 @@ const router = express.Router();
 const { pool } = require("../db");
 const { authMiddleware } = require("../middlewares/auth");
 const PDFDocument = require("pdfkit");
-const { width } = require("pdfkit/js/page");
+//const { width } = require("pdfkit/js/page");
 
 function esTipoReporteValido(tipo) {
   return [
@@ -16,7 +16,7 @@ function esTipoReporteValido(tipo) {
 }
 
 function esTurnoValido(turno) {
-  return ["Noche", "Día"].includes(turno);
+  return ["Noche", "Dia"].includes(turno);
 }
 
 function nombreTipoReporte(tipo) {
@@ -448,7 +448,7 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (activo !== undefined) {
-      where.push("r.acivo = ?");
+      where.push("r.activo = ?");
       params.push(activo === "1" || activo === 1 ? 1 : 0);
     }
 
@@ -531,5 +531,209 @@ router.patch("/:id/activar", authMiddleware, async (req, res) => {
       .json({ error: "Error interno al actualizar reporte " });
   }
 });
+
+
+// ========================================
+// POST /reportes/:id/lineas
+// ========================================
+router.post("/:id/lineas", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    if (!Number.isInteger(reporteId) || reporteId <= 0) {
+      return res.status(400).json({ error: "id de reporte inválido" });
+    }
+
+    const { trabajador_id, cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } = req.body;
+
+    if (!trabajador_id) {
+      return res.status(400).json({ error: "trabajador_id es obligatorio" });
+    }
+
+    // 1) validar confirmar tipo de reporte
+    const [repRows] = await pool.query(
+      "SELECT id, tipo_reporte FROM reportes WHERE id = ?",
+      [reporteId]
+    );
+    if (repRows.length === 0) return res.status(404).json({ error: "Reporte no encontrado" });
+    const tipo = repRows[0].tipo_reporte;
+
+    // 2) validar trabajador activo
+    const [tRows] = await pool.query(
+      "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
+      [trabajador_id]
+    );
+    if (tRows.length === 0) return res.status(400).json({ error: "Trabajador no válido o inactivo" });
+    const trabajador = tRows[0];
+
+    // 3) validaciones por tipo
+    const requeridos = {
+      SANEAMIENTO: ["hora_inicio", "hora_fin", "labores"],
+      APOYO_HORAS: ["hora_inicio", "hora_fin", "horas"],
+      TRABAJO_AVANCE: ["kilos"],
+      CONTEO_RAPIDO: [], // tu BD no soporta conteo aquí (decidir luego)
+    };
+    const campos = requeridos[tipo];
+    if (!campos) return res.status(400).json({ error: "tipo_reporte no soportado" });
+
+    const map = { horas, hora_inicio, hora_fin, kilos, labores };
+    const faltan = campos.filter((k) => map[k] === undefined || map[k] === null || map[k] === "");
+    if (faltan.length) {
+      return res.status(400).json({ error: `Para ${tipo} se requieren: ${campos.join(", ")}` });
+    }
+
+    // 4) validar cuadrilla si mandan cuadrilla_id
+    if (cuadrilla_id !== undefined && cuadrilla_id !== null) {
+      const [cRows] = await pool.query(
+        "SELECT id FROM cuadrillas WHERE id = ? AND reporte_id = ?",
+        [cuadrilla_id, reporteId]
+      );
+      if (cRows.length === 0) {
+        return res.status(400).json({ error: "cuadrilla_id no válida para este reporte" });
+      }
+    }
+
+    // 5) insertar linea
+    const [result] = await pool.query(
+      `INSERT INTO lineas_reporte
+       (reporte_id, trabajador_id, cuadrilla_id, trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        reporteId,
+        trabajador.id,
+        cuadrilla_id ?? null,
+        trabajador.codigo,
+        trabajador.nombre_completo,
+        horas ?? null,
+        hora_inicio ?? null,
+        hora_fin ?? null,
+        kilos ?? null,
+        labores ?? null,
+      ]
+    );
+
+    return res.status(201).json({ message: "Linea creada", linea_id: result.insertId });
+  } catch (err) {
+    console.error("Error creando linea:", err);
+    return res.status(500).json({ error: "Error interno al crear linea" });
+  }
+});
+
+
+// =======================================
+// GET /reportes/:id/detalles
+// =======================================
+router.get("/:id/lineas", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    if (!Number.isInteger(reporteId) || reporteId <= 0) {
+      return res.status(400).json({ error: "id de reporte inválido" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+         lr.id,
+         lr.reporte_id,
+         lr.trabajador_id,
+         lr.cuadrilla_id,
+         lr.trabajador_codigo,
+         lr.trabajador_nombre,
+         lr.horas,
+         lr.hora_inicio,
+         lr.hora_fin,
+         lr.kilos,
+         lr.labores,
+         c.nombre AS cuadrilla_nombre
+       FROM lineas_reporte lr
+       LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
+       WHERE lr.reporte_id = ?
+       ORDER BY lr.id ASC`,
+      [reporteId]
+    );
+
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error("Error listando lineas:", err);
+    return res.status(500).json({ error: "Error interno al listar lineas" });
+  }
+});
+
+// =========================================
+// PATCH /reportes/lineas/:lineaId
+// =========================================
+router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
+  try {
+    const lineaId = Number(req.params.lineaId);
+    if (!Number.isInteger(lineaId) || lineaId <= 0) {
+      return res.status(400).json({ error: "lineaId inválido" });
+    }
+
+    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } = req.body;
+
+    const updates = [];
+    const params = [];
+
+    if (cuadrilla_id !== undefined) { updates.push("cuadrilla_id = ?"); params.push(cuadrilla_id ?? null); }
+    if (horas !== undefined)       { updates.push("horas = ?"); params.push(horas ?? null); }
+    if (hora_inicio !== undefined) { updates.push("hora_inicio = ?"); params.push(hora_inicio ?? null); }
+    if (hora_fin !== undefined)    { updates.push("hora_fin = ?"); params.push(hora_fin ?? null); }
+    if (kilos !== undefined)       { updates.push("kilos = ?"); params.push(kilos ?? null); }
+    if (labores !== undefined)     { updates.push("labores = ?"); params.push(labores ?? null); }
+
+    if (!updates.length) {
+      return res.status(400).json({ error: "No hay campos para actualizar" });
+    }
+
+    params.push(lineaId);
+
+    const [result] = await pool.query(
+      `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    return res.json({ message: "Linea actualizada" });
+  } catch (err) {
+    console.error("Error actualizando linea:", err);
+    return res.status(500).json({ error: "Error interno al actualizar linea" });
+  }
+});
+
+// =====================================================
+// DELETE /reportes/lineas/:lineaId
+// ====================================================
+
+router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
+  try {
+    const lineaId = Number(req.params.lineaId);
+    if (!Number.isInteger(lineaId) || lineaId <= 0) {
+      return res.status(400).json({ error: "lineaId inválido" });
+    }
+
+    const [result] = await pool.query(
+      "DELETE FROM lineas_reporte WHERE id = ?",
+      [lineaId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    return res.json({ message: "Linea eliminada" });
+  } catch (err) {
+    console.error("Error eliminando linea:", err);
+    return res.status(500).json({ error: "Error interno al eliminar linea" });
+  }
+});
+
+
+// =====================================
+//======================================
+
+
+
+
 
 module.exports = router;
