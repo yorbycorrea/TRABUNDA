@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/widgets/qr_scanner.dart';
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -47,15 +48,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
     try {
       final resp = await widget.api.get('/areas?tipo=APOYO_HORAS');
-      debugPrint('STATUS: ${resp.statusCode}');
-      debugPrint('BODY: ${resp.body}');
 
-      // ✅ Si el backend devuelve HTML, esto evita crashear con FormatException
       final body = resp.body.trimLeft();
       if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
         throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa la URL/baseUrl o que exista GET /areas?tipo=APOYO_HORAS.\n'
-          'HTTP ${resp.statusCode}',
+          'El backend devolvió HTML (no JSON). Revisa baseUrl o GET /areas?tipo=APOYO_HORAS. HTTP ${resp.statusCode}',
         );
       }
 
@@ -136,12 +133,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validación mínima
     for (final t in _trabajadores) {
-      if (t.inicio == null || t.areaId == null) {
+      if (t.trabajadorId == null || t.inicio == null || t.areaId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Completa hora inicio y área para todos.'),
+            content: Text('Escanea trabajador, selecciona hora inicio y área'),
           ),
         );
         return;
@@ -154,19 +150,20 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       for (final t in _trabajadores) {
         final horaInicio = _formatTime(t.inicio!);
         final horaFin = t.fin != null ? _formatTime(t.fin!) : null;
-        final horas = (t.fin != null) ? _calcHoras(t.inicio!, t.fin!) : 0.0;
+        final double? horas = (t.fin != null)
+            ? _calcHoras(t.inicio!, t.fin!)
+            : null;
 
-        // 👉 OJO: este endpoint debes tenerlo en backend
         final resp = await widget.api.post(
-          '/reportes/${widget.reporteId}/apoyos-horas',
+          '/reportes/${widget.reporteId}/lineas',
           {
-            'trabajador_codigo': t.codigoCtrl.text.trim(),
-            'trabajador_nombre': t.nombreCtrl.text.trim(),
+            'trabajador_id': t.trabajadorId,
             'hora_inicio': horaInicio,
             'hora_fin': horaFin,
             'horas': horas,
-            'area_id': t.areaId, // ✅ viene del backend
-            'area': t.areaNombre, // ✅ opcional, pero útil
+            'area_id': t.areaId,
+            // si tu backend no usa esto, puedes quitarlo
+            'area': t.areaNombre,
           },
         );
 
@@ -213,7 +210,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
               const SizedBox(height: 10),
               const Divider(),
 
-              // ✅ Estado de áreas
               if (_loadingAreas)
                 const Padding(
                   padding: EdgeInsets.all(12),
@@ -237,7 +233,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                   child: Text('No hay áreas disponibles para APOYO_HORAS.'),
                 ),
 
-              // ✅ Formulario SOLO si ya hay áreas
               if (!_loadingAreas &&
                   _errorAreas == null &&
                   _areas.isNotEmpty) ...[
@@ -246,11 +241,47 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     index: i,
                     model: _trabajadores[i],
                     areas: _areas,
+                    api: widget.api,
                     onPickInicio: () => _pickHora(_trabajadores[i], true),
                     onPickFin: () => _pickHora(_trabajadores[i], false),
                     onChangedArea: (a) {
-                      _trabajadores[i].areaId = a.id;
-                      _trabajadores[i].areaNombre = a.nombre;
+                      setState(() {
+                        _trabajadores[i].areaId = a.id;
+                        _trabajadores[i].areaNombre = a.nombre;
+                      });
+                    },
+                    // ✅ ESTE ES EL FIX: actualizar con setState en el padre
+                    onFillFromScan: (result) {
+                      setState(() {
+                        final idAny = result['id'];
+                        final idNum = (idAny is num)
+                            ? idAny
+                            : num.tryParse(idAny?.toString() ?? '');
+
+                        _trabajadores[i].trabajadorId = (idNum == null)
+                            ? null
+                            : idNum.toInt();
+
+                        final codigo = (result['codigo'] ?? '')
+                            .toString()
+                            .trim();
+                        final dni = (result['dni'] ?? '').toString().trim();
+                        final nombre = (result['nombre_completo'] ?? '')
+                            .toString()
+                            .trim();
+
+                        // si viene codigo úsalo; si no viene, usa dni
+                        _trabajadores[i].codigoCtrl.text = codigo.isNotEmpty
+                            ? codigo
+                            : dni;
+
+                        _trabajadores[i].nombreCtrl.text = nombre;
+
+                        debugPrint('SCAN RESULT MAP: $result');
+                        debugPrint(
+                          'SET trabajadorId=${_trabajadores[i].trabajadorId} codigo=${_trabajadores[i].codigoCtrl.text}',
+                        );
+                      });
                     },
                   ),
 
@@ -281,6 +312,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 }
 
 class _ApoyoFormModel {
+  int? trabajadorId;
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();
 
@@ -312,6 +344,8 @@ class _TrabajadorCard extends StatelessWidget {
     required this.onPickInicio,
     required this.onPickFin,
     required this.onChangedArea,
+    required this.api,
+    required this.onFillFromScan,
   });
 
   final int index;
@@ -320,6 +354,10 @@ class _TrabajadorCard extends StatelessWidget {
   final VoidCallback onPickInicio;
   final VoidCallback onPickFin;
   final void Function(_AreaItem) onChangedArea;
+  final ApiClient api;
+
+  /// callback al padre para hacer setState
+  final void Function(Map<String, dynamic> result) onFillFromScan;
 
   String _horaText(TimeOfDay? t) {
     if (t == null) return '--:--';
@@ -371,11 +409,26 @@ class _TrabajadorCard extends StatelessWidget {
             TextFormField(
               controller: model.codigoCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Código del trabajador',
-                prefixIcon: Icon(Icons.badge_outlined),
-                border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.qr_code_scanner),
+                prefixIcon: const Icon(Icons.badge_outlined),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: () async {
+                    final result = await Navigator.push<Map<String, dynamic>?>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => QrScannerPage(api: api),
+                      ),
+                    );
+
+                    if (result == null) return;
+
+                    // ✅ manda al padre para setState
+                    onFillFromScan(result);
+                  },
+                ),
               ),
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Ingresa el código' : null,
@@ -410,6 +463,7 @@ class _TrabajadorCard extends StatelessWidget {
                   )
                   .toList(),
               onChanged: (id) {
+                if (id == null) return;
                 final selected = areas.firstWhere((a) => a.id == id);
                 model.areaId = selected.id;
                 model.areaNombre = selected.nombre;

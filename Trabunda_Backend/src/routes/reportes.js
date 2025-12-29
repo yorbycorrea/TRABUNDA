@@ -582,6 +582,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       hora_fin,
       kilos,
       labores,
+      area_id,
     } = req.body;
 
     if (!trabajador_id) {
@@ -597,6 +598,32 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Reporte no encontrado" });
     const tipo = repRows[0].tipo_reporte;
 
+    let areaNombre = null;
+
+    if(tipo === "APOYOS_HORAS"){
+      if(!area_id){
+        return res.status(400).json({
+          error: "area_id es obligatorio  para APOYOS_HORAS",
+        });
+      }
+      const [aRows] = await pool.query(
+        `SELECT id, nombre
+        FROM areas
+        WHERE id= ?
+          AND es_apoyo_horas = 1
+          AND activo = 1
+        LIMIT 1`,
+        [area_id]
+      );
+
+      if(!aRows.length){
+        return res.status(400).json({
+          error: "Area no validad para APOYO_HORAS ",
+        });
+      }
+      areaNombre = aRows[0].nombre;
+    }
+
     // 2) validar trabajador activo
     const [tRows] = await pool.query(
       "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
@@ -609,7 +636,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     // 3) validaciones por tipo
     const requeridos = {
       SANEAMIENTO: ["hora_inicio", "hora_fin", "labores"],
-      APOYO_HORAS: ["hora_inicio", "hora_fin", "horas"],
+      APOYO_HORAS: ["hora_inicio"],
       TRABAJO_AVANCE: ["kilos"],
       CONTEO_RAPIDO: [], // tu BD no soporta conteo aquí (decidir luego)
     };
@@ -640,20 +667,43 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       }
     }
 
+    let horasValue = horas ?? null;
+let horaFinValue = hora_fin ?? null;
+
+// ✅ si mandan hora_fin, entonces calcula horas si no viene
+if (tipo === "APOYO_HORAS") {
+  if (horaFinValue && (horasValue === null || horasValue === undefined)) {
+    // calcula horas desde hora_inicio y hora_fin (formato HH:MM o HH:MM:SS)
+    const toMin = (s) => {
+      const [h, m] = String(s).split(":");
+      return Number(h) * 60 + Number(m);
+    };
+    const diff = toMin(horaFinValue) - toMin(hora_inicio);
+    horasValue = diff > 0 ? diff / 60 : 0;
+  }
+
+  // ✅ si NO hay hora_fin, horas debe ir null (queda incompleto)
+  if (!horaFinValue) {
+    horasValue = null;
+  }
+}
+
     // 5) insertar linea
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
-       (reporte_id, trabajador_id, cuadrilla_id, trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre, trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
         trabajador.id,
         cuadrilla_id ?? null,
+        area_id ??  null,
+        areaNombre,
         trabajador.codigo,
         trabajador.nombre_completo,
-        horas ?? null,
+        horasValue,
         hora_inicio ?? null,
-        hora_fin ?? null,
+        horaFinValue,
         kilos ?? null,
         labores ?? null,
       ]

@@ -1,8 +1,81 @@
 // src/routes/trabajadores.js
+console.log("trabajadores,js cargado desde", __filename)
 const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
+const { authMiddleware } = require("../middlewares/auth");
 
+
+
+// =======================================
+// GET/trabajadores/lookup?q=...
+// =======================================
+
+router.get("/lookup",  authMiddleware, async(req, res) => {
+  try {
+    const qRaw = String(req.query.q ?? "").trim();
+    if(!qRaw) return res.status(400).json({error: "q es requerido"});
+        // quita espacios y saltos de linea
+    const q = qRaw.replace(/\s+/g, "");
+
+    const isNumeric = /^\d+$/.test(q);
+
+    
+
+    let sql = `
+      SELECT id, codigo, dni, nombre_completo
+      FROM trabajadores 
+      WHERE activo = 1
+        AND(
+        codigo = ?
+        OR dni = ?
+        OR nombre_completo LIKE?
+        )
+      LIMIT 1
+    
+    `;
+    const params = [
+      q,
+      q,
+      `%${qRaw}%`,
+    ];
+
+  const [who] = await pool.query(`
+  SELECT
+    DATABASE() AS db,
+    @@hostname AS host,
+    USER() AS user
+`);
+  console.log("DB ACTUAL:", who[0]);
+
+    console.log("LOOKUP qRaw", qRaw);
+    console.log("LOOKUP q:", q);
+    console.log("BD CONFIG;", {
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+    })
+
+    const [rows] = await pool.query(sql, params);
+
+    if (!rows.length) {
+      return res.status(404).json({error: "Trabajador no encontrado"});
+    }
+
+    const t = rows[0];
+    return res.json({
+      id: t.id,
+      codigo: t.codigo,
+      dni: t.dni,
+      nombre_completo: t.nombre_completo,
+    });
+
+
+  }catch (err) {
+    console.error("lookup trabajador error: ", err);
+    return res.status(500).json({error: "Error interno de lookup"});
+  }
+});
 // ===========================================
 // GET /trabajadores  → listar todos
 // ===========================================
@@ -222,6 +295,8 @@ router.patch("/:id/activar", async (req, res) => {
       return res.status(404).json({ error: "Trabajador no encontrado" });
     }
 
+    
+
     await pool.query("UPDATE trabajadores SET activo = 1 WHERE id = ?", [id]),
       res.json({ message: "Trabajador activo correctamente " });
   } catch (err) {
@@ -230,28 +305,8 @@ router.patch("/:id/activar", async (req, res) => {
   }
 });
 
-// =======================================
-// GET/trabajadores/lookup?codigo=12345
-// =======================================
 
-router.get("/lookup", authMiddleware, async(req, res) => {
-  try {
-    const {codigo} = req.query;
-    if(!codigo) return res.status(400).json({error: "codigo es requerido"});
 
-    const [rows] = await pool.query(
-      "SELECT id, codigo, dni, nompre_completo, sexo FROM trabajadores WHERE(codigo = ? OR dni = ?) AND activo = 1 LIMIT 1",
-      [codigo, codigo]
-    );
-
-    if (rows.length === 0) return res.status(404).json({error: "No encontrado"});
-
-    return res.json(rows[0]);
-  }catch (e){
-    console.error("lookup trabajador: ", e);
-    return res.status(500).json({error: "Error interno"});
-  }
-})
 
 // exportar SOLO el router
 module.exports = router;
