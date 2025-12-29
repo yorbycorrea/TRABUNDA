@@ -139,18 +139,20 @@ router.post("/", authMiddleware, async (req, res) => {
   try {
     const { fecha, turno, tipo_reporte, area_id, observaciones } = req.body;
 
-    //  user real viene del token
     const creado_por_user_id = req.user.id;
 
-    // 1) Validar campos obligatorios
-    if (!fecha || !turno || !tipo_reporte || !area_id) {
+    // 1) Validar campos obligatorios (para TODOS)
+    if (!fecha || !turno || !tipo_reporte) {
       return res.status(400).json({
-        error:
-          "Faltan campos obligatorios: fecha, turno, tipo_reporte, area_id",
+        error: "Faltan campos obligatorios: fecha, turno, tipo_reporte",
       });
     }
 
-    if (!esTurnoValido(turno)) {
+    // ✅ Normalizar turno (tu app manda "Dia", tu BD puede tener "Día")
+    const turnoNormalizado =
+      turno === "Dia" ? "Día" : turno === "DIA" ? "Día" : turno;
+
+    if (!esTurnoValido(turnoNormalizado)) {
       return res.status(400).json({ error: "turno no válido" });
     }
 
@@ -170,28 +172,51 @@ router.post("/", authMiddleware, async (req, res) => {
 
     const creado_por_nombre = urows[0].nombre || urows[0].username;
 
-    // 3) Validar que el área exista y sea compatible con ese tipo de reporte
-    const flag = flagParaTipoReporte(tipo_reporte);
-    if (!flag) {
-      return res.status(400).json({
-        error: "No se pudo determinar el módulo para ese tipo_reporte",
-      });
+    // ✅ 3) Reglas por tipo:
+    // - APOYO_HORAS: NO requiere area_id en cabecera (área será por trabajador en lineas_reporte)
+    // - Los demás: SÍ requieren area_id
+    const requiereAreaCabecera = tipo_reporte !== "APOYO_HORAS";
+
+    let areaNombre = null;
+    let areaIdFinal = null;
+
+    if (requiereAreaCabecera) {
+      if (!area_id) {
+        return res.status(400).json({
+          error:
+            "Para este tipo_reporte se requiere area_id (en APOYO_HORAS el área va por trabajador).",
+        });
+      }
+
+      // Validar que el área exista y sea compatible con ese tipo de reporte
+      const flag = flagParaTipoReporte(tipo_reporte);
+      if (!flag) {
+        return res.status(400).json({
+          error: "No se pudo determinar el módulo para ese tipo_reporte",
+        });
+      }
+
+      const [areas] = await pool.query(
+        `SELECT id, nombre
+         FROM areas
+         WHERE id = ? AND ${flag} = 1 AND activo = 1`,
+        [area_id]
+      );
+
+      if (areas.length === 0) {
+        return res.status(400).json({
+          error: "El área seleccionada no es válida para este tipo de reporte",
+        });
+      }
+
+      areaNombre = areas[0].nombre;
+      areaIdFinal = areas[0].id;
+    } else {
+      // ✅ APOYO_HORAS: como tu columna reportes.area es NOT NULL,
+      // guardamos un texto fijo indicando que el área se define por línea.
+      areaNombre = "POR_TRABAJADOR";
+      areaIdFinal = null;
     }
-
-    const [areas] = await pool.query(
-      `SELECT id, nombre
-       FROM areas
-       WHERE id = ? AND ${flag} = 1 AND activo = 1`,
-      [area_id]
-    );
-
-    if (areas.length === 0) {
-      return res.status(400).json({
-        error: "El área seleccionada no es válida para este tipo de reporte",
-      });
-    }
-
-    const area = areas[0];
 
     // 4) Insertar en reportes
     const [result] = await pool.query(
@@ -200,25 +225,25 @@ router.post("/", authMiddleware, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         fecha,
-        turno,
+        turnoNormalizado,
         tipo_reporte,
-        area.nombre,
-        area_id,
+        areaNombre,
+        areaIdFinal,
         creado_por_user_id,
         creado_por_nombre,
         observaciones || null,
       ]
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Reporte creado correctamente",
       reporte_id: result.insertId,
-      area_nombre: area.nombre,
+      area_nombre: areaNombre,
       creado_por: { id: creado_por_user_id, nombre: creado_por_nombre },
     });
   } catch (err) {
     console.error("Error al crear reporte:", err);
-    res.status(500).json({ error: "Error interno al crear el reporte" });
+    return res.status(500).json({ error: "Error interno al crear el reporte" });
   }
 });
 

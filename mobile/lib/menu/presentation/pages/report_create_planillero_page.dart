@@ -45,66 +45,89 @@ class _ReportCreatePlanilleroPageState
   }
 
   Future<int> _ensureReporteCreado({required String tipo}) async {
-    if (_reporteIdBackend != null) return _reporteIdBackend!;
+    // Si ya existe, no lo vuelve a crear
+    if (_reporteIdBackend != null) {
+      return _reporteIdBackend!;
+    }
 
     final auth = AuthControllerScope.read(context);
-    if (!auth.isAuthenticated) throw Exception('No autenticado');
+    if (!auth.isAuthenticated) {
+      throw Exception('No autenticado');
+    }
 
-    final plan = _planilleroCtrl.text.trim();
-    if (plan.isEmpty) throw Exception('Planillero vacío');
+    final planillero = _planilleroCtrl.text.trim();
+    if (planillero.isEmpty) {
+      throw Exception('Planillero vacío');
+    }
 
     final fechaStr = _fecha.toLocal().toString().split(' ').first;
 
     setState(() => _creandoReporte = true);
+
     try {
       final resp = await widget.api.post('/reportes', {
         'fecha': fechaStr,
-        'turno': _turno,
+        'turno': _turno, // Debe coincidir EXACTO con enum de BD
         'tipo_reporte': tipo,
-        // 👇 Para APOYO_HORAS lo mandamos null (para no pedir área en esta pantalla)
+        // 👇 IMPORTANTE:
+        // Para APOYO_HORAS NO enviamos área aquí
         'area_id': null,
         'observaciones': null,
       });
 
-      // 👇 DEBUG (para ver cuando devuelve HTML)
       debugPrint('POST /reportes status=${resp.statusCode}');
       debugPrint('POST /reportes body=${resp.body}');
 
-      final dynamic decoded = jsonDecode(resp.body);
+      final decoded = jsonDecode(resp.body);
+
       if (resp.statusCode != 201 && resp.statusCode != 200) {
         final msg = (decoded is Map && decoded['error'] != null)
             ? decoded['error'].toString()
-            : 'Error creando reporte (HTTP ${resp.statusCode})';
+            : 'Error creando reporte';
         throw Exception(msg);
       }
 
-      final data = decoded as Map<String, dynamic>;
-      final id = (data['reporte_id'] as num).toInt();
-
-      setState(() => _reporteIdBackend = id);
+      final id = (decoded['reporte_id'] as num).toInt();
+      _reporteIdBackend = id;
       return id;
     } finally {
-      if (mounted) setState(() => _creandoReporte = false);
+      if (mounted) {
+        setState(() => _creandoReporte = false);
+      }
     }
   }
 
   Future<void> _goToModulo(String tipo) async {
     setState(() => _tipoReporte = tipo);
 
+    final auth = AuthControllerScope.read(context);
+    if (!auth.isAuthenticated) {
+      _toast('No autenticado');
+      return;
+    }
+
+    final plan = _planilleroCtrl.text.trim();
+    if (plan.isEmpty) {
+      _toast('Planillero vacío');
+      return;
+    }
     try {
+      if (!mounted) return;
+
       if (tipo == 'APOYO_HORAS') {
-        final reporteId = await _ensureReporteCreado(tipo: tipo);
+        final reporteId = await _ensureReporteCreado(tipo: 'APOYO_HORAS'); // ✅
 
         if (!mounted) return;
+
         await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ApoyosHorasBackendPage(
               api: widget.api,
-              reporteId: reporteId,
+              reporteId: reporteId, // ✅ ahora sí existe
               fecha: _fecha,
               turno: _turno,
-              planillero: _planilleroCtrl.text.trim(),
+              planillero: plan,
             ),
           ),
         );
