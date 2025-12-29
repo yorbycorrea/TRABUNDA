@@ -1,0 +1,39 @@
+{
+	"backtrace" : 0,
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : 
+		[
+			"flutter/ephemeral/.plugin_symlinks/sqlite3_flutter_libs/windows/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			}
+		]
+	},
+	"dependencies" : 
+	[
+		{
+			"id" : "sqlite3_flutter_libs_plugin::@4bedf820cada57b6209e"
+		},
+		{
+			"id" : "sqlite3::@4bedf820cada57b6209e"
+		},
+		{
+			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
+		}
+	],
+	"id" : "ALL_BUILD::@4bedf820cada57b6209e",
+	"isGeneratorProvided" : true,
+	"name" : "ALL_BUILD",
+	"paths" : 
+	{
+		"build" : "plugins/sqlite3_flutter_libs",
+		"source" : "flutter/ephemeral/.plugin_symlinks/sqlite3_flutter_libs/windows"
+	},
+	"sources" : [],
+	"type" : "UTILITY"
+}

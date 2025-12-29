@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8cfddb4ec75b52cfbe2418a4da223471\sqlite3-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\8e0e01bfe92e45047356030ff20f2d42\sqlite3-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\ec5c74cf736111ebece3f0fd1cad9172\sqlite3-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\_deps\sqlite3-subbuild\CMakeFiles\sqlite3-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{C3C5D57A-82D8-3488-BE0E-F6C233AC615D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

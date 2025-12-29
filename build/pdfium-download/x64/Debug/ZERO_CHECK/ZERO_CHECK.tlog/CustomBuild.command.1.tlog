@@ -1,0 +1,10 @@
+^C:\USERS\YORBY\ONEDRIVE\DESKTOP\TRABUNDA\BUILD\PDFIUM-DOWNLOAD\CMAKEFILES\76B86569304F804120DA48F6547D27B8\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download -BC:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/pdfium-download.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

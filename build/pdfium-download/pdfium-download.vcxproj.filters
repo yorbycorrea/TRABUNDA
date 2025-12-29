@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\93874b0c33a36d117b285a6f23fc7c3a\pdfium-download-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\0d3534714d4028dfe03f4d71427f587f\pdfium-download-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\76b86569304f804120da48f6547d27b8\pdfium-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\yorby\OneDrive\Desktop\TRABUNDA\build\pdfium-download\CMakeFiles\pdfium-download" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{7991A4F9-8477-3B72-ADAB-EE19DDCC5C4F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

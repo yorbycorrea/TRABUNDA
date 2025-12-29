@@ -1,0 +1,8 @@
+# CMake generation dependency list for this directory.
+C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeParseArguments.cmake
+C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageMessage.cmake
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-src/PDFiumConfig.cmake
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/mobile/windows/flutter/ephemeral/.plugin_symlinks/printing/windows/CMakeLists.txt
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/mobile/windows/flutter/ephemeral/.plugin_symlinks/printing/windows/DownloadProject.CMakeLists.cmake.in
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/mobile/windows/flutter/ephemeral/.plugin_symlinks/printing/windows/DownloadProject.cmake

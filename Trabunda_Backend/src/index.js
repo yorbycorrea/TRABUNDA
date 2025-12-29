@@ -2,41 +2,39 @@ const express = require("express");
 require("dotenv").config();
 const { pool } = require("./db");
 
-// constantes de rutas
+// 1. IMPORTAR RUTAS
 const trabajadoresRoutes = require("./routes/trabajadores");
 const reportesRoutes = require("./routes/reportes");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
-<<<<<<< HEAD
-//const userRoutes = require("./routes/user");
-=======
-//const usersRoutes = require("./routes/users");
->>>>>>> 7d490b9e12fe004f4cdf22498df84da42d555bdb
+
+// 2. INICIALIZAR APP (Esto debe ir ANTES de cualquier app.use)
 const app = express();
-const PORT = process.env.PORT || 3000;
-const { errorHandler } = require("./middlewares/errorHandler");
 
-app.use(express.json()); // para leer JSON en requests
+// 3. MIDDLEWARES DE CONFIGURACIÓN
+app.use(express.json());
 
-// Endpoint simple para ver que el backend está vivo
+// 4. LOG DE PETICIONES (Muévelo aquí abajo)
+app.use((req, res, next) => {
+  console.log(`Petición recibida: ${req.method} ${req.url}`);
+  next();
+});
+
+// 5. DEFINIR RUTAS
 app.get("/health", (req, res) => {
   res.json({ ok: true, message: "TRABUNDA backend online ✅" });
 });
 
-//rutas
 app.use("/trabajadores", trabajadoresRoutes);
 app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);
-app.use("/auth", authRoutes);
-<<<<<<< HEAD
-//app.use("/user", userRoutes);
-app.use(errorHandler)
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor TRABUNDA escuchando en http://172.16.1.207:${PORT}`);
-=======
-//app.use("/users", usersRoutes);
+app.use("/auth", authRoutes); // <--- Esta es la que busca Flutter
+
+// 6. MANEJO DE ERRORES Y PUERTO
+const PORT = process.env.PORT || 3000;
+const { errorHandler } = require("./middlewares/errorHandler");
 app.use(errorHandler);
-app.listen(PORT, () => {
-  console.log(`Servidor TRABUNDA escuchando en http://localhost:${PORT}`);
->>>>>>> 7d490b9e12fe004f4cdf22498df84da42d555bdb
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servidor TRABUNDA escuchando en http://192.168.60.100:${PORT}`);
 });

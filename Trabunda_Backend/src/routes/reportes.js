@@ -448,10 +448,6 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (activo !== undefined) {
-<<<<<<< HEAD
-      where.push("r.activo = ?");
-      params.push(activo === "1" || activo === 1 ? 1 : 0);
-=======
       const activoNumber = Number(activo);
       if (Number.isNaN(activoNumber)) {
         return res
@@ -461,7 +457,6 @@ router.get("/", authMiddleware, async (req, res) => {
       const activoValue = activoNumber === 1 ? 1 : 0;
       where.push("r.activo = ?");
       params.push(activoValue);
->>>>>>> 7d490b9e12fe004f4cdf22498df84da42d555bdb
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -544,7 +539,6 @@ router.patch("/:id/activar", authMiddleware, async (req, res) => {
   }
 });
 
-
 // ========================================
 // POST /reportes/:id/lineas
 // ========================================
@@ -555,7 +549,15 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "id de reporte inválido" });
     }
 
-    const { trabajador_id, cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } = req.body;
+    const {
+      trabajador_id,
+      cuadrilla_id,
+      horas,
+      hora_inicio,
+      hora_fin,
+      kilos,
+      labores,
+    } = req.body;
 
     if (!trabajador_id) {
       return res.status(400).json({ error: "trabajador_id es obligatorio" });
@@ -566,7 +568,8 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       "SELECT id, tipo_reporte FROM reportes WHERE id = ?",
       [reporteId]
     );
-    if (repRows.length === 0) return res.status(404).json({ error: "Reporte no encontrado" });
+    if (repRows.length === 0)
+      return res.status(404).json({ error: "Reporte no encontrado" });
     const tipo = repRows[0].tipo_reporte;
 
     // 2) validar trabajador activo
@@ -574,7 +577,8 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
       [trabajador_id]
     );
-    if (tRows.length === 0) return res.status(400).json({ error: "Trabajador no válido o inactivo" });
+    if (tRows.length === 0)
+      return res.status(400).json({ error: "Trabajador no válido o inactivo" });
     const trabajador = tRows[0];
 
     // 3) validaciones por tipo
@@ -585,12 +589,17 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       CONTEO_RAPIDO: [], // tu BD no soporta conteo aquí (decidir luego)
     };
     const campos = requeridos[tipo];
-    if (!campos) return res.status(400).json({ error: "tipo_reporte no soportado" });
+    if (!campos)
+      return res.status(400).json({ error: "tipo_reporte no soportado" });
 
     const map = { horas, hora_inicio, hora_fin, kilos, labores };
-    const faltan = campos.filter((k) => map[k] === undefined || map[k] === null || map[k] === "");
+    const faltan = campos.filter(
+      (k) => map[k] === undefined || map[k] === null || map[k] === ""
+    );
     if (faltan.length) {
-      return res.status(400).json({ error: `Para ${tipo} se requieren: ${campos.join(", ")}` });
+      return res
+        .status(400)
+        .json({ error: `Para ${tipo} se requieren: ${campos.join(", ")}` });
     }
 
     // 4) validar cuadrilla si mandan cuadrilla_id
@@ -600,7 +609,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         [cuadrilla_id, reporteId]
       );
       if (cRows.length === 0) {
-        return res.status(400).json({ error: "cuadrilla_id no válida para este reporte" });
+        return res
+          .status(400)
+          .json({ error: "cuadrilla_id no válida para este reporte" });
       }
     }
 
@@ -623,13 +634,14 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       ]
     );
 
-    return res.status(201).json({ message: "Linea creada", linea_id: result.insertId });
+    return res
+      .status(201)
+      .json({ message: "Linea creada", linea_id: result.insertId });
   } catch (err) {
     console.error("Error creando linea:", err);
     return res.status(500).json({ error: "Error interno al crear linea" });
   }
 });
-
 
 // =======================================
 // GET /reportes/:id/detalles
@@ -679,17 +691,36 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "lineaId inválido" });
     }
 
-    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } = req.body;
+    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } =
+      req.body;
 
     const updates = [];
     const params = [];
 
-    if (cuadrilla_id !== undefined) { updates.push("cuadrilla_id = ?"); params.push(cuadrilla_id ?? null); }
-    if (horas !== undefined)       { updates.push("horas = ?"); params.push(horas ?? null); }
-    if (hora_inicio !== undefined) { updates.push("hora_inicio = ?"); params.push(hora_inicio ?? null); }
-    if (hora_fin !== undefined)    { updates.push("hora_fin = ?"); params.push(hora_fin ?? null); }
-    if (kilos !== undefined)       { updates.push("kilos = ?"); params.push(kilos ?? null); }
-    if (labores !== undefined)     { updates.push("labores = ?"); params.push(labores ?? null); }
+    if (cuadrilla_id !== undefined) {
+      updates.push("cuadrilla_id = ?");
+      params.push(cuadrilla_id ?? null);
+    }
+    if (horas !== undefined) {
+      updates.push("horas = ?");
+      params.push(horas ?? null);
+    }
+    if (hora_inicio !== undefined) {
+      updates.push("hora_inicio = ?");
+      params.push(hora_inicio ?? null);
+    }
+    if (hora_fin !== undefined) {
+      updates.push("hora_fin = ?");
+      params.push(hora_fin ?? null);
+    }
+    if (kilos !== undefined) {
+      updates.push("kilos = ?");
+      params.push(kilos ?? null);
+    }
+    if (labores !== undefined) {
+      updates.push("labores = ?");
+      params.push(labores ?? null);
+    }
 
     if (!updates.length) {
       return res.status(400).json({ error: "No hay campos para actualizar" });
@@ -740,12 +771,7 @@ router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
   }
 });
 
-
 // =====================================
 //======================================
-
-
-
-
 
 module.exports = router;

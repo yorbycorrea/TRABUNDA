@@ -1,0 +1,63 @@
+{
+	"backtrace" : 0,
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			}
+		]
+	},
+	"dependencies" : 
+	[
+		{
+			"id" : "flutter_wrapper_plugin::@2bb09fbb03a373b2cb34"
+		},
+		{
+			"id" : "connectivity_plus_plugin::@6eaccbd1f84c59b7458d"
+		},
+		{
+			"id" : "flutter_wrapper_app::@2bb09fbb03a373b2cb34"
+		},
+		{
+			"id" : "mobile::@056c4f61b0156d1d9b06"
+		},
+		{
+			"id" : "flutter_secure_storage_windows_plugin::@ef50a4a009d72e8219ec"
+		},
+		{
+			"id" : "printing_plugin::@3f1d3ea8e3fd99684a01"
+		},
+		{
+			"id" : "share_plus_plugin::@1b881e75852d57e06a99"
+		},
+		{
+			"id" : "sqlite3_flutter_libs_plugin::@4bedf820cada57b6209e"
+		},
+		{
+			"id" : "sqlite3::@4bedf820cada57b6209e"
+		},
+		{
+			"id" : "url_launcher_windows_plugin::@82e8e937a0da8e6132e4"
+		},
+		{
+			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
+		}
+	],
+	"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+	"isGeneratorProvided" : true,
+	"name" : "ALL_BUILD",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sources" : [],
+	"type" : "UTILITY"
+}

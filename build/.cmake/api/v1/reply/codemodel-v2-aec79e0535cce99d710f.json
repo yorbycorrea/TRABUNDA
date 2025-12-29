@@ -1,0 +1,1270 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8
+					],
+					"hasInstallRule" : true,
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						8
+					]
+				},
+				{
+					"build" : "flutter",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "flutter",
+					"targetIndexes" : 
+					[
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"build" : "runner",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "runner",
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"build" : "plugins/connectivity_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "flutter/ephemeral/.plugin_symlinks/connectivity_plus/windows",
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"build" : "plugins/flutter_secure_storage_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 3,
+					"source" : "flutter/ephemeral/.plugin_symlinks/flutter_secure_storage_windows/windows",
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"build" : "plugins/printing",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "flutter/ephemeral/.plugin_symlinks/printing/windows",
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"build" : "plugins/share_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 5,
+					"source" : "flutter/ephemeral/.plugin_symlinks/share_plus/windows",
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"build" : "plugins/sqlite3_flutter_libs",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 6,
+					"source" : "flutter/ephemeral/.plugin_symlinks/sqlite3_flutter_libs/windows",
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"build" : "plugins/url_launcher_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 7,
+					"source" : "flutter/ephemeral/.plugin_symlinks/url_launcher_windows/windows",
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7
+					],
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "mobile",
+					"targetIndexes" : 
+					[
+						0,
+						8,
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "runner",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "connectivity_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "flutter_secure_storage_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						5
+					],
+					"name" : "printing",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						6
+					],
+					"name" : "share_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						7
+					],
+					"name" : "sqlite3_flutter_libs",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						8
+					],
+					"name" : "url_launcher_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Debug-ff237810edc5c72fc21d.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-ALL_BUILD-Debug-b866f293de8eb8347894.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-ALL_BUILD-Debug-b7613b6b53e74327db5e.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-ALL_BUILD-Debug-fc83ab42e4a1103b39b5.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "ALL_BUILD::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-ALL_BUILD-Debug-21e88a37543c9fdd250c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "ALL_BUILD::@1b881e75852d57e06a99",
+					"jsonFile" : "target-ALL_BUILD-Debug-11a1b6cc5c7065ef63dc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "ALL_BUILD::@4bedf820cada57b6209e",
+					"jsonFile" : "target-ALL_BUILD-Debug-f48210b57e93be00653a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "ALL_BUILD::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-ALL_BUILD-Debug-7abf8e45cdc79170a240.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 7
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Debug-00cc2a6c2adb7a4f3099.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "connectivity_plus_plugin::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-connectivity_plus_plugin-Debug-d473504abe630ac971e9.json",
+					"name" : "connectivity_plus_plugin",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_assemble::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_assemble-Debug-ddcfe102e92c29768d9e.json",
+					"name" : "flutter_assemble",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "flutter_secure_storage_windows_plugin::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-flutter_secure_storage_windows_plugin-Debug-075d0d03ff5ea4eb25d1.json",
+					"name" : "flutter_secure_storage_windows_plugin",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_app::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_app-Debug-9593331cfd00e37e1736.json",
+					"name" : "flutter_wrapper_app",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_plugin::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_plugin-Debug-9d3bfc4d1adda7d3c1e0.json",
+					"name" : "flutter_wrapper_plugin",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "mobile::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-mobile-Debug-03ae9dfc22b57c972dc2.json",
+					"name" : "mobile",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "printing_plugin::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-printing_plugin-Debug-37f023c8769868419cee.json",
+					"name" : "printing_plugin",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "share_plus_plugin::@1b881e75852d57e06a99",
+					"jsonFile" : "target-share_plus_plugin-Debug-9e26faa1bb62b5356ec4.json",
+					"name" : "share_plus_plugin",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3-Debug-cf360a2be5ed9d7603ad.json",
+					"name" : "sqlite3",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3_flutter_libs_plugin::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3_flutter_libs_plugin-Debug-236f2475e6400a832734.json",
+					"name" : "sqlite3_flutter_libs_plugin",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "url_launcher_windows_plugin::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-url_launcher_windows_plugin-Debug-3e777e9030ff45a4c481.json",
+					"name" : "url_launcher_windows_plugin",
+					"projectIndex" : 7
+				}
+			]
+		},
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8
+					],
+					"hasInstallRule" : true,
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						8
+					]
+				},
+				{
+					"build" : "flutter",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "flutter",
+					"targetIndexes" : 
+					[
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"build" : "runner",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "runner",
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"build" : "plugins/connectivity_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "flutter/ephemeral/.plugin_symlinks/connectivity_plus/windows",
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"build" : "plugins/flutter_secure_storage_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 3,
+					"source" : "flutter/ephemeral/.plugin_symlinks/flutter_secure_storage_windows/windows",
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"build" : "plugins/printing",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "flutter/ephemeral/.plugin_symlinks/printing/windows",
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"build" : "plugins/share_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 5,
+					"source" : "flutter/ephemeral/.plugin_symlinks/share_plus/windows",
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"build" : "plugins/sqlite3_flutter_libs",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 6,
+					"source" : "flutter/ephemeral/.plugin_symlinks/sqlite3_flutter_libs/windows",
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"build" : "plugins/url_launcher_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 7,
+					"source" : "flutter/ephemeral/.plugin_symlinks/url_launcher_windows/windows",
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"name" : "Profile",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7
+					],
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "mobile",
+					"targetIndexes" : 
+					[
+						0,
+						8,
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "runner",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "connectivity_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "flutter_secure_storage_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						5
+					],
+					"name" : "printing",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						6
+					],
+					"name" : "share_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						7
+					],
+					"name" : "sqlite3_flutter_libs",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						8
+					],
+					"name" : "url_launcher_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Profile-ff237810edc5c72fc21d.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-ALL_BUILD-Profile-b866f293de8eb8347894.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-ALL_BUILD-Profile-b7613b6b53e74327db5e.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-ALL_BUILD-Profile-fc83ab42e4a1103b39b5.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "ALL_BUILD::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-ALL_BUILD-Profile-21e88a37543c9fdd250c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "ALL_BUILD::@1b881e75852d57e06a99",
+					"jsonFile" : "target-ALL_BUILD-Profile-11a1b6cc5c7065ef63dc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "ALL_BUILD::@4bedf820cada57b6209e",
+					"jsonFile" : "target-ALL_BUILD-Profile-f48210b57e93be00653a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "ALL_BUILD::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-ALL_BUILD-Profile-7abf8e45cdc79170a240.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 7
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Profile-00cc2a6c2adb7a4f3099.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "connectivity_plus_plugin::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-connectivity_plus_plugin-Profile-cd689b63ef84a5bcd1db.json",
+					"name" : "connectivity_plus_plugin",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_assemble::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_assemble-Profile-ddcfe102e92c29768d9e.json",
+					"name" : "flutter_assemble",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "flutter_secure_storage_windows_plugin::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-flutter_secure_storage_windows_plugin-Profile-eb2ea79e8b56eeae0ca2.json",
+					"name" : "flutter_secure_storage_windows_plugin",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_app::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_app-Profile-41d17aad3382a87a8d14.json",
+					"name" : "flutter_wrapper_app",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_plugin::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_plugin-Profile-8b959a620c1e7afb1889.json",
+					"name" : "flutter_wrapper_plugin",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "mobile::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-mobile-Profile-b29cf7d30d018cbcf7e0.json",
+					"name" : "mobile",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "printing_plugin::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-printing_plugin-Profile-ec942df647470dc5e19c.json",
+					"name" : "printing_plugin",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "share_plus_plugin::@1b881e75852d57e06a99",
+					"jsonFile" : "target-share_plus_plugin-Profile-3033faee481592eead63.json",
+					"name" : "share_plus_plugin",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3-Profile-6a6e2d17eb3d6062e721.json",
+					"name" : "sqlite3",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3_flutter_libs_plugin::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3_flutter_libs_plugin-Profile-ea8dd96a101a873bd31c.json",
+					"name" : "sqlite3_flutter_libs_plugin",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "url_launcher_windows_plugin::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-url_launcher_windows_plugin-Profile-b4c3f9b2e15ed8db006d.json",
+					"name" : "url_launcher_windows_plugin",
+					"projectIndex" : 7
+				}
+			]
+		},
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8
+					],
+					"hasInstallRule" : true,
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						8
+					]
+				},
+				{
+					"build" : "flutter",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "flutter",
+					"targetIndexes" : 
+					[
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"build" : "runner",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "runner",
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"build" : "plugins/connectivity_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "flutter/ephemeral/.plugin_symlinks/connectivity_plus/windows",
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"build" : "plugins/flutter_secure_storage_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 3,
+					"source" : "flutter/ephemeral/.plugin_symlinks/flutter_secure_storage_windows/windows",
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"build" : "plugins/printing",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "flutter/ephemeral/.plugin_symlinks/printing/windows",
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"build" : "plugins/share_plus",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 5,
+					"source" : "flutter/ephemeral/.plugin_symlinks/share_plus/windows",
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"build" : "plugins/sqlite3_flutter_libs",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.14"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 6,
+					"source" : "flutter/ephemeral/.plugin_symlinks/sqlite3_flutter_libs/windows",
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"build" : "plugins/url_launcher_windows",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 7,
+					"source" : "flutter/ephemeral/.plugin_symlinks/url_launcher_windows/windows",
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7
+					],
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "mobile",
+					"targetIndexes" : 
+					[
+						0,
+						8,
+						10,
+						12,
+						13
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "runner",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1,
+						14
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "connectivity_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						2,
+						9
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "flutter_secure_storage_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						3,
+						11
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						5
+					],
+					"name" : "printing",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4,
+						15
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						6
+					],
+					"name" : "share_plus",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						5,
+						16
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						7
+					],
+					"name" : "sqlite3_flutter_libs",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						6,
+						17,
+						18
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						8
+					],
+					"name" : "url_launcher_windows",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						7,
+						19
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Release-ff237810edc5c72fc21d.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-ALL_BUILD-Release-b866f293de8eb8347894.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-ALL_BUILD-Release-b7613b6b53e74327db5e.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-ALL_BUILD-Release-fc83ab42e4a1103b39b5.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "ALL_BUILD::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-ALL_BUILD-Release-21e88a37543c9fdd250c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "ALL_BUILD::@1b881e75852d57e06a99",
+					"jsonFile" : "target-ALL_BUILD-Release-11a1b6cc5c7065ef63dc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "ALL_BUILD::@4bedf820cada57b6209e",
+					"jsonFile" : "target-ALL_BUILD-Release-f48210b57e93be00653a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "ALL_BUILD::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-ALL_BUILD-Release-7abf8e45cdc79170a240.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 7
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Release-00cc2a6c2adb7a4f3099.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "connectivity_plus_plugin::@6eaccbd1f84c59b7458d",
+					"jsonFile" : "target-connectivity_plus_plugin-Release-5461b813e40f278d3be8.json",
+					"name" : "connectivity_plus_plugin",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_assemble::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_assemble-Release-ddcfe102e92c29768d9e.json",
+					"name" : "flutter_assemble",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "flutter_secure_storage_windows_plugin::@ef50a4a009d72e8219ec",
+					"jsonFile" : "target-flutter_secure_storage_windows_plugin-Release-f60c85d501c0fa9ca082.json",
+					"name" : "flutter_secure_storage_windows_plugin",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_app::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_app-Release-3c887a90308644cf8587.json",
+					"name" : "flutter_wrapper_app",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "flutter_wrapper_plugin::@2bb09fbb03a373b2cb34",
+					"jsonFile" : "target-flutter_wrapper_plugin-Release-fac5ed6e6acb44cdaae1.json",
+					"name" : "flutter_wrapper_plugin",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "mobile::@056c4f61b0156d1d9b06",
+					"jsonFile" : "target-mobile-Release-b78adcd447c14f3d709a.json",
+					"name" : "mobile",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "printing_plugin::@3f1d3ea8e3fd99684a01",
+					"jsonFile" : "target-printing_plugin-Release-8295bf15471c06b47b25.json",
+					"name" : "printing_plugin",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 6,
+					"id" : "share_plus_plugin::@1b881e75852d57e06a99",
+					"jsonFile" : "target-share_plus_plugin-Release-9c29ec30f1d465dff0dc.json",
+					"name" : "share_plus_plugin",
+					"projectIndex" : 5
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3-Release-072f83393f24f77550bc.json",
+					"name" : "sqlite3",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "sqlite3_flutter_libs_plugin::@4bedf820cada57b6209e",
+					"jsonFile" : "target-sqlite3_flutter_libs_plugin-Release-d46efbad8ebcf308cebb.json",
+					"name" : "sqlite3_flutter_libs_plugin",
+					"projectIndex" : 6
+				},
+				{
+					"directoryIndex" : 8,
+					"id" : "url_launcher_windows_plugin::@82e8e937a0da8e6132e4",
+					"jsonFile" : "target-url_launcher_windows_plugin-Release-751480daf71b51784bf2.json",
+					"name" : "url_launcher_windows_plugin",
+					"projectIndex" : 7
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build",
+		"source" : "C:/Users/yorby/OneDrive/Desktop/TRABUNDA/mobile/windows"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 2
+	}
+}

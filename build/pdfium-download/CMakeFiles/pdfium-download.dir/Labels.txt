@@ -1,0 +1,14 @@
+# Target labels
+ pdfium-download
+# Source files and their labels
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/pdfium-download
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/76b86569304f804120da48f6547d27b8/pdfium-download.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/0d3534714d4028dfe03f4d71427f587f/pdfium-download-complete.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-build.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-configure.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-download.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-install.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-mkdir.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-patch.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-test.rule
+C:/Users/yorby/OneDrive/Desktop/TRABUNDA/build/pdfium-download/CMakeFiles/93874b0c33a36d117b285a6f23fc7c3a/pdfium-download-update.rule

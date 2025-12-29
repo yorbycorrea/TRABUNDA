@@ -7,7 +7,6 @@ import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
-
   final ApiClient api;
 
   @override
@@ -17,10 +16,13 @@ class ReportCreatePlanilleroPage extends StatefulWidget {
 
 class _ReportCreatePlanilleroPageState
     extends State<ReportCreatePlanilleroPage> {
-  DateTime _fecha = DateTime.now();
-  String _turno = 'Dia';
+  int? _reporteIdBackend;
 
-  String? _tipoReporte; // APOYO_HORAS | TRABAJO_AVANCE | CONTEO_RAPIDO
+  DateTime _fecha = DateTime.now();
+  String _turno = 'Dia'; // OJO: si en tu BD es enum 'Día' con tilde, usa 'Día'
+
+  String? _tipoReporte;
+  bool _creandoReporte = false;
 
   final TextEditingController _planilleroCtrl = TextEditingController();
 
@@ -29,9 +31,7 @@ class _ReportCreatePlanilleroPageState
     super.didChangeDependencies();
     final auth = AuthControllerScope.read(context);
     final user = auth.user;
-    if (user != null) {
-      _planilleroCtrl.text = user.username; // o user.nombre si prefieres
-    }
+    if (user != null) _planilleroCtrl.text = user.username;
   }
 
   @override
@@ -44,26 +44,58 @@ class _ReportCreatePlanilleroPageState
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  /// ✅ Navega DIRECTO al módulo (sin pedir área aquí)
+  Future<int> _ensureReporteCreado({required String tipo}) async {
+    if (_reporteIdBackend != null) return _reporteIdBackend!;
+
+    final auth = AuthControllerScope.read(context);
+    if (!auth.isAuthenticated) throw Exception('No autenticado');
+
+    final plan = _planilleroCtrl.text.trim();
+    if (plan.isEmpty) throw Exception('Planillero vacío');
+
+    final fechaStr = _fecha.toLocal().toString().split(' ').first;
+
+    setState(() => _creandoReporte = true);
+    try {
+      final resp = await widget.api.post('/reportes', {
+        'fecha': fechaStr,
+        'turno': _turno,
+        'tipo_reporte': tipo,
+        // 👇 Para APOYO_HORAS lo mandamos null (para no pedir área en esta pantalla)
+        'area_id': null,
+        'observaciones': null,
+      });
+
+      // 👇 DEBUG (para ver cuando devuelve HTML)
+      debugPrint('POST /reportes status=${resp.statusCode}');
+      debugPrint('POST /reportes body=${resp.body}');
+
+      final dynamic decoded = jsonDecode(resp.body);
+      if (resp.statusCode != 201 && resp.statusCode != 200) {
+        final msg = (decoded is Map && decoded['error'] != null)
+            ? decoded['error'].toString()
+            : 'Error creando reporte (HTTP ${resp.statusCode})';
+        throw Exception(msg);
+      }
+
+      final data = decoded as Map<String, dynamic>;
+      final id = (data['reporte_id'] as num).toInt();
+
+      setState(() => _reporteIdBackend = id);
+      return id;
+    } finally {
+      if (mounted) setState(() => _creandoReporte = false);
+    }
+  }
+
   Future<void> _goToModulo(String tipo) async {
     setState(() => _tipoReporte = tipo);
 
-    final auth = AuthControllerScope.read(context);
-    if (!auth.isAuthenticated) {
-      _toast('No autenticado');
-      return;
-    }
+    try {
+      if (tipo == 'APOYO_HORAS') {
+        final reporteId = await _ensureReporteCreado(tipo: tipo);
 
-    final plan = _planilleroCtrl.text.trim();
-    if (plan.isEmpty) {
-      _toast('Planillero vacío');
-      return;
-    }
-
-    if (!mounted) return;
-
-    switch (tipo) {
-      case 'APOYO_HORAS':
+        if (!mounted) return;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -76,18 +108,22 @@ class _ReportCreatePlanilleroPageState
             ),
           ),
         );
-        break;
+        return;
+      }
 
-      case 'TRABAJO_AVANCE':
+      if (tipo == 'TRABAJO_AVANCE') {
         _toast('Falta implementar la pantalla de Trabajo por avance');
-        break;
+        return;
+      }
 
-      case 'CONTEO_RAPIDO':
+      if (tipo == 'CONTEO_RAPIDO') {
         _toast('Falta implementar Conteo rápido');
-        break;
+        return;
+      }
 
-      default:
-        _toast('Tipo no soportado: $tipo');
+      _toast('Tipo no soportado: $tipo');
+    } catch (e) {
+      _toast('Error: $e');
     }
   }
 
@@ -171,7 +207,9 @@ class _ReportCreatePlanilleroPageState
                             labelText: 'Turno',
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (v) => setState(() => _turno = v ?? 'Dia'),
+                          onChanged: _creandoReporte
+                              ? null
+                              : (v) => setState(() => _turno = v ?? 'Dia'),
                         ),
                       ),
                     ],
@@ -195,6 +233,10 @@ class _ReportCreatePlanilleroPageState
                       children: [
                         if (_tipoReporte != null)
                           Chip(label: Text('Tipo: $_tipoReporte')),
+                        if (_reporteIdBackend != null)
+                          Chip(label: Text('ID: $_reporteIdBackend')),
+                        if (_creandoReporte)
+                          const Chip(label: Text('Creando...')),
                       ],
                     ),
                   ),
@@ -208,21 +250,23 @@ class _ReportCreatePlanilleroPageState
             icon: Icons.access_time_rounded,
             title: 'Apoyos por horas',
             subtitle: 'Registrar personal de apoyo por horas',
-            onTap: () => _goToModulo('APOYO_HORAS'),
+            onTap: _creandoReporte ? () {} : () => _goToModulo('APOYO_HORAS'),
           ),
           const SizedBox(height: 8),
           _OptionCard(
             icon: Icons.groups_2_rounded,
             title: 'Trabajo por avance',
             subtitle: 'Registrar cuadrillas / kilos',
-            onTap: () => _goToModulo('TRABAJO_AVANCE'),
+            onTap: _creandoReporte
+                ? () {}
+                : () => _goToModulo('TRABAJO_AVANCE'),
           ),
           const SizedBox(height: 8),
           _OptionCard(
             icon: Icons.groups_rounded,
             title: 'Conteo rápido',
             subtitle: 'Registrar conteo rápido de personal',
-            onTap: () => _goToModulo('CONTEO_RAPIDO'),
+            onTap: _creandoReporte ? () {} : () => _goToModulo('CONTEO_RAPIDO'),
           ),
 
           const SizedBox(height: 24),
