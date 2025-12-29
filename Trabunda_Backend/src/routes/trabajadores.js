@@ -230,5 +230,28 @@ router.patch("/:id/activar", async (req, res) => {
   }
 });
 
+// =======================================
+// GET/trabajadores/lookup?codigo=12345
+// =======================================
+
+router.get("/lookup", authMiddleware, async(req, res) => {
+  try {
+    const {codigo} = req.query;
+    if(!codigo) return res.status(400).json({error: "codigo es requerido"});
+
+    const [rows] = await pool.query(
+      "SELECT id, codigo, dni, nompre_completo, sexo FROM trabajadores WHERE(codigo = ? OR dni = ?) AND activo = 1 LIMIT 1",
+      [codigo, codigo]
+    );
+
+    if (rows.length === 0) return res.status(404).json({error: "No encontrado"});
+
+    return res.json(rows[0]);
+  }catch (e){
+    console.error("lookup trabajador: ", e);
+    return res.status(500).json({error: "Error interno"});
+  }
+})
+
 // exportar SOLO el router
 module.exports = router;
