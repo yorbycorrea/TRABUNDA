@@ -565,6 +565,76 @@ router.patch("/:id/activar", authMiddleware, async (req, res) => {
 });
 
 // ========================================
+// GET /reportes/apoyo-horas/open?turno=Dia&fecha=2025-11-30
+// GET /reportes/apoyo-horas/open
+// ========================================
+
+router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
+  try{
+    const userId = req.user.id;
+    const {turno, fecha} = req.query;
+
+    if (!turno) return res.status(400).json({error: "turno es requerido"});
+    if (!esTurnoValido(turno)) return res.status(400).json({error: "turno no valido"});
+
+    const fechaValue = fecha ? String(fecha) : new Date().toISOString().slice(0, 10);
+
+    const[rows] = await pool.query(
+      `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
+      FROM reportes
+      WHERE tipo_reporte = 'APOYO_HORAS'
+        AND creado_por_user_id = ?
+        AND turno = ?
+        AND estado = 'ABIERTO'
+        AND (vence_en IS NULL OR vence_en > NOW())
+      ORDER BY id DESC
+      LIMIT 1`
+    [userId, turno]
+    );
+
+    if (rows.length) {
+      return res.json({
+        existente : true,
+        reporte: rows[0],
+      });
+
+    }
+
+    const [urows] = await pool.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [userId]
+
+    );
+    if (!urows.length) return res.status(401).json({error: "Usuario invalido o desactivado"});
+
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    const[result] = await pool.query(
+       `INSERT INTO reportes
+       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones, estado, vence_en)
+       VALUES (?, ?, 'APOYO_HORAS', NULL, NULL, ?, ?, NULL, 'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
+      [fechaValue, turno, userId, creado_por_nombre]
+    );
+
+    return res.status(201).json({
+      existente: false,
+      reporte: {
+        id: result.insertId,
+        fecha: fechaValue,
+        turno,
+        estado: "ABIERTO",
+        vence_en: null, 
+        creado_por_nombre,
+      },
+    });
+  }catch (err) {
+    console.error("open apoyo-horas error:", err);
+    return res.status(500).json({ error: "Error interno open apoyo-horas" });
+  }
+});
+
+
+// ========================================
 // POST /reportes/:id/lineas
 // ========================================
 router.post("/:id/lineas", authMiddleware, async (req, res) => {
@@ -670,7 +740,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     let horasValue = horas ?? null;
 let horaFinValue = hora_fin ?? null;
 
-// ✅ si mandan hora_fin, entonces calcula horas si no viene
+// si mandan hora_fin, entonces calcula horas si no viene
 if (tipo === "APOYO_HORAS") {
   if (horaFinValue && (horasValue === null || horasValue === undefined)) {
     // calcula horas desde hora_inicio y hora_fin (formato HH:MM o HH:MM:SS)
@@ -682,7 +752,7 @@ if (tipo === "APOYO_HORAS") {
     horasValue = diff > 0 ? diff / 60 : 0;
   }
 
-  // ✅ si NO hay hora_fin, horas debe ir null (queda incompleto)
+  // si NO hay hora_fin, horas debe ir null (queda incompleto)
   if (!horaFinValue) {
     horasValue = null;
   }
@@ -717,6 +787,41 @@ if (tipo === "APOYO_HORAS") {
     return res.status(500).json({ error: "Error interno al crear linea" });
   }
 });
+
+// ======================================================
+// GET /reportes/apoyo-horas/pendientes?horas=24
+// ======================================================
+
+router.get("/apoyo-horas/pendientes", authMiddleware, async(req, res) => {
+  try {
+    const userId = req.user.id;
+    const hours = Number(req.query.hours ?? 24);
+
+    const [rows] = await pool.query(
+      `SELECT 
+          r.id AS report_id,
+          r.fecha,
+          r.turno,
+          r.creado_por_nombre,
+          COUNT(*) AS pendiente
+      FROM reportes r
+      JOIN lineas_reporte lr ON lr.reporte_id = r.id
+      WHERE r.tipo_reporte = 'APOYO_HORAS'
+        AND r.creado_por_user_id = ?
+        AND r.estado = 'ABIERTO'
+        AND (r.vence_en IS NULL OR r.vence_en > NOW())
+        AND lr.hora_fin IS NULL
+      GROUP BY r.id
+      ORDER BY r.id DESC`
+      [userId]
+    );
+    return res.json({items: rows});
+
+  }catch (err){
+    console.error("pendientes apoyo-horas error: ", err);
+    return res.status(500).json({erro: "Error interno de pendientes"})
+  }
+})
 
 // =======================================
 // GET /reportes/:id/detalles
