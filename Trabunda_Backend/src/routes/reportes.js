@@ -871,7 +871,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "lineaId inválido" });
     }
 
-    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores } =
+    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores, area_id } =
       req.body;
 
     const updates = [];
@@ -902,6 +902,25 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       params.push(labores ?? null);
     }
 
+    // (Opcional) si estás guardando área de apoyo en lineas_reporte
+    if (area_id !== undefined) {
+      updates.push("area_id = ?");
+      params.push(area_id ?? null);
+
+      // si tienes columna area_nombre
+      const [aRows] = await pool.query(
+        "SELECT nombre FROM areas WHERE id = ? LIMIT 1",
+        [area_id]
+      );
+      const areaNombre = aRows[0]?.nombre ?? null;
+
+      // se guarda el nombre de la area:
+      updates.push("area_nombre = ?");
+      params.push(areaNombre);
+
+      
+    }
+
     if (!updates.length) {
       return res.status(400).json({ error: "No hay campos para actualizar" });
     }
@@ -915,6 +934,35 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Linea no encontrada" });
+    }
+       
+    
+    // (pendiente = hora_fin IS NULL)
+    
+    const [rep] = await pool.query(
+      "SELECT reporte_id FROM lineas_reporte WHERE id = ? LIMIT 1",
+      [lineaId]
+    );
+    const reporteId = rep[0]?.reporte_id;
+
+    if (reporteId) {
+      const [pend] = await pool.query(
+        "SELECT COUNT(*) AS c FROM lineas_reporte WHERE reporte_id = ? AND hora_fin IS NULL",
+        [reporteId]
+      );
+
+      const pendientes = Number(pend[0]?.c ?? 0);
+
+      if (pendientes === 0) {
+        
+        await pool.query(
+          "UPDATE reportes SET estado = 'CERRADO', cerrado_en = NOW() WHERE id = ?",
+          [reporteId]
+        );
+      } else {
+        // (Opcional) si quieres asegurar que quede ABIERTO mientras haya pendientes:
+        // await pool.query("UPDATE reportes SET estado = 'ABIERTO', cerrado_en = NULL WHERE id = ?", [reporteId]);
+      }
     }
 
     return res.json({ message: "Linea actualizada" });
