@@ -23,7 +23,7 @@ function nombreTipoReporte(tipo) {
   switch (tipo) {
     case "SANEAMIENTO":
       return "Saneamiento";
-    case "APOYOS_HORAS":
+    case "APOYO_HORAS":
       return "Apoyo por horas";
     case "TRABAJO_AVANCE":
       return "Trabajo por avance";
@@ -148,7 +148,7 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // ✅ Normalizar turno (tu app manda "Dia", tu BD puede tener "Día")
+    // Normalizar turno (tu app manda "Dia", tu BD puede tener "Día")
     const turnoNormalizado =
       turno === "Dia" ? "Día" : turno === "DIA" ? "Día" : turno;
 
@@ -212,7 +212,7 @@ router.post("/", authMiddleware, async (req, res) => {
       areaNombre = areas[0].nombre;
       areaIdFinal = areas[0].id;
     } else {
-      // ✅ APOYO_HORAS: como tu columna reportes.area es NOT NULL,
+      //APOYO_HORAS: como tu columna reportes.area es NOT NULL,
       // guardamos un texto fijo indicando que el área se define por línea.
       areaNombre = "POR_TRABAJADOR";
       areaIdFinal = null;
@@ -340,43 +340,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-//
-// === GET /reportes/:id → cabecera ======================
-// (este puede ser público o protegido, tú decides)
-//
-router.get("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    const [rows] = await pool.query(
-      `SELECT
-         r.id,
-         r.fecha,
-         r.turno,
-         r.tipo_reporte,
-         r.area_id,
-         r.activo,
-         a.nombre       AS area_nombre,
-         r.creado_por_user_id,
-         r.creado_por_nombre,
-         r.observaciones,
-         r.creado_en
-       FROM reportes r
-       LEFT JOIN areas a ON r.area_id = a.id
-       WHERE r.id = ?`,
-      [id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-
-    res.json(rows[0]);
-  } catch (err) {
-    console.error("Error al obtener reporte:", err);
-    res.status(500).json({ error: "Error interno al obtener el reporte" });
-  }
-});
 
 // ===============================================
 // GET /reportes/:id/pdf -> PDF
@@ -588,7 +552,7 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
         AND estado = 'ABIERTO'
         AND (vence_en IS NULL OR vence_en > NOW())
       ORDER BY id DESC
-      LIMIT 1`
+      LIMIT 1`,
     [userId, turno]
     );
 
@@ -670,10 +634,10 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     let areaNombre = null;
 
-    if(tipo === "APOYOS_HORAS"){
+    if(tipo === "APOYO_HORAS"){
       if(!area_id){
         return res.status(400).json({
-          error: "area_id es obligatorio  para APOYOS_HORAS",
+          error: "area_id es obligatorio  para APOYO_HORAS",
         });
       }
       const [aRows] = await pool.query(
@@ -996,6 +960,44 @@ router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("Error eliminando linea:", err);
     return res.status(500).json({ error: "Error interno al eliminar linea" });
+  }
+});
+
+//
+// === GET /reportes/:id → cabecera ======================
+// (este puede ser público o protegido, tú decides)
+//
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(
+      `SELECT
+         r.id,
+         r.fecha,
+         r.turno,
+         r.tipo_reporte,
+         r.area_id,
+         r.activo,
+         a.nombre       AS area_nombre,
+         r.creado_por_user_id,
+         r.creado_por_nombre,
+         r.observaciones,
+         r.creado_en
+       FROM reportes r
+       LEFT JOIN areas a ON r.area_id = a.id
+       WHERE r.id = ?`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error al obtener reporte:", err);
+    res.status(500).json({ error: "Error interno al obtener el reporte" });
   }
 });
 
