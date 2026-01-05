@@ -37,6 +37,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   void initState() {
     super.initState();
     _loadAreas();
+    _loadLineasExistentes();
   }
 
   Future<void> _loadAreas() async {
@@ -130,9 +131,90 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   void _addTrabajador() => setState(() => _trabajadores.add(_ApoyoFormModel()));
 
+  Future<void> _loadLineasExistentes() async {
+    try {
+      final resp = await widget.api.get('/reportes/${widget.reporteId}/lineas');
+
+      final body = resp.body.trimLeft();
+      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
+        throw Exception('Backend devolvió HTML en GET /reportes/:id/lineas');
+      }
+
+      if (resp.statusCode != 200) {
+        throw Exception(
+          'Error cargando líneas (HTTP ${resp.statusCode}): ${resp.body}',
+        );
+      }
+
+      final decoded = jsonDecode(resp.body);
+      final items = (decoded is Map && decoded['items'] is List)
+          ? decoded['items'] as List
+          : <dynamic>[];
+
+      // ✅ Si no hay líneas, dejamos el form con 1 vacío (como ya lo tienes)
+      if (items.isEmpty) return;
+
+      final models = <_ApoyoFormModel>[];
+
+      TimeOfDay? parseTime(dynamic v) {
+        if (v == null) return null;
+        final s = v.toString(); // puede venir "08:00:00" o "08:00"
+        final parts = s.split(':');
+        if (parts.length < 2) return null;
+        return TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      }
+
+      for (final it in items.whereType<Map<String, dynamic>>()) {
+        final m = _ApoyoFormModel();
+
+        m.lineaId = (it['id'] as num?)?.toInt();
+        m.trabajadorId = (it['trabajador_id'] as num?)?.toInt();
+
+        m.codigoCtrl.text = (it['trabajador_codigo'] ?? '').toString();
+        m.nombreCtrl.text = (it['trabajador_nombre'] ?? '').toString();
+
+        m.areaId = (it['area_id'] as num?)?.toInt();
+        m.areaNombre = (it['area_nombre'] ?? '').toString().isEmpty
+            ? null
+            : it['area_nombre'].toString();
+
+        m.inicio = parseTime(it['hora_inicio']);
+        m.fin = parseTime(it['hora_fin']);
+
+        // horas (si viene null y hay fin, la calculamos luego igual)
+        final h = it['horas'];
+        if (h is num) m.horas = h.toDouble();
+
+        // Si hay inicio+fin y horas no vino, calculamos
+        if (m.inicio != null && m.fin != null && (m.horas == 0.0)) {
+          m.horas = _calcHoras(m.inicio!, m.fin!);
+        }
+
+        models.add(m);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _trabajadores
+          ..clear()
+          ..addAll(models);
+      });
+    } catch (e) {
+      // No bloquees la pantalla: solo muestra error
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron cargar líneas: $e')),
+      );
+    }
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validación mínima
     for (final t in _trabajadores) {
       if (t.trabajadorId == null || t.inicio == null || t.areaId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,22 +232,35 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       for (final t in _trabajadores) {
         final horaInicio = _formatTime(t.inicio!);
         final horaFin = t.fin != null ? _formatTime(t.fin!) : null;
+
+        // ✅ Si no hay hora_fin, mandamos horas = null (queda pendiente)
         final double? horas = (t.fin != null)
             ? _calcHoras(t.inicio!, t.fin!)
             : null;
 
-        final resp = await widget.api.post(
-          '/reportes/${widget.reporteId}/lineas',
-          {
-            'trabajador_id': t.trabajadorId,
-            'hora_inicio': horaInicio,
-            'hora_fin': horaFin,
-            'horas': horas,
-            'area_id': t.areaId,
-            // si tu backend no usa esto, puedes quitarlo
-            'area': t.areaNombre,
-          },
-        );
+        final payload = <String, dynamic>{
+          'trabajador_id': t.trabajadorId,
+          'hora_inicio': horaInicio,
+          'hora_fin': horaFin, // puede ser null
+          'horas': horas, // puede ser null
+          'area_id': t.areaId,
+          // ❌ tu backend no necesita "area" (usa area_id y arma area_nombre)
+          // 'area': t.areaNombre,
+        };
+
+        // ✅ Si ya existe una línea en BD -> PATCH. Si no -> POST.
+        late final resp;
+        if (t.lineaId != null) {
+          resp = await widget.api.patch(
+            '/reportes/lineas/${t.lineaId}',
+            payload,
+          );
+        } else {
+          resp = await widget.api.post(
+            '/reportes/${widget.reporteId}/lineas',
+            payload,
+          );
+        }
 
         final body = resp.body.trimLeft();
         if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
@@ -176,6 +271,15 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+        }
+
+        // ✅ Si fue creación, guarda el linea_id para que la próxima sea PATCH
+        if (t.lineaId == null) {
+          final decoded = jsonDecode(resp.body);
+          final newId = (decoded is Map && decoded['linea_id'] is num)
+              ? (decoded['linea_id'] as num).toInt()
+              : null;
+          t.lineaId = newId;
         }
       }
 
@@ -312,6 +416,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 }
 
 class _ApoyoFormModel {
+  int? lineaId;
   int? trabajadorId;
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();

@@ -23,7 +23,7 @@ class _ReportCreatePlanilleroPageState
   int? _apoyoReporteId;
 
   DateTime _fecha = DateTime.now();
-  String _turno = 'Dia'; // OJO: si en tu BD es enum 'Día' con tilde, usa 'Día'
+  String _turno = 'Dia';
 
   String? _tipoReporte;
   bool _creandoReporte = false;
@@ -49,7 +49,6 @@ class _ReportCreatePlanilleroPageState
   }
 
   Future<int> _ensureReporteCreado({required String tipo}) async {
-    // Si ya existe, no lo vuelve a crear
     if (_reporteIdBackend != null) {
       return _reporteIdBackend!;
     }
@@ -71,16 +70,11 @@ class _ReportCreatePlanilleroPageState
     try {
       final resp = await widget.api.post('/reportes', {
         'fecha': fechaStr,
-        'turno': _turno, // Debe coincidir EXACTO con enum de BD
+        'turno': _turno,
         'tipo_reporte': tipo,
-        // 👇 IMPORTANTE:
-        // Para APOYO_HORAS NO enviamos área aquí
         'area_id': null,
         'observaciones': null,
       });
-
-      debugPrint('POST /reportes status=${resp.statusCode}');
-      debugPrint('POST /reportes body=${resp.body}');
 
       final decoded = jsonDecode(resp.body);
 
@@ -98,6 +92,46 @@ class _ReportCreatePlanilleroPageState
       if (mounted) {
         setState(() => _creandoReporte = false);
       }
+    }
+  }
+
+  Future<void> _openOrGetApoyoHoras() async {
+    setState(() {
+      _loadingApoyo = true;
+      _errorApoyo = null;
+    });
+
+    try {
+      final f =
+          "${_fecha.year.toString().padLeft(4, '0')}-"
+          "${_fecha.month.toString().padLeft(2, '0')}-"
+          "${_fecha.day.toString().padLeft(2, '0')}";
+
+      final resp = await widget.api.get(
+        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turno)}&fecha=$f',
+      );
+
+      final decoded = jsonDecode(resp.body);
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        throw Exception(
+          (decoded is Map && decoded['error'] != null)
+              ? decoded['error'].toString()
+              : 'Error HTTP ${resp.statusCode}',
+        );
+      }
+
+      final rep = decoded['reporte'];
+      final id = (rep['id'] as num).toInt();
+
+      setState(() {
+        _apoyoReporteId = id;
+        _tipoReporte = 'APOYO_HORAS';
+        _reporteIdBackend = id;
+      });
+    } catch (e) {
+      setState(() => _errorApoyo = e.toString());
+    } finally {
+      setState(() => _loadingApoyo = false);
     }
   }
 
@@ -119,7 +153,7 @@ class _ReportCreatePlanilleroPageState
       if (!mounted) return;
 
       if (tipo == 'APOYO_HORAS') {
-        final reporteId = await _ensureReporteCreado(tipo: 'APOYO_HORAS'); // ✅
+        final reporteId = await _ensureReporteCreado(tipo: 'APOYO_HORAS');
 
         if (!mounted) return;
 
@@ -128,7 +162,7 @@ class _ReportCreatePlanilleroPageState
           MaterialPageRoute(
             builder: (_) => ApoyosHorasBackendPage(
               api: widget.api,
-              reporteId: reporteId, // ✅ ahora sí existe
+              reporteId: reporteId,
               fecha: _fecha,
               turno: _turno,
               planillero: plan,
@@ -179,6 +213,7 @@ class _ReportCreatePlanilleroPageState
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final apoyoExiste = _apoyoReporteId != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Crear reporte')),
@@ -272,12 +307,45 @@ class _ReportCreatePlanilleroPageState
             ),
           ),
           const SizedBox(height: 16),
+          ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.access_time)),
+            title: Text(
+              apoyoExiste ? 'Continuar Apoyos por horas' : 'Apoyos por horas',
+            ),
+            subtitle: Text(
+              _loadingApoyo
+                  ? 'Verificando...'
+                  : _errorApoyo != null
+                  ? 'Error: $_errorApoyo'
+                  : apoyoExiste
+                  ? 'EN ESPERA • Reporte ID: $_apoyoReporteId'
+                  : 'Registrar personal de apoyo por horas',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _loadingApoyo
+                ? null
+                : () async {
+                    if (!apoyoExiste) {
+                      await _openOrGetApoyoHoras();
+                      return;
+                    }
 
-          _OptionCard(
-            icon: Icons.access_time_rounded,
-            title: 'Apoyos por horas',
-            subtitle: 'Registrar personal de apoyo por horas',
-            onTap: _creandoReporte ? () {} : () => _goToModulo('APOYO_HORAS'),
+                    final id = _apoyoReporteId!;
+                    if (!mounted) return;
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ApoyosHorasBackendPage(
+                          api: widget.api,
+                          reporteId: id,
+                          fecha: _fecha,
+                          turno: _turno,
+                          planillero: _planilleroCtrl.text,
+                        ),
+                      ),
+                    );
+                  },
           ),
           const SizedBox(height: 8),
           _OptionCard(
@@ -295,7 +363,6 @@ class _ReportCreatePlanilleroPageState
             subtitle: 'Registrar conteo rápido de personal',
             onTap: _creandoReporte ? () {} : () => _goToModulo('CONTEO_RAPIDO'),
           ),
-
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: _onFinalizarPressed,

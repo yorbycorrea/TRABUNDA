@@ -544,17 +544,19 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
       ? String(fecha)
       : new Date().toISOString().slice(0, 10);
 
+    // 1) buscar si ya existe un ABIERTO vigente para ese usuario+turno+fecha
     const [rows] = await pool.query(
       `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
-      FROM reportes
-      WHERE tipo_reporte = 'APOYO_HORAS'
-        AND creado_por_user_id = ?
-        AND turno = ?
-        AND estado = 'ABIERTO'
-        AND (vence_en IS NULL OR vence_en > NOW())
-      ORDER BY id DESC
-      LIMIT 1`,
-      [userId, turno]
+       FROM reportes
+       WHERE tipo_reporte = 'APOYO_HORAS'
+         AND creado_por_user_id = ?
+         AND turno = ?
+         AND fecha = ?
+         AND estado = 'ABIERTO'
+         AND (vence_en IS NULL OR vence_en > NOW())
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, turno, fechaValue]
     );
 
     if (rows.length) {
@@ -564,6 +566,7 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
       });
     }
 
+    // 2) si no existe, crear uno nuevo
     const [urows] = await pool.query(
       "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
       [userId]
@@ -575,27 +578,33 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones, estado, vence_en)
-       VALUES (?, ?, 'APOYO_HORAS', NULL, NULL, ?, ?, NULL, 'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
+       (fecha, turno, tipo_reporte, area, area_id,
+        creado_por_user_id, creado_por_nombre, observaciones,
+        estado, vence_en)
+       VALUES (?, ?, 'APOYO_HORAS', 'POR_TRABAJADOR', NULL,
+               ?, ?, NULL,
+               'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
       [fechaValue, turno, userId, creado_por_nombre]
+    );
+
+    const [nuevo] = await pool.query(
+      `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
+       FROM reportes
+       WHERE id = ?
+       LIMIT 1`,
+      [result.insertId]
     );
 
     return res.status(201).json({
       existente: false,
-      reporte: {
-        id: result.insertId,
-        fecha: fechaValue,
-        turno,
-        estado: "ABIERTO",
-        vence_en: null,
-        creado_por_nombre,
-      },
+      reporte: nuevo[0],
     });
   } catch (err) {
     console.error("open apoyo-horas error:", err);
     return res.status(500).json({ error: "Error interno open apoyo-horas" });
   }
 });
+
 
 // ========================================
 // POST /reportes/:id/lineas
@@ -622,109 +631,147 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "trabajador_id es obligatorio" });
     }
 
-    // 1) validar confirmar tipo de reporte
+    /* =====================================================
+       1) Obtener tipo de reporte
+    ===================================================== */
     const [repRows] = await pool.query(
-      "SELECT id, tipo_reporte FROM reportes WHERE id = ?",
+      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
       [reporteId]
     );
-    if (repRows.length === 0)
+    if (!repRows.length) {
       return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
     const tipo = repRows[0].tipo_reporte;
 
+    /* =====================================================
+       2) Validar trabajador activo
+    ===================================================== */
+    const [tRows] = await pool.query(
+      "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
+      [trabajador_id]
+    );
+    if (!tRows.length) {
+      return res.status(400).json({ error: "Trabajador no válido o inactivo" });
+    }
+    const trabajador = tRows[0];
+
+    /* =====================================================
+       3) Validar área SOLO para APOYO_HORAS
+    ===================================================== */
     let areaNombre = null;
 
     if (tipo === "APOYO_HORAS") {
       if (!area_id) {
         return res.status(400).json({
-          error: "area_id es obligatorio  para APOYO_HORAS",
+          error: "area_id es obligatorio para APOYO_HORAS",
         });
       }
+
       const [aRows] = await pool.query(
         `SELECT id, nombre
-        FROM areas
-        WHERE id= ?
-          AND es_apoyo_horas = 1
-          AND activo = 1
-        LIMIT 1`,
+         FROM areas
+         WHERE id = ?
+           AND es_apoyo_horas = 1
+           AND activo = 1
+         LIMIT 1`,
         [area_id]
       );
 
       if (!aRows.length) {
         return res.status(400).json({
-          error: "Area no validad para APOYO_HORAS ",
+          error: "Área no válida para APOYO_HORAS",
         });
       }
+
       areaNombre = aRows[0].nombre;
     }
 
-    // 2) validar trabajador activo
-    const [tRows] = await pool.query(
-      "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
-      [trabajador_id]
-    );
-    if (tRows.length === 0)
-      return res.status(400).json({ error: "Trabajador no válido o inactivo" });
-    const trabajador = tRows[0];
-
-    // 3) validaciones por tipo
-    const requeridos = {
-      SANEAMIENTO: ["hora_inicio", "hora_fin", "labores"],
-      APOYO_HORAS: ["hora_inicio"],
-      TRABAJO_AVANCE: ["kilos"],
-      CONTEO_RAPIDO: [], // tu BD no soporta conteo aquí (decidir luego)
-    };
-    const campos = requeridos[tipo];
-    if (!campos)
-      return res.status(400).json({ error: "tipo_reporte no soportado" });
-
-    const map = { horas, hora_inicio, hora_fin, kilos, labores };
-    const faltan = campos.filter(
-      (k) => map[k] === undefined || map[k] === null || map[k] === ""
-    );
-    if (faltan.length) {
-      return res
-        .status(400)
-        .json({ error: `Para ${tipo} se requieren: ${campos.join(", ")}` });
+    /* =====================================================
+       4) Validaciones mínimas por tipo
+    ===================================================== */
+    if (tipo === "APOYO_HORAS" && !hora_inicio) {
+      return res.status(400).json({
+        error: "Para APOYO_HORAS se requiere hora_inicio",
+      });
     }
 
-    // 4) validar cuadrilla si mandan cuadrilla_id
-    if (cuadrilla_id !== undefined && cuadrilla_id !== null) {
-      const [cRows] = await pool.query(
-        "SELECT id FROM cuadrillas WHERE id = ? AND reporte_id = ?",
-        [cuadrilla_id, reporteId]
-      );
-      if (cRows.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "cuadrilla_id no válida para este reporte" });
-      }
-    }
-
+    /* =====================================================
+       5) Calcular horas (si hay hora_fin)
+    ===================================================== */
     let horasValue = horas ?? null;
     let horaFinValue = hora_fin ?? null;
 
-    // si mandan hora_fin, entonces calcula horas si no viene
     if (tipo === "APOYO_HORAS") {
-      if (horaFinValue && (horasValue === null || horasValue === undefined)) {
-        // calcula horas desde hora_inicio y hora_fin (formato HH:MM o HH:MM:SS)
+      if (horaFinValue) {
         const toMin = (s) => {
           const [h, m] = String(s).split(":");
           return Number(h) * 60 + Number(m);
         };
-        const diff = toMin(horaFinValue) - toMin(hora_inicio);
-        horasValue = diff > 0 ? diff / 60 : 0;
-      }
 
-      // si NO hay hora_fin, horas debe ir null (queda incompleto)
-      if (!horaFinValue) {
+        const diff = toMin(horaFinValue) - toMin(hora_inicio);
+        if (diff <= 0) {
+          return res.status(400).json({
+            error: "hora_fin debe ser mayor que hora_inicio",
+          });
+        }
+
+        horasValue = diff / 60;
+      } else {
+        // si no hay hora_fin → queda pendiente
         horasValue = null;
       }
     }
 
-    // 5) insertar linea
+    /* =====================================================
+       6) EVITAR DUPLICADOS:
+          si existe línea pendiente → UPDATE
+    ===================================================== */
+    if (tipo === "APOYO_HORAS") {
+      const [pendiente] = await pool.query(
+        `SELECT id
+         FROM lineas_reporte
+         WHERE reporte_id = ?
+           AND trabajador_id = ?
+           AND hora_fin IS NULL
+         ORDER BY id DESC
+         LIMIT 1`,
+        [reporteId, trabajador_id]
+      );
+
+      if (pendiente.length) {
+        await pool.query(
+          `UPDATE lineas_reporte
+           SET area_id = ?,
+               area_nombre = ?,
+               hora_inicio = ?,
+               hora_fin = ?,
+               horas = ?
+           WHERE id = ?`,
+          [
+            area_id,
+            areaNombre,
+            hora_inicio ?? null,
+            horaFinValue,
+            horasValue,
+            pendiente[0].id,
+          ]
+        );
+
+        return res.json({
+          message: "Linea actualizada (pendiente existente)",
+          linea_id: pendiente[0].id,
+        });
+      }
+    }
+
+    /* =====================================================
+       7) INSERTAR nueva línea
+    ===================================================== */
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
-       (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre, trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
+       (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre,
+        trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
@@ -742,14 +789,16 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       ]
     );
 
-    return res
-      .status(201)
-      .json({ message: "Linea creada", linea_id: result.insertId });
+    return res.status(201).json({
+      message: "Linea creada",
+      linea_id: result.insertId,
+    });
   } catch (err) {
     console.error("Error creando linea:", err);
     return res.status(500).json({ error: "Error interno al crear linea" });
   }
 });
+
 
 // ======================================================
 // GET /reportes/apoyo-horas/pendientes?horas=24
@@ -792,6 +841,9 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
 // =======================================
 // GET /reportes/:id/detalles
 // =======================================
+// =======================================
+// GET /reportes/:id/lineas
+// =======================================
 router.get("/:id/lineas", authMiddleware, async (req, res) => {
   try {
     const reporteId = Number(req.params.id);
@@ -805,13 +857,20 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.reporte_id,
          lr.trabajador_id,
          lr.cuadrilla_id,
+
          lr.trabajador_codigo,
          lr.trabajador_nombre,
-         lr.horas,
+
+         lr.area_id,
+         lr.area_nombre,
+
          lr.hora_inicio,
          lr.hora_fin,
+         lr.horas,
+
          lr.kilos,
          lr.labores,
+
          c.nombre AS cuadrilla_nombre
        FROM lineas_reporte lr
        LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
@@ -820,10 +879,14 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
       [reporteId]
     );
 
-    return res.json({ items: rows });
+    return res.json({
+      items: rows,
+    });
   } catch (err) {
     console.error("Error listando lineas:", err);
-    return res.status(500).json({ error: "Error interno al listar lineas" });
+    return res.status(500).json({
+      error: "Error interno al listar lineas",
+    });
   }
 });
 
