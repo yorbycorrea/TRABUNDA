@@ -18,6 +18,10 @@ class _ReportCreatePlanilleroPageState
     extends State<ReportCreatePlanilleroPage> {
   int? _reporteIdBackend;
 
+  bool _loadingApoyo = false;
+  String? _errorApoyo;
+  int? _apoyoReporteId;
+
   DateTime _fecha = DateTime.now();
   String _turno = 'Dia'; // OJO: si en tu BD es enum 'Día' con tilde, usa 'Día'
 

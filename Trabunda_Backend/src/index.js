@@ -28,7 +28,7 @@ app.get("/health", (req, res) => {
 app.use("/trabajadores", trabajadoresRoutes);
 app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);
-app.use("/auth", authRoutes); // <--- Esta es la que busca Flutter
+app.use("/auth", authRoutes); 
 
 // 6. MANEJO DE ERRORES Y PUERTO
 const PORT = process.env.PORT || 3000;
@@ -36,5 +36,5 @@ const { errorHandler } = require("./middlewares/errorHandler");
 app.use(errorHandler);
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Servidor TRABUNDA escuchando en http:// 192.168.60.100:${PORT}`);
+  console.log(`Servidor TRABUNDA escuchando en http:// 172.16.1.207:${PORT}`);
 });

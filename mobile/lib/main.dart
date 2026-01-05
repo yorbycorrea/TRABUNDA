@@ -10,6 +10,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mobile/features/auth/presentation/login_page.dart';
 import 'package:mobile/menu/presentation/pages/menu_page.dart';
 import 'package:mobile/menu/presentation/pages/report_create_planillero_page.dart';
+import 'package:mobile/features/state_apoyo_horas.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +56,11 @@ class TrabundaApp extends StatelessWidget {
           case '/reports/create':
             return MaterialPageRoute(
               builder: (_) => ReportCreatePlanilleroPage(api: api),
+            );
+
+          case '/apoyos_horas':
+            return MaterialPageRoute(
+              builder: (_) => ApoyosHorasHomePage(api: api, turno: 'Dia'),
             );
 
           default:
