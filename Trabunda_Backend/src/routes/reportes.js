@@ -340,8 +340,6 @@ router.put("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-
-
 // ===============================================
 // GET /reportes/:id/pdf -> PDF
 // ===============================================
@@ -534,16 +532,19 @@ router.patch("/:id/activar", authMiddleware, async (req, res) => {
 // ========================================
 
 router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
-  try{
+  try {
     const userId = req.user.id;
-    const {turno, fecha} = req.query;
+    const { turno, fecha } = req.query;
 
-    if (!turno) return res.status(400).json({error: "turno es requerido"});
-    if (!esTurnoValido(turno)) return res.status(400).json({error: "turno no valido"});
+    if (!turno) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turno))
+      return res.status(400).json({ error: "turno no valido" });
 
-    const fechaValue = fecha ? String(fecha) : new Date().toISOString().slice(0, 10);
+    const fechaValue = fecha
+      ? String(fecha)
+      : new Date().toISOString().slice(0, 10);
 
-    const[rows] = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
       FROM reportes
       WHERE tipo_reporte = 'APOYO_HORAS'
@@ -553,28 +554,27 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
         AND (vence_en IS NULL OR vence_en > NOW())
       ORDER BY id DESC
       LIMIT 1`,
-    [userId, turno]
+      [userId, turno]
     );
 
     if (rows.length) {
       return res.json({
-        existente : true,
+        existente: true,
         reporte: rows[0],
       });
-
     }
 
     const [urows] = await pool.query(
       "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
       [userId]
-
     );
-    if (!urows.length) return res.status(401).json({error: "Usuario invalido o desactivado"});
+    if (!urows.length)
+      return res.status(401).json({ error: "Usuario invalido o desactivado" });
 
     const creado_por_nombre = urows[0].nombre || urows[0].username;
 
-    const[result] = await pool.query(
-       `INSERT INTO reportes
+    const [result] = await pool.query(
+      `INSERT INTO reportes
        (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones, estado, vence_en)
        VALUES (?, ?, 'APOYO_HORAS', NULL, NULL, ?, ?, NULL, 'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
       [fechaValue, turno, userId, creado_por_nombre]
@@ -587,16 +587,15 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
         fecha: fechaValue,
         turno,
         estado: "ABIERTO",
-        vence_en: null, 
+        vence_en: null,
         creado_por_nombre,
       },
     });
-  }catch (err) {
+  } catch (err) {
     console.error("open apoyo-horas error:", err);
     return res.status(500).json({ error: "Error interno open apoyo-horas" });
   }
 });
-
 
 // ========================================
 // POST /reportes/:id/lineas
@@ -634,8 +633,8 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     let areaNombre = null;
 
-    if(tipo === "APOYO_HORAS"){
-      if(!area_id){
+    if (tipo === "APOYO_HORAS") {
+      if (!area_id) {
         return res.status(400).json({
           error: "area_id es obligatorio  para APOYO_HORAS",
         });
@@ -650,7 +649,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         [area_id]
       );
 
-      if(!aRows.length){
+      if (!aRows.length) {
         return res.status(400).json({
           error: "Area no validad para APOYO_HORAS ",
         });
@@ -702,25 +701,25 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
 
     let horasValue = horas ?? null;
-let horaFinValue = hora_fin ?? null;
+    let horaFinValue = hora_fin ?? null;
 
-// si mandan hora_fin, entonces calcula horas si no viene
-if (tipo === "APOYO_HORAS") {
-  if (horaFinValue && (horasValue === null || horasValue === undefined)) {
-    // calcula horas desde hora_inicio y hora_fin (formato HH:MM o HH:MM:SS)
-    const toMin = (s) => {
-      const [h, m] = String(s).split(":");
-      return Number(h) * 60 + Number(m);
-    };
-    const diff = toMin(horaFinValue) - toMin(hora_inicio);
-    horasValue = diff > 0 ? diff / 60 : 0;
-  }
+    // si mandan hora_fin, entonces calcula horas si no viene
+    if (tipo === "APOYO_HORAS") {
+      if (horaFinValue && (horasValue === null || horasValue === undefined)) {
+        // calcula horas desde hora_inicio y hora_fin (formato HH:MM o HH:MM:SS)
+        const toMin = (s) => {
+          const [h, m] = String(s).split(":");
+          return Number(h) * 60 + Number(m);
+        };
+        const diff = toMin(horaFinValue) - toMin(hora_inicio);
+        horasValue = diff > 0 ? diff / 60 : 0;
+      }
 
-  // si NO hay hora_fin, horas debe ir null (queda incompleto)
-  if (!horaFinValue) {
-    horasValue = null;
-  }
-}
+      // si NO hay hora_fin, horas debe ir null (queda incompleto)
+      if (!horaFinValue) {
+        horasValue = null;
+      }
+    }
 
     // 5) insertar linea
     const [result] = await pool.query(
@@ -731,7 +730,7 @@ if (tipo === "APOYO_HORAS") {
         reporteId,
         trabajador.id,
         cuadrilla_id ?? null,
-        area_id ??  null,
+        area_id ?? null,
         areaNombre,
         trabajador.codigo,
         trabajador.nombre_completo,
@@ -756,10 +755,11 @@ if (tipo === "APOYO_HORAS") {
 // GET /reportes/apoyo-horas/pendientes?horas=24
 // ======================================================
 
-router.get("/apoyo-horas/pendientes", authMiddleware, async(req, res) => {
+router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const hours = Number(req.query.hours ?? 24);
+    const horas = Number(req.query.horas ?? 24);
+    const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
 
     const [rows] = await pool.query(
       `SELECT 
@@ -773,19 +773,21 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async(req, res) => {
       WHERE r.tipo_reporte = 'APOYO_HORAS'
         AND r.creado_por_user_id = ?
         AND r.estado = 'ABIERTO'
-        AND (r.vence_en IS NULL OR r.vence_en > NOW())
+         AND (
+          r.vence_en IS NULL
+          OR r.vence_en >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+        )
         AND lr.hora_fin IS NULL
       GROUP BY r.id
-      ORDER BY r.id DESC`
-      [userId]
+      ORDER BY r.id DESC`,
+      [userId, horasFiltro][userId]
     );
-    return res.json({items: rows});
-
-  }catch (err){
+    return res.json({ items: rows });
+  } catch (err) {
     console.error("pendientes apoyo-horas error: ", err);
-    return res.status(500).json({erro: "Error interno de pendientes"})
+    return res.status(500).json({ erro: "Error interno de pendientes" });
   }
-})
+});
 
 // =======================================
 // GET /reportes/:id/detalles
@@ -835,8 +837,15 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "lineaId inválido" });
     }
 
-    const { cuadrilla_id, horas, hora_inicio, hora_fin, kilos, labores, area_id } =
-      req.body;
+    const {
+      cuadrilla_id,
+      horas,
+      hora_inicio,
+      hora_fin,
+      kilos,
+      labores,
+      area_id,
+    } = req.body;
 
     const updates = [];
     const params = [];
@@ -881,8 +890,6 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       // se guarda el nombre de la area:
       updates.push("area_nombre = ?");
       params.push(areaNombre);
-
-      
     }
 
     if (!updates.length) {
@@ -899,10 +906,9 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Linea no encontrada" });
     }
-       
-    
+
     // (pendiente = hora_fin IS NULL)
-    
+
     const [rep] = await pool.query(
       "SELECT reporte_id FROM lineas_reporte WHERE id = ? LIMIT 1",
       [lineaId]
@@ -918,7 +924,6 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       const pendientes = Number(pend[0]?.c ?? 0);
 
       if (pendientes === 0) {
-        
         await pool.query(
           "UPDATE reportes SET estado = 'CERRADO', cerrado_en = NOW() WHERE id = ?",
           [reporteId]
