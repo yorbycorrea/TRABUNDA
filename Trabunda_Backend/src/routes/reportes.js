@@ -805,8 +805,10 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const horas = Number(req.query.horas ?? 24);
+    const horasParam = req.query.horas ?? req.query.hours ?? 24;
+    const horas = Number(horasParam);
     const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
+    const params = [userId, horasFiltro];
 
     const [rows] = await pool.query(
       `SELECT 
@@ -828,7 +830,7 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
         AND lr.hora_fin IS NULL
       GROUP BY r.id
       ORDER BY r.id DESC`,
-      [userId, horasFiltro]
+      params
     );
     return res.json({ items: rows });
   } catch (err) {
@@ -945,6 +947,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       params.push(labores ?? null);
     }
 
+    const horaFinLlego = hora_fin !== undefined;
     const horaFinValue = hora_fin ?? null;
     const horaInicioParaCalculo =
       hora_inicio !== undefined
@@ -952,7 +955,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
         : existingLinea.hora_inicio;
     let horasCalculadas;
 
-    if (hora_fin !== undefined && horaFinValue && horaInicioParaCalculo) {
+    if (horaFinLlego && horaFinValue && horaInicioParaCalculo) {
       const toMin = (s) => {
         const [h, m] = String(s).split(":");
         return Number(h) * 60 + Number(m);
@@ -986,9 +989,13 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     }
 
     if (horas !== undefined) {
+      const horasValue =
+        horas === null && horaFinLlego
+          ? horasCalculadas ?? null
+          : horas ?? horasCalculadas ?? null;
       updates.push("horas = ?");
-      params.push(horas ?? horasCalculadas ?? null);
-    } else if (horasCalculadas !== undefined) {
+      params.push(horasValue);
+    } else if (horaFinLlego && horasCalculadas !== undefined) {
       updates.push("horas = ?");
       params.push(horasCalculadas);
     }

@@ -184,12 +184,14 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         m.inicio = parseTime(it['hora_inicio']);
         m.fin = parseTime(it['hora_fin']);
 
-        // horas (si viene null y hay fin, la calculamos luego igual)
-        final h = it['horas'];
-        if (h is num) m.horas = h.toDouble();
+        // horas (solo asignamos si vino valor o podemos calcularla)
+        final horasValue = it['horas'];
+        if (horasValue != null && horasValue is num) {
+          m.horas = horasValue.toDouble();
+        }
 
         // Si hay inicio+fin y horas no vino, calculamos
-        if (m.inicio != null && m.fin != null && m.horas == null) {
+        if (m.horas == null && m.inicio != null && m.fin != null) {
           m.horas = _calcHoras(m.inicio!, m.fin!);
         }
 
@@ -233,10 +235,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         final horaInicio = _formatTime(t.inicio!);
         final horaFin = t.fin != null ? _formatTime(t.fin!) : null;
 
-        // ✅ Si no hay hora_fin, mandamos horas = null (queda pendiente)
-        final double? horas = (t.fin != null)
-            ? _calcHoras(t.inicio!, t.fin!)
-            : null;
+        final double? horas =
+            t.horas ??
+            ((t.inicio != null && t.fin != null)
+                ? _calcHoras(t.inicio!, t.fin!)
+                : null);
 
         final payload = <String, dynamic>{
           'trabajador_id': t.trabajadorId,
@@ -416,6 +419,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 }
 
 class _ApoyoFormModel {
+  _ApoyoFormModel({this.horas});
   int? lineaId;
   int? trabajadorId;
   final codigoCtrl = TextEditingController();
