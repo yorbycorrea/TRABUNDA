@@ -11,6 +11,7 @@ import 'package:mobile/features/auth/presentation/login_page.dart';
 import 'package:mobile/menu/presentation/pages/menu_page.dart';
 import 'package:mobile/menu/presentation/pages/report_create_planillero_page.dart';
 import 'package:mobile/features/state_apoyo_horas.dart';
+import 'package:mobile/menu/presentation/pages/report_view_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class TrabundaApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.blue),
 
       onGenerateRoute: (settings) {
+        debugPrint('Navegando a ruta: ${settings.name}');
         switch (settings.name) {
           case '/login':
             return MaterialPageRoute(builder: (_) => const LoginPage());
@@ -62,6 +64,9 @@ class TrabundaApp extends StatelessWidget {
             return MaterialPageRoute(
               builder: (_) => ApoyosHorasHomePage(api: api, turno: 'Dia'),
             );
+
+          case '/reports/list':
+            return MaterialPageRoute(builder: (_) => ReportViewPage(api: api));
 
           default:
             return MaterialPageRoute(

@@ -62,6 +62,17 @@ class ApiClient {
     return _http.delete(_uri(path), headers: await _headers());
   }
 
+  Future<http.Response> getRaw(String path) async {
+    final uri = Uri.parse('$baseUrl$path');
+    // No forzamos content-type aquí
+    final access = await tokens.readAccess();
+    final h = <String, String>{};
+    if (access != null && access.isNotEmpty) {
+      h['Authorization'] = 'Bearer $access';
+    }
+    return _http.get(uri, headers: h);
+  }
+
   // -----------------------
   // Helpers opcionales
   // -----------------------

@@ -4,6 +4,11 @@ const router = express.Router();
 const { pool } = require("../db");
 const { authMiddleware } = require("../middlewares/auth");
 const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
+const { chromium } = require("playwright");
+
+
 //const { width } = require("pdfkit/js/page");
 
 /* =========================
@@ -468,9 +473,118 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
    GET /reportes/:id/pdf  (antes que /:id)
 =============================================== */
 router.get("/:id/pdf", authMiddleware, async (req, res) => {
-  return res.status(501).json({ error: "PDF aún no implementado" });
-});
+  try {
+    const { id } = req.params;
 
+    // CABECERA
+    const [rows] = await pool.query(
+      `SELECT
+         r.id,
+         r.fecha,
+         r.turno,
+         r.tipo_reporte,
+         r.creado_por_user_id,
+         r.creado_por_nombre
+       FROM reportes r
+       WHERE r.id = ?
+       LIMIT 1`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    const reporte = rows[0];
+
+    // Seguridad: si no es admin, solo lo suyo
+    const role =
+      Array.isArray(req.user.roles) && req.user.roles.length
+        ? req.user.roles[0]
+        : undefined;
+
+    if (role !== "ADMINISTRADOR" && reporte.creado_por_user_id !== req.user.id) {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+
+    // LÍNEAS
+    const [lineas] = await pool.query(
+      `
+      SELECT
+        lr.trabajador_codigo,
+        lr.trabajador_nombre,
+        lr.hora_inicio,
+        lr.hora_fin,
+        lr.horas,
+        COALESCE(lr.area_nombre, a.nombre) AS area_apoyo
+      FROM lineas_reporte lr
+      LEFT JOIN areas a ON a.id = lr.area_id
+      WHERE lr.reporte_id = ?
+      ORDER BY lr.id ASC
+      `,
+      [id]
+    );
+
+    // Plantilla (elige según tipo)
+    // Por ahora usamos la de APOYO_HORAS (tu diseño de la imagen)
+    const templatePath = path.join(__dirname, "../templates/apoyos_horas.html");
+    let html = fs.readFileSync(templatePath, "utf8");
+
+    const fechaTxt = String(reporte.fecha).slice(0, 10);
+
+    const filasHtml = lineas
+      .map((l, i) => {
+        const hIni = l.hora_inicio ? String(l.hora_inicio).slice(0, 5) : "";
+        const hFin = l.hora_fin ? String(l.hora_fin).slice(0, 5) : "";
+        const horas = l.horas ?? "";
+        const codigo = l.trabajador_codigo ?? "";
+        const nombre = l.trabajador_nombre ?? "";
+        const area = l.area_apoyo ?? "";
+
+        return `
+          <tr>
+            <td class="c">${i + 1}</td>
+            <td class="c">${codigo}</td>
+            <td>${nombre}</td>
+            <td class="c">${hIni}</td>
+            <td class="c">${hFin}</td>
+            <td class="c">${horas}</td>
+            <td>${area}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    html = html
+      .replaceAll("{{FECHA}}", fechaTxt)
+      .replaceAll("{{TURNO}}", reporte.turno || "")
+      .replaceAll("{{PLANILLERO}}", reporte.creado_por_nombre || "")
+      .replaceAll("{{FILAS}}", filasHtml);
+
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+
+    await page.setContent(html, { waitUntil: "networkidle" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="reporte_apoyos_${id}.pdf"`
+    );
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Error PDF:", err);
+    return res.status(500).json({ error: "Error generando PDF" });
+  }
+});
 /* =======================================
    GET /reportes/:id (cabecera)
 ======================================= */
