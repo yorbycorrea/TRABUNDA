@@ -123,9 +123,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       } else {
         m.fin = picked;
       }
-      if (m.inicio != null && m.fin != null) {
-        m.horas = _calcHoras(m.inicio!, m.fin!);
-      }
+      m.horas = (m.inicio != null && m.fin != null)
+          ? _calcHoras(m.inicio!, m.fin!)
+          : null;
     });
   }
 
@@ -189,7 +189,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         if (h is num) m.horas = h.toDouble();
 
         // Si hay inicio+fin y horas no vino, calculamos
-        if (m.inicio != null && m.fin != null && (m.horas == 0.0)) {
+        if (m.inicio != null && m.fin != null && m.horas == null) {
           m.horas = _calcHoras(m.inicio!, m.fin!);
         }
 
@@ -423,7 +423,7 @@ class _ApoyoFormModel {
 
   TimeOfDay? inicio;
   TimeOfDay? fin;
-  double horas = 0.0;
+  double? horas;
 
   int? areaId;
   String? areaNombre;
@@ -583,7 +583,7 @@ class _TrabajadorCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'Total horas: ${model.fin == null ? '--' : model.horas.toStringAsFixed(2)}',
+                'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),

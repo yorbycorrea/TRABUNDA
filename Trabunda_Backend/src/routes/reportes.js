@@ -605,7 +605,6 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
   }
 });
 
-
 // ========================================
 // POST /reportes/:id/lineas
 // ========================================
@@ -799,7 +798,6 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
   }
 });
 
-
 // ======================================================
 // GET /reportes/apoyo-horas/pendientes?horas=24
 // ======================================================
@@ -816,7 +814,8 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
           r.fecha,
           r.turno,
           r.creado_por_nombre,
-          COUNT(*) AS pendiente
+          COUNT(*) AS pendiente,
+          MAX(lr.area_nombre) AS area_nombre
       FROM reportes r
       JOIN lineas_reporte lr ON lr.reporte_id = r.id
       WHERE r.tipo_reporte = 'APOYO_HORAS'
@@ -829,7 +828,7 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
         AND lr.hora_fin IS NULL
       GROUP BY r.id
       ORDER BY r.id DESC`,
-      [userId, horasFiltro][userId]
+      [userId, horasFiltro]
     );
     return res.json({ items: rows });
   } catch (err) {
@@ -910,6 +909,17 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       area_id,
     } = req.body;
 
+    const [lineaRows] = await pool.query(
+      "SELECT reporte_id, hora_inicio FROM lineas_reporte WHERE id = ? LIMIT 1",
+      [lineaId]
+    );
+
+    if (!lineaRows.length) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    const existingLinea = lineaRows[0];
+
     const updates = [];
     const params = [];
 
@@ -917,10 +927,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       updates.push("cuadrilla_id = ?");
       params.push(cuadrilla_id ?? null);
     }
-    if (horas !== undefined) {
-      updates.push("horas = ?");
-      params.push(horas ?? null);
-    }
+
     if (hora_inicio !== undefined) {
       updates.push("hora_inicio = ?");
       params.push(hora_inicio ?? null);
@@ -936,6 +943,29 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     if (labores !== undefined) {
       updates.push("labores = ?");
       params.push(labores ?? null);
+    }
+
+    const horaFinValue = hora_fin ?? null;
+    const horaInicioParaCalculo =
+      hora_inicio !== undefined
+        ? hora_inicio ?? null
+        : existingLinea.hora_inicio;
+    let horasCalculadas;
+
+    if (hora_fin !== undefined && horaFinValue && horaInicioParaCalculo) {
+      const toMin = (s) => {
+        const [h, m] = String(s).split(":");
+        return Number(h) * 60 + Number(m);
+      };
+
+      const diff = toMin(horaFinValue) - toMin(horaInicioParaCalculo);
+      if (diff <= 0) {
+        return res
+          .status(400)
+          .json({ error: "hora_fin debe ser mayor que hora_inicio" });
+      }
+
+      horasCalculadas = diff / 60;
     }
 
     // (Opcional) si estás guardando área de apoyo en lineas_reporte
@@ -955,6 +985,14 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       params.push(areaNombre);
     }
 
+    if (horas !== undefined) {
+      updates.push("horas = ?");
+      params.push(horas ?? horasCalculadas ?? null);
+    } else if (horasCalculadas !== undefined) {
+      updates.push("horas = ?");
+      params.push(horasCalculadas);
+    }
+
     if (!updates.length) {
       return res.status(400).json({ error: "No hay campos para actualizar" });
     }
@@ -970,13 +1008,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Linea no encontrada" });
     }
 
-    // (pendiente = hora_fin IS NULL)
-
-    const [rep] = await pool.query(
-      "SELECT reporte_id FROM lineas_reporte WHERE id = ? LIMIT 1",
-      [lineaId]
-    );
-    const reporteId = rep[0]?.reporte_id;
+    const reporteId = existingLinea.reporte_id;
 
     if (reporteId) {
       const [pend] = await pool.query(
