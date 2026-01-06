@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
+import 'package:mobile/features/state_apoyo_horas.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
@@ -325,26 +326,24 @@ class _ReportCreatePlanilleroPageState
             onTap: _loadingApoyo
                 ? null
                 : () async {
-                    if (!apoyoExiste) {
-                      await _openOrGetApoyoHoras();
-                      return;
-                    }
-
-                    final id = _apoyoReporteId!;
-                    if (!mounted) return;
-
-                    Navigator.push(
+                    // Entra SIEMPRE a la pantalla especial de APOYO_HORAS (pendientes / 24h).
+                    // Esa pantalla se encarga de:
+                    //  - ver si hay pendientes
+                    //  - crear/obtener el reporte ABIERTO
+                    //  - abrir el formulario con los datos guardados
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ApoyosHorasBackendPage(
+                        builder: (_) => ApoyosHorasHomePage(
                           api: widget.api,
-                          reporteId: id,
-                          fecha: _fecha,
-                          turno: _turno,
-                          planillero: _planilleroCtrl.text,
+                          turno: _turno, // 'Dia' o 'Noche'
                         ),
                       ),
                     );
+
+                    // (Opcional) al volver, refresca el estado para que el tile cambie
+                    if (!mounted) return;
+                    await _openOrGetApoyoHoras();
                   },
           ),
           const SizedBox(height: 8),

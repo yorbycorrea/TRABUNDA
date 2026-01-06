@@ -6,6 +6,10 @@ const { authMiddleware } = require("../middlewares/auth");
 const PDFDocument = require("pdfkit");
 //const { width } = require("pdfkit/js/page");
 
+/* =========================
+   Helpers
+========================= */
+
 function esTipoReporteValido(tipo) {
   return [
     "SANEAMIENTO",
@@ -15,8 +19,17 @@ function esTipoReporteValido(tipo) {
   ].includes(tipo);
 }
 
+function normalizarTurno(turno) {
+  if (!turno) return turno;
+  const t = String(turno).trim();
+  if (t === "Dia" || t === "DIA") return "Día";
+  return t;
+}
+
 function esTurnoValido(turno) {
-  return ["Noche", "Dia"].includes(turno);
+  const t = normalizarTurno(turno);
+  // Ajusta aquí si luego agregas Mañana/Tarde
+  return ["Noche", "Día", "Dia"].includes(t);
 }
 
 function nombreTipoReporte(tipo) {
@@ -35,9 +48,7 @@ function nombreTipoReporte(tipo) {
 }
 
 function textoSeguro(valor) {
-  if (valor === null || valor === undefined || valor === "") {
-    return "-";
-  }
+  if (valor === null || valor === undefined || valor === "") return "-";
   return String(valor);
 }
 
@@ -72,7 +83,6 @@ function renderTablaHoras(doc, lineas) {
 
   let y = doc.y;
 
-  // Header
   y = agregarFilaTabla(
     doc,
     y,
@@ -89,7 +99,6 @@ function renderTablaHoras(doc, lineas) {
     .lineTo(doc.page.width - doc.page.margins.right, y - 4)
     .stroke();
 
-  // Rows
   lineas.forEach((linea) => {
     y = agregarFilaTabla(doc, y, [
       {
@@ -117,7 +126,6 @@ function renderTablaHoras(doc, lineas) {
   });
 }
 
-// según el tipo_reporte, qué flag de la tabla areas debe estar en 1
 function flagParaTipoReporte(tipo) {
   switch (tipo) {
     case "APOYO_HORAS":
@@ -125,416 +133,25 @@ function flagParaTipoReporte(tipo) {
     case "TRABAJO_AVANCE":
       return "es_trabajo_avance";
     case "SANEAMIENTO":
-      // por ahora usamos es_conteo_rapido
-      return "es_conteo_rapido";
+      return "es_conteo_rapido"; // según tu nota
     default:
       return null;
   }
 }
 
-//
-// === POST /reportes → crear cabecera (PROTEGIDO) =======
-//
-router.post("/", authMiddleware, async (req, res) => {
-  try {
-    const { fecha, turno, tipo_reporte, area_id, observaciones } = req.body;
+/* ===========================================================
+   🔥 ORDEN IMPORTANTE (específicas primero)
+=========================================================== */
 
-    const creado_por_user_id = req.user.id;
-
-    // 1) Validar campos obligatorios (para TODOS)
-    if (!fecha || !turno || !tipo_reporte) {
-      return res.status(400).json({
-        error: "Faltan campos obligatorios: fecha, turno, tipo_reporte",
-      });
-    }
-
-    // Normalizar turno (tu app manda "Dia", tu BD puede tener "Día")
-    const turnoNormalizado =
-      turno === "Dia" ? "Día" : turno === "DIA" ? "Día" : turno;
-
-    if (!esTurnoValido(turnoNormalizado)) {
-      return res.status(400).json({ error: "turno no válido" });
-    }
-
-    if (!esTipoReporteValido(tipo_reporte)) {
-      return res.status(400).json({ error: "tipo_reporte no válido" });
-    }
-
-    // 2) Traer nombre real del usuario desde DB
-    const [urows] = await pool.query(
-      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
-      [creado_por_user_id]
-    );
-
-    if (urows.length === 0) {
-      return res.status(401).json({ error: "Usuario inválido o desactivado" });
-    }
-
-    const creado_por_nombre = urows[0].nombre || urows[0].username;
-
-    // ✅ 3) Reglas por tipo:
-    // - APOYO_HORAS: NO requiere area_id en cabecera (área será por trabajador en lineas_reporte)
-    // - Los demás: SÍ requieren area_id
-    const requiereAreaCabecera = tipo_reporte !== "APOYO_HORAS";
-
-    let areaNombre = null;
-    let areaIdFinal = null;
-
-    if (requiereAreaCabecera) {
-      if (!area_id) {
-        return res.status(400).json({
-          error:
-            "Para este tipo_reporte se requiere area_id (en APOYO_HORAS el área va por trabajador).",
-        });
-      }
-
-      // Validar que el área exista y sea compatible con ese tipo de reporte
-      const flag = flagParaTipoReporte(tipo_reporte);
-      if (!flag) {
-        return res.status(400).json({
-          error: "No se pudo determinar el módulo para ese tipo_reporte",
-        });
-      }
-
-      const [areas] = await pool.query(
-        `SELECT id, nombre
-         FROM areas
-         WHERE id = ? AND ${flag} = 1 AND activo = 1`,
-        [area_id]
-      );
-
-      if (areas.length === 0) {
-        return res.status(400).json({
-          error: "El área seleccionada no es válida para este tipo de reporte",
-        });
-      }
-
-      areaNombre = areas[0].nombre;
-      areaIdFinal = areas[0].id;
-    } else {
-      //APOYO_HORAS: como tu columna reportes.area es NOT NULL,
-      // guardamos un texto fijo indicando que el área se define por línea.
-      areaNombre = "POR_TRABAJADOR";
-      areaIdFinal = null;
-    }
-
-    // 4) Insertar en reportes
-    const [result] = await pool.query(
-      `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        fecha,
-        turnoNormalizado,
-        tipo_reporte,
-        areaNombre,
-        areaIdFinal,
-        creado_por_user_id,
-        creado_por_nombre,
-        observaciones || null,
-      ]
-    );
-
-    return res.status(201).json({
-      message: "Reporte creado correctamente",
-      reporte_id: result.insertId,
-      area_nombre: areaNombre,
-      creado_por: { id: creado_por_user_id, nombre: creado_por_nombre },
-    });
-  } catch (err) {
-    console.error("Error al crear reporte:", err);
-    return res.status(500).json({ error: "Error interno al crear el reporte" });
-  }
-});
-
-// =========================================================
-// PUT /reportes/:id para actualizar los campos editables del informe con validacion
-// =========================================================
-
-router.put("/:id", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { fecha, turno, area_id, observaciones } = req.body;
-
-    const [rows] = await pool.query(
-      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
-      [id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-
-    const tipoReporte = rows[0].tipo_reporte;
-    const updates = [];
-    const params = [];
-
-    if (fecha !== undefined) {
-      updates.push("fecha = ?");
-      params.push(fecha);
-    }
-
-    if (turno !== undefined) {
-      if (!esTurnoValido(turno)) {
-        return res.status(400).json({ error: "turno no valido" });
-      }
-
-      updates.push("turno = ?");
-      params.push(turno);
-    }
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")) {
-      updates.push("observaciones = ?");
-      params.push(observaciones || null);
-    }
-
-    let areaNombre = null;
-    if (area_id !== undefined) {
-      const flag = flagParaTipoReporte(tipoReporte);
-      if (!flag) {
-        return res.status(400).json({
-          error: "No se pudo determinar el modulo para este tipo_reporte",
-        });
-      }
-
-      const [areas] = await pool.query(
-        `SELECT id, nombre
-        FROM areas
-        WHERE id = ? AND ${flag} = 1 AND activo = 1`,
-        [area_id]
-      );
-
-      if (areas.length === 0) {
-        return res.status(400).json({
-          error: "El area seleccionada no es valida para este tipo de reporte",
-        });
-      }
-      areaNombre = areas[0].nombre;
-      updates.push("area_id = ?");
-      params.push(area_id);
-      updates.push("area = ?");
-      params.push(areaNombre);
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({
-        error: "No hay campos editables para actualizar",
-      });
-    }
-
-    params.push(id);
-    await pool.query(
-      `UPDATE reportes SET ${updates.join(", ")} WHERE id = ?`,
-      params
-    );
-
-    return res.json({
-      message: "REPORTE ACTUALIZADO CORRECTAMENTE",
-      area_nombre: areaNombre,
-    });
-  } catch (err) {
-    console.error("Error al actualizar reporte: ", err);
-    return res
-      .status(500)
-      .json({ error: "Error interno al actualizar el reporte" });
-  }
-});
-
-// ===============================================
-// GET /reportes/:id/pdf -> PDF
-// ===============================================
-
-router.get("/:id/pdf", authMiddleware, async (req, res) => {
-  return res.status(501).json({ error: "PDF aún no implementado" });
-});
-
-// =====================================
-// GET obtener reportes
-// =====================================
-
-// LISTAR REPORTES: GET /reportes
-// Filtros (opcionales):
-//  - desde=YYYY-MM-DD
-//  - hasta=YYYY-MM-DD
-//  - tipo=SANEAMIENTO|APOYO_HORAS|TRABAJO_AVANCE
-//  - area_id=1
-//  - turno=Mañana|Tarde|Noche|Día
-//  - creador_id=123   (filtra por r.creado_por_user_id)
-//  - q=texto          (busca en observaciones / area_nombre / creado_por_nombre)
-// Paginación (opcionales):
-//  - page=1
-//  - limit=20
-// Orden (opcionales, con whitelist):
-//  - ordenar=fecha|creado_en
-//  - dir=asc|desc
-//const { authMiddleware } = require("../middlewares/auth");
-
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const {
-      desde,
-      hasta,
-      tipo,
-      area_id,
-      turno,
-      activo,
-      creador_id,
-      q,
-      page = 1,
-      limit = 20,
-      ordenar = "fecha",
-      dir = "desc",
-    } = req.query;
-
-    // Whitelist de orden
-    const camposOrden = new Set(["fecha", "creado_en"]);
-    const dirs = new Set(["asc", "desc"]);
-    const orderBy = camposOrden.has(ordenar) ? ordenar : "fecha";
-    const orderDir = dirs.has(String(dir).toLowerCase())
-      ? String(dir).toLowerCase()
-      : "desc";
-
-    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
-    const offset = (pageNum - 1) * limitNum;
-
-    // Construcción dinámica de filtros
-    const where = [];
-    const params = [];
-
-    if (desde) {
-      where.push("r.fecha >= ?");
-      params.push(desde);
-    }
-    if (hasta) {
-      where.push("r.fecha <= ?");
-      params.push(hasta);
-    }
-    if (tipo) {
-      where.push("r.tipo_reporte = ?");
-      params.push(tipo);
-    }
-    if (area_id) {
-      where.push("r.area_id = ?");
-      params.push(area_id);
-    }
-    if (turno) {
-      where.push("r.turno = ?");
-      params.push(turno);
-    }
-    if (creador_id) {
-      where.push("r.creado_por_user_id = ?");
-      params.push(creador_id);
-    }
-    if (q) {
-      // búsqueda simple en 3 campos
-      where.push(
-        "(r.observaciones LIKE ? OR a.nombre LIKE ? OR r.creado_por_nombre LIKE ?)"
-      );
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-    }
-
-    if (activo !== undefined) {
-      const activoNumber = Number(activo);
-      if (Number.isNaN(activoNumber)) {
-        return res
-          .status(400)
-          .json({ error: "El filtro 'activo' debe ser numérico (0 o 1)" });
-      }
-      const activoValue = activoNumber === 1 ? 1 : 0;
-      where.push("r.activo = ?");
-      params.push(activoValue);
-    }
-
-    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-    // 1) total para paginación
-    const [countRows] = await pool.query(
-      `SELECT COUNT(*) AS total
-       FROM reportes r
-       LEFT JOIN areas a ON a.id = r.area_id
-       ${whereSql}`,
-      params
-    );
-    const total = countRows[0]?.total || 0;
-    const total_pages = Math.ceil(total / limitNum);
-
-    // 2) datos
-    const [rows] = await pool.query(
-      `SELECT
-         r.id,
-         r.fecha,
-         r.turno,
-         r.tipo_reporte,
-         r.area_id,
-         r.activo,
-         a.nombre        AS area_nombre,
-         r.creado_por_user_id,
-         r.creado_por_nombre,
-         r.observaciones,
-         r.creado_en
-       FROM reportes r
-       LEFT JOIN areas a ON a.id = r.area_id
-       ${whereSql}
-       ORDER BY ${orderBy} ${orderDir}, r.id ${orderDir}
-       LIMIT ? OFFSET ?`,
-      [...params, limitNum, offset]
-    );
-
-    return res.json({
-      page: pageNum,
-      limit: limitNum,
-      total,
-      total_pages,
-      items: rows,
-    });
-  } catch (err) {
-    console.error("Error al listar reportes:", err);
-    return res.status(500).json({ error: "Error interno al listar reportes" });
-  }
-});
-
-// ======================================
-// PATCH activar/desactivar reporte
-// =======================================
-
-router.patch("/:id/activar", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { activo = 1 } = req.body;
-
-    const activoValue = activo === 1 || activo === "1" ? 1 : 0;
-
-    const [result] = await pool.query(
-      "UPDATE reportes SET activo = ? WHERE id = ?",
-      [activoValue, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-    return res.json({
-      message: "Estado del reporte actualizado",
-      reporte_id: id,
-      activo: activoValue,
-    });
-  } catch (err) {
-    console.error("Error al actualizar reporte: ", err);
-    return res
-      .status(500)
-      .json({ error: "Error interno al actualizar reporte " });
-  }
-});
-
-// ========================================
-// GET /reportes/apoyo-horas/open?turno=Dia&fecha=2025-11-30
-// GET /reportes/apoyo-horas/open
-// ========================================
-
+/* ========================================
+   GET /reportes/apoyo-horas/open
+======================================== */
 router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { turno, fecha } = req.query;
+    const turnoRaw = req.query.turno;
+    const turno = normalizarTurno(turnoRaw);
+    const { fecha } = req.query;
 
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
     if (!esTurnoValido(turno))
@@ -560,10 +177,7 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
     );
 
     if (rows.length) {
-      return res.json({
-        existente: true,
-        reporte: rows[0],
-      });
+      return res.json({ existente: true, reporte: rows[0] });
     }
 
     // 2) si no existe, crear uno nuevo
@@ -595,19 +209,415 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
       [result.insertId]
     );
 
-    return res.status(201).json({
-      existente: false,
-      reporte: nuevo[0],
-    });
+    return res.status(201).json({ existente: false, reporte: nuevo[0] });
   } catch (err) {
     console.error("open apoyo-horas error:", err);
     return res.status(500).json({ error: "Error interno open apoyo-horas" });
   }
 });
 
-// ========================================
-// POST /reportes/:id/lineas
-// ========================================
+/* ========================================
+   GET /reportes/apoyo-horas/pendientes
+======================================== */
+router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const horasParam = req.query.horas ?? req.query.hours ?? 24;
+    const horas = Number(horasParam);
+    const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
+
+    const [rows] = await pool.query(
+      `SELECT 
+          r.id AS report_id,
+          r.fecha,
+          r.turno,
+          r.creado_por_nombre,
+          COUNT(*) AS pendiente,
+          MAX(lr.area_nombre) AS area_nombre
+       FROM reportes r
+       JOIN lineas_reporte lr ON lr.reporte_id = r.id
+       WHERE r.tipo_reporte = 'APOYO_HORAS'
+         AND r.creado_por_user_id = ?
+         AND r.estado = 'ABIERTO'
+         AND (r.vence_en IS NULL OR r.vence_en > NOW())
+         AND lr.hora_fin IS NULL
+       GROUP BY r.id
+       ORDER BY r.id DESC`,
+      [userId]
+    );
+
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error("pendientes apoyo-horas error:", err);
+    return res.status(500).json({ error: "Error interno de pendientes" });
+  }
+});
+
+/* =========================================
+   PATCH /reportes/lineas/:lineaId
+========================================= */
+router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
+  try {
+    const lineaId = Number(req.params.lineaId);
+    if (!Number.isInteger(lineaId) || lineaId <= 0) {
+      return res.status(400).json({ error: "lineaId inválido" });
+    }
+
+    const {
+      cuadrilla_id,
+      horas,
+      hora_inicio,
+      hora_fin,
+      kilos,
+      labores,
+      area_id,
+    } = req.body;
+
+    const [lineaRows] = await pool.query(
+      "SELECT reporte_id, hora_inicio FROM lineas_reporte WHERE id = ? LIMIT 1",
+      [lineaId]
+    );
+    if (!lineaRows.length) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    const existingLinea = lineaRows[0];
+
+    const updates = [];
+    const params = [];
+
+    if (cuadrilla_id !== undefined) {
+      updates.push("cuadrilla_id = ?");
+      params.push(cuadrilla_id ?? null);
+    }
+    if (hora_inicio !== undefined) {
+      updates.push("hora_inicio = ?");
+      params.push(hora_inicio ?? null);
+    }
+    if (hora_fin !== undefined) {
+      updates.push("hora_fin = ?");
+      params.push(hora_fin ?? null);
+    }
+    if (kilos !== undefined) {
+      updates.push("kilos = ?");
+      params.push(kilos ?? null);
+    }
+    if (labores !== undefined) {
+      updates.push("labores = ?");
+      params.push(labores ?? null);
+    }
+
+    // area (opcional)
+    if (area_id !== undefined) {
+      updates.push("area_id = ?");
+      params.push(area_id ?? null);
+
+      const [aRows] = await pool.query(
+        "SELECT nombre FROM areas WHERE id = ? LIMIT 1",
+        [area_id]
+      );
+      const areaNombre = aRows[0]?.nombre ?? null;
+      updates.push("area_nombre = ?");
+      params.push(areaNombre);
+    }
+
+    // recalcular horas si llega hora_fin y no mandan horas
+    const horaFinLlego = hora_fin !== undefined;
+    const horaFinValue = hora_fin ?? null;
+    const horaInicioParaCalculo =
+      hora_inicio !== undefined
+        ? hora_inicio ?? null
+        : existingLinea.hora_inicio;
+
+    let horasCalculadas;
+    if (horaFinLlego && horaFinValue && horaInicioParaCalculo) {
+      const toMin = (s) => {
+        const [h, m] = String(s).split(":");
+        return Number(h) * 60 + Number(m);
+      };
+      const diff = toMin(horaFinValue) - toMin(horaInicioParaCalculo);
+      if (diff <= 0) {
+        return res
+          .status(400)
+          .json({ error: "hora_fin debe ser mayor que hora_inicio" });
+      }
+      horasCalculadas = diff / 60;
+    }
+
+    if (horas !== undefined) {
+      const horasValue =
+        horas === null && horaFinLlego
+          ? horasCalculadas ?? null
+          : horas ?? horasCalculadas ?? null;
+      updates.push("horas = ?");
+      params.push(horasValue);
+    } else if (horaFinLlego && horasCalculadas !== undefined) {
+      updates.push("horas = ?");
+      params.push(horasCalculadas);
+    }
+
+    if (!updates.length) {
+      return res.status(400).json({ error: "No hay campos para actualizar" });
+    }
+
+    params.push(lineaId);
+
+    const [result] = await pool.query(
+      `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    // cerrar reporte si ya no hay pendientes
+    const reporteId = existingLinea.reporte_id;
+    if (reporteId) {
+      const [pend] = await pool.query(
+        "SELECT COUNT(*) AS c FROM lineas_reporte WHERE reporte_id = ? AND hora_fin IS NULL",
+        [reporteId]
+      );
+      const pendientes = Number(pend[0]?.c ?? 0);
+      if (pendientes === 0) {
+        await pool.query(
+          "UPDATE reportes SET estado = 'CERRADO', cerrado_en = NOW() WHERE id = ?",
+          [reporteId]
+        );
+      }
+    }
+
+    return res.json({ message: "Linea actualizada" });
+  } catch (err) {
+    console.error("Error actualizando linea:", err);
+    return res.status(500).json({ error: "Error interno al actualizar linea" });
+  }
+});
+
+/* =========================================
+   DELETE /reportes/lineas/:lineaId
+========================================= */
+router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
+  try {
+    const lineaId = Number(req.params.lineaId);
+    if (!Number.isInteger(lineaId) || lineaId <= 0) {
+      return res.status(400).json({ error: "lineaId inválido" });
+    }
+
+    const [result] = await pool.query(
+      "DELETE FROM lineas_reporte WHERE id = ?",
+      [lineaId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Linea no encontrada" });
+    }
+
+    return res.json({ message: "Linea eliminada" });
+  } catch (err) {
+    console.error("Error eliminando linea:", err);
+    return res.status(500).json({ error: "Error interno al eliminar linea" });
+  }
+});
+
+/* =======================================
+   GET /reportes/:id/lineas
+======================================= */
+router.get("/:id/lineas", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    if (!Number.isInteger(reporteId) || reporteId <= 0) {
+      return res.status(400).json({ error: "id de reporte inválido" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+         lr.id,
+         lr.reporte_id,
+         lr.trabajador_id,
+         lr.cuadrilla_id,
+
+         lr.trabajador_codigo,
+         lr.trabajador_nombre,
+
+         lr.area_id,
+         lr.area_nombre,
+
+         lr.hora_inicio,
+         lr.hora_fin,
+         lr.horas,
+
+         lr.kilos,
+         lr.labores,
+
+         c.nombre AS cuadrilla_nombre
+       FROM lineas_reporte lr
+       LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
+       WHERE lr.reporte_id = ?
+       ORDER BY lr.id ASC`,
+      [reporteId]
+    );
+
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error("Error listando lineas:", err);
+    return res.status(500).json({ error: "Error interno al listar lineas" });
+  }
+});
+
+/* ===============================================
+   GET /reportes/:id/pdf  (antes que /:id)
+=============================================== */
+router.get("/:id/pdf", authMiddleware, async (req, res) => {
+  return res.status(501).json({ error: "PDF aún no implementado" });
+});
+
+/* =======================================
+   GET /reportes/:id (cabecera)
+======================================= */
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(
+      `SELECT
+         r.id,
+         r.fecha,
+         r.turno,
+         r.tipo_reporte,
+         r.area_id,
+         r.activo,
+         a.nombre AS area_nombre,
+         r.creado_por_user_id,
+         r.creado_por_nombre,
+         r.observaciones,
+         r.creado_en
+       FROM reportes r
+       LEFT JOIN areas a ON r.area_id = a.id
+       WHERE r.id = ?
+       LIMIT 1`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    return res.json(rows[0]);
+  } catch (err) {
+    console.error("Error al obtener reporte:", err);
+    return res
+      .status(500)
+      .json({ error: "Error interno al obtener el reporte" });
+  }
+});
+
+/* ======================================
+   POST /reportes  (crear cabecera)
+====================================== */
+router.post("/", authMiddleware, async (req, res) => {
+  try {
+    const { fecha, turno, tipo_reporte, area_id, observaciones } = req.body;
+    const creado_por_user_id = req.user.id;
+
+    if (!fecha || !turno || !tipo_reporte) {
+      return res.status(400).json({
+        error: "Faltan campos obligatorios: fecha, turno, tipo_reporte",
+      });
+    }
+
+    const turnoNormalizado = normalizarTurno(turno);
+
+    if (!esTurnoValido(turnoNormalizado)) {
+      return res.status(400).json({ error: "turno no válido" });
+    }
+
+    if (!esTipoReporteValido(tipo_reporte)) {
+      return res.status(400).json({ error: "tipo_reporte no válido" });
+    }
+
+    const [urows] = await pool.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [creado_por_user_id]
+    );
+
+    if (!urows.length) {
+      return res.status(401).json({ error: "Usuario inválido o desactivado" });
+    }
+
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    const requiereAreaCabecera = tipo_reporte !== "APOYO_HORAS";
+
+    let areaNombre = null;
+    let areaIdFinal = null;
+
+    if (requiereAreaCabecera) {
+      if (!area_id) {
+        return res.status(400).json({
+          error:
+            "Para este tipo_reporte se requiere area_id (en APOYO_HORAS el área va por trabajador).",
+        });
+      }
+
+      const flag = flagParaTipoReporte(tipo_reporte);
+      if (!flag) {
+        return res.status(400).json({
+          error: "No se pudo determinar el módulo para ese tipo_reporte",
+        });
+      }
+
+      const [areas] = await pool.query(
+        `SELECT id, nombre
+         FROM areas
+         WHERE id = ? AND ${flag} = 1 AND activo = 1
+         LIMIT 1`,
+        [area_id]
+      );
+
+      if (!areas.length) {
+        return res.status(400).json({
+          error: "El área seleccionada no es válida para este tipo de reporte",
+        });
+      }
+
+      areaNombre = areas[0].nombre;
+      areaIdFinal = areas[0].id;
+    } else {
+      areaNombre = "POR_TRABAJADOR";
+      areaIdFinal = null;
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO reportes
+       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        fecha,
+        turnoNormalizado,
+        tipo_reporte,
+        areaNombre,
+        areaIdFinal,
+        creado_por_user_id,
+        creado_por_nombre,
+        observaciones || null,
+      ]
+    );
+
+    return res.status(201).json({
+      message: "Reporte creado correctamente",
+      reporte_id: result.insertId,
+      area_nombre: areaNombre,
+      creado_por: { id: creado_por_user_id, nombre: creado_por_nombre },
+    });
+  } catch (err) {
+    console.error("Error al crear reporte:", err);
+    return res.status(500).json({ error: "Error interno al crear el reporte" });
+  }
+});
+
+/* =====================================
+   POST /reportes/:id/lineas
+===================================== */
 router.post("/:id/lineas", authMiddleware, async (req, res) => {
   try {
     const reporteId = Number(req.params.id);
@@ -630,47 +640,36 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "trabajador_id es obligatorio" });
     }
 
-    /* =====================================================
-       1) Obtener tipo de reporte
-    ===================================================== */
     const [repRows] = await pool.query(
       "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
       [reporteId]
     );
-    if (!repRows.length) {
+    if (!repRows.length)
       return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-
     const tipo = repRows[0].tipo_reporte;
 
-    /* =====================================================
-       2) Validar trabajador activo
-    ===================================================== */
+    // trabajador
     const [tRows] = await pool.query(
       "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
       [trabajador_id]
     );
-    if (!tRows.length) {
+    if (!tRows.length)
       return res.status(400).json({ error: "Trabajador no válido o inactivo" });
-    }
     const trabajador = tRows[0];
 
-    /* =====================================================
-       3) Validar área SOLO para APOYO_HORAS
-    ===================================================== */
+    // área solo apoyo horas
     let areaNombre = null;
-
     if (tipo === "APOYO_HORAS") {
       if (!area_id) {
-        return res.status(400).json({
-          error: "area_id es obligatorio para APOYO_HORAS",
-        });
+        return res
+          .status(400)
+          .json({ error: "area_id es obligatorio para APOYO_HORAS" });
       }
 
       const [aRows] = await pool.query(
         `SELECT id, nombre
          FROM areas
-         WHERE id = ?
+         WHERE id= ?
            AND es_apoyo_horas = 1
            AND activo = 1
          LIMIT 1`,
@@ -678,26 +677,33 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       );
 
       if (!aRows.length) {
-        return res.status(400).json({
-          error: "Área no válida para APOYO_HORAS",
-        });
+        return res
+          .status(400)
+          .json({ error: "Área no válida para APOYO_HORAS" });
       }
-
       areaNombre = aRows[0].nombre;
+
+      if (!hora_inicio) {
+        return res
+          .status(400)
+          .json({ error: "Para APOYO_HORAS se requiere hora_inicio" });
+      }
     }
 
-    /* =====================================================
-       4) Validaciones mínimas por tipo
-    ===================================================== */
-    if (tipo === "APOYO_HORAS" && !hora_inicio) {
-      return res.status(400).json({
-        error: "Para APOYO_HORAS se requiere hora_inicio",
-      });
+    // validar cuadrilla (si mandan)
+    if (cuadrilla_id !== undefined && cuadrilla_id !== null) {
+      const [cRows] = await pool.query(
+        "SELECT id FROM cuadrillas WHERE id = ? AND reporte_id = ?",
+        [cuadrilla_id, reporteId]
+      );
+      if (!cRows.length) {
+        return res
+          .status(400)
+          .json({ error: "cuadrilla_id no válida para este reporte" });
+      }
     }
 
-    /* =====================================================
-       5) Calcular horas (si hay hora_fin)
-    ===================================================== */
+    // calcular horas si llega hora_fin
     let horasValue = horas ?? null;
     let horaFinValue = hora_fin ?? null;
 
@@ -707,25 +713,19 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
           const [h, m] = String(s).split(":");
           return Number(h) * 60 + Number(m);
         };
-
         const diff = toMin(horaFinValue) - toMin(hora_inicio);
         if (diff <= 0) {
-          return res.status(400).json({
-            error: "hora_fin debe ser mayor que hora_inicio",
-          });
+          return res
+            .status(400)
+            .json({ error: "hora_fin debe ser mayor que hora_inicio" });
         }
-
         horasValue = diff / 60;
       } else {
-        // si no hay hora_fin → queda pendiente
-        horasValue = null;
+        horasValue = null; // pendiente
       }
     }
 
-    /* =====================================================
-       6) EVITAR DUPLICADOS:
-          si existe línea pendiente → UPDATE
-    ===================================================== */
+    // evitar duplicados: si existe pendiente del mismo trabajador => UPDATE
     if (tipo === "APOYO_HORAS") {
       const [pendiente] = await pool.query(
         `SELECT id
@@ -764,9 +764,6 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       }
     }
 
-    /* =====================================================
-       7) INSERTAR nueva línea
-    ===================================================== */
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
        (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre,
@@ -788,295 +785,228 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       ]
     );
 
-    return res.status(201).json({
-      message: "Linea creada",
-      linea_id: result.insertId,
-    });
+    return res
+      .status(201)
+      .json({ message: "Linea creada", linea_id: result.insertId });
   } catch (err) {
     console.error("Error creando linea:", err);
     return res.status(500).json({ error: "Error interno al crear linea" });
   }
 });
 
-// ======================================================
-// GET /reportes/apoyo-horas/pendientes?horas=24
-// ======================================================
-
-router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
+/* =====================================
+   PUT /reportes/:id (actualizar)
+===================================== */
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const horasParam = req.query.horas ?? req.query.hours ?? 24;
-    const horas = Number(horasParam);
-    const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
-    const params = [userId, horasFiltro];
+    const { id } = req.params;
+    const { fecha, turno, area_id, observaciones } = req.body;
 
     const [rows] = await pool.query(
-      `SELECT 
-          r.id AS report_id,
-          r.fecha,
-          r.turno,
-          r.creado_por_nombre,
-          COUNT(*) AS pendiente,
-          MAX(lr.area_nombre) AS area_nombre
-      FROM reportes r
-      JOIN lineas_reporte lr ON lr.reporte_id = r.id
-      WHERE r.tipo_reporte = 'APOYO_HORAS'
-        AND r.creado_por_user_id = ?
-        AND r.estado = 'ABIERTO'
-         AND (
-          r.vence_en IS NULL
-          OR r.vence_en >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-        )
-        AND lr.hora_fin IS NULL
-      GROUP BY r.id
-      ORDER BY r.id DESC`,
-      params
+      "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
+      [id]
     );
-    return res.json({ items: rows });
-  } catch (err) {
-    console.error("pendientes apoyo-horas error: ", err);
-    return res.status(500).json({ erro: "Error interno de pendientes" });
-  }
-});
+    if (!rows.length)
+      return res.status(404).json({ error: "Reporte no encontrado" });
 
-// =======================================
-// GET /reportes/:id/detalles
-// =======================================
-// =======================================
-// GET /reportes/:id/lineas
-// =======================================
-router.get("/:id/lineas", authMiddleware, async (req, res) => {
-  try {
-    const reporteId = Number(req.params.id);
-    if (!Number.isInteger(reporteId) || reporteId <= 0) {
-      return res.status(400).json({ error: "id de reporte inválido" });
-    }
-
-    const [rows] = await pool.query(
-      `SELECT
-         lr.id,
-         lr.reporte_id,
-         lr.trabajador_id,
-         lr.cuadrilla_id,
-
-         lr.trabajador_codigo,
-         lr.trabajador_nombre,
-
-         lr.area_id,
-         lr.area_nombre,
-
-         lr.hora_inicio,
-         lr.hora_fin,
-         lr.horas,
-
-         lr.kilos,
-         lr.labores,
-
-         c.nombre AS cuadrilla_nombre
-       FROM lineas_reporte lr
-       LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
-       WHERE lr.reporte_id = ?
-       ORDER BY lr.id ASC`,
-      [reporteId]
-    );
-
-    return res.json({
-      items: rows,
-    });
-  } catch (err) {
-    console.error("Error listando lineas:", err);
-    return res.status(500).json({
-      error: "Error interno al listar lineas",
-    });
-  }
-});
-
-// =========================================
-// PATCH /reportes/lineas/:lineaId
-// =========================================
-router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
-  try {
-    const lineaId = Number(req.params.lineaId);
-    if (!Number.isInteger(lineaId) || lineaId <= 0) {
-      return res.status(400).json({ error: "lineaId inválido" });
-    }
-
-    const {
-      cuadrilla_id,
-      horas,
-      hora_inicio,
-      hora_fin,
-      kilos,
-      labores,
-      area_id,
-    } = req.body;
-
-    const [lineaRows] = await pool.query(
-      "SELECT reporte_id, hora_inicio FROM lineas_reporte WHERE id = ? LIMIT 1",
-      [lineaId]
-    );
-
-    if (!lineaRows.length) {
-      return res.status(404).json({ error: "Linea no encontrada" });
-    }
-
-    const existingLinea = lineaRows[0];
-
+    const tipoReporte = rows[0].tipo_reporte;
     const updates = [];
     const params = [];
 
-    if (cuadrilla_id !== undefined) {
-      updates.push("cuadrilla_id = ?");
-      params.push(cuadrilla_id ?? null);
+    if (fecha !== undefined) {
+      updates.push("fecha = ?");
+      params.push(fecha);
     }
 
-    if (hora_inicio !== undefined) {
-      updates.push("hora_inicio = ?");
-      params.push(hora_inicio ?? null);
-    }
-    if (hora_fin !== undefined) {
-      updates.push("hora_fin = ?");
-      params.push(hora_fin ?? null);
-    }
-    if (kilos !== undefined) {
-      updates.push("kilos = ?");
-      params.push(kilos ?? null);
-    }
-    if (labores !== undefined) {
-      updates.push("labores = ?");
-      params.push(labores ?? null);
+    if (turno !== undefined) {
+      const t = normalizarTurno(turno);
+      if (!esTurnoValido(t))
+        return res.status(400).json({ error: "turno no valido" });
+      updates.push("turno = ?");
+      params.push(t);
     }
 
-    const horaFinLlego = hora_fin !== undefined;
-    const horaFinValue = hora_fin ?? null;
-    const horaInicioParaCalculo =
-      hora_inicio !== undefined
-        ? hora_inicio ?? null
-        : existingLinea.hora_inicio;
-    let horasCalculadas;
+    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")) {
+      updates.push("observaciones = ?");
+      params.push(observaciones || null);
+    }
 
-    if (horaFinLlego && horaFinValue && horaInicioParaCalculo) {
-      const toMin = (s) => {
-        const [h, m] = String(s).split(":");
-        return Number(h) * 60 + Number(m);
-      };
-
-      const diff = toMin(horaFinValue) - toMin(horaInicioParaCalculo);
-      if (diff <= 0) {
-        return res
-          .status(400)
-          .json({ error: "hora_fin debe ser mayor que hora_inicio" });
+    let areaNombre = null;
+    if (area_id !== undefined) {
+      const flag = flagParaTipoReporte(tipoReporte);
+      if (!flag) {
+        return res.status(400).json({
+          error: "No se pudo determinar el modulo para este tipo_reporte",
+        });
       }
 
-      horasCalculadas = diff / 60;
-    }
-
-    // (Opcional) si estás guardando área de apoyo en lineas_reporte
-    if (area_id !== undefined) {
-      updates.push("area_id = ?");
-      params.push(area_id ?? null);
-
-      // si tienes columna area_nombre
-      const [aRows] = await pool.query(
-        "SELECT nombre FROM areas WHERE id = ? LIMIT 1",
+      const [areas] = await pool.query(
+        `SELECT id, nombre
+         FROM areas
+         WHERE id = ? AND ${flag} = 1 AND activo = 1
+         LIMIT 1`,
         [area_id]
       );
-      const areaNombre = aRows[0]?.nombre ?? null;
 
-      // se guarda el nombre de la area:
-      updates.push("area_nombre = ?");
+      if (!areas.length) {
+        return res.status(400).json({
+          error: "El area seleccionada no es valida para este tipo de reporte",
+        });
+      }
+
+      areaNombre = areas[0].nombre;
+      updates.push("area_id = ?");
+      params.push(area_id);
+      updates.push("area = ?");
       params.push(areaNombre);
     }
 
-    if (horas !== undefined) {
-      const horasValue =
-        horas === null && horaFinLlego
-          ? horasCalculadas ?? null
-          : horas ?? horasCalculadas ?? null;
-      updates.push("horas = ?");
-      params.push(horasValue);
-    } else if (horaFinLlego && horasCalculadas !== undefined) {
-      updates.push("horas = ?");
-      params.push(horasCalculadas);
-    }
-
     if (!updates.length) {
-      return res.status(400).json({ error: "No hay campos para actualizar" });
+      return res
+        .status(400)
+        .json({ error: "No hay campos editables para actualizar" });
     }
 
-    params.push(lineaId);
-
-    const [result] = await pool.query(
-      `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
+    params.push(id);
+    await pool.query(
+      `UPDATE reportes SET ${updates.join(", ")} WHERE id = ?`,
       params
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Linea no encontrada" });
-    }
-
-    const reporteId = existingLinea.reporte_id;
-
-    if (reporteId) {
-      const [pend] = await pool.query(
-        "SELECT COUNT(*) AS c FROM lineas_reporte WHERE reporte_id = ? AND hora_fin IS NULL",
-        [reporteId]
-      );
-
-      const pendientes = Number(pend[0]?.c ?? 0);
-
-      if (pendientes === 0) {
-        await pool.query(
-          "UPDATE reportes SET estado = 'CERRADO', cerrado_en = NOW() WHERE id = ?",
-          [reporteId]
-        );
-      } else {
-        // (Opcional) si quieres asegurar que quede ABIERTO mientras haya pendientes:
-        // await pool.query("UPDATE reportes SET estado = 'ABIERTO', cerrado_en = NULL WHERE id = ?", [reporteId]);
-      }
-    }
-
-    return res.json({ message: "Linea actualizada" });
+    return res.json({
+      message: "REPORTE ACTUALIZADO CORRECTAMENTE",
+      area_nombre: areaNombre,
+    });
   } catch (err) {
-    console.error("Error actualizando linea:", err);
-    return res.status(500).json({ error: "Error interno al actualizar linea" });
+    console.error("Error al actualizar reporte: ", err);
+    return res
+      .status(500)
+      .json({ error: "Error interno al actualizar el reporte" });
   }
 });
 
-// =====================================================
-// DELETE /reportes/lineas/:lineaId
-// ====================================================
-
-router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
+/* ======================================
+   PATCH /reportes/:id/activar
+====================================== */
+router.patch("/:id/activar", authMiddleware, async (req, res) => {
   try {
-    const lineaId = Number(req.params.lineaId);
-    if (!Number.isInteger(lineaId) || lineaId <= 0) {
-      return res.status(400).json({ error: "lineaId inválido" });
-    }
+    const { id } = req.params;
+    const { activo = 1 } = req.body;
+
+    const activoValue = activo === 1 || activo === "1" ? 1 : 0;
 
     const [result] = await pool.query(
-      "DELETE FROM lineas_reporte WHERE id = ?",
-      [lineaId]
+      "UPDATE reportes SET activo = ? WHERE id = ?",
+      [activoValue, id]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Linea no encontrada" });
+      return res.status(404).json({ error: "Reporte no encontrado" });
     }
 
-    return res.json({ message: "Linea eliminada" });
+    return res.json({
+      message: "Estado del reporte actualizado",
+      reporte_id: id,
+      activo: activoValue,
+    });
   } catch (err) {
-    console.error("Error eliminando linea:", err);
-    return res.status(500).json({ error: "Error interno al eliminar linea" });
+    console.error("Error al actualizar reporte: ", err);
+    return res
+      .status(500)
+      .json({ error: "Error interno al actualizar reporte " });
   }
 });
 
-//
-// === GET /reportes/:id → cabecera ======================
-// (este puede ser público o protegido, tú decides)
-//
-router.get("/:id", async (req, res) => {
+/* =====================================
+   GET /reportes  (listar)
+===================================== */
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const {
+      desde,
+      hasta,
+      tipo,
+      area_id,
+      turno,
+      activo,
+      creador_id,
+      q,
+      page = 1,
+      limit = 20,
+      ordenar = "fecha",
+      dir = "desc",
+    } = req.query;
+
+    const camposOrden = new Set(["fecha", "creado_en"]);
+    const dirs = new Set(["asc", "desc"]);
+    const orderBy = camposOrden.has(ordenar) ? ordenar : "fecha";
+    const orderDir = dirs.has(String(dir).toLowerCase())
+      ? String(dir).toLowerCase()
+      : "desc";
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where = [];
+    const params = [];
+
+    if (desde) {
+      where.push("r.fecha >= ?");
+      params.push(desde);
+    }
+    if (hasta) {
+      where.push("r.fecha <= ?");
+      params.push(hasta);
+    }
+    if (tipo) {
+      where.push("r.tipo_reporte = ?");
+      params.push(tipo);
+    }
+    if (area_id) {
+      where.push("r.area_id = ?");
+      params.push(area_id);
+    }
+    if (turno) {
+      where.push("r.turno = ?");
+      params.push(normalizarTurno(turno));
+    }
+    if (creador_id) {
+      where.push("r.creado_por_user_id = ?");
+      params.push(creador_id);
+    }
+
+    if (q) {
+      where.push(
+        "(r.observaciones LIKE ? OR a.nombre LIKE ? OR r.creado_por_nombre LIKE ?)"
+      );
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+
+    if (activo !== undefined) {
+      const activoNumber = Number(activo);
+      if (Number.isNaN(activoNumber)) {
+        return res
+          .status(400)
+          .json({ error: "El filtro 'activo' debe ser numérico (0 o 1)" });
+      }
+      const activoValue = activoNumber === 1 ? 1 : 0;
+      where.push("r.activo = ?");
+      params.push(activoValue);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM reportes r
+       LEFT JOIN areas a ON a.id = r.area_id
+       ${whereSql}`,
+      params
+    );
+
+    const total = countRows[0]?.total || 0;
+    const total_pages = Math.ceil(total / limitNum);
 
     const [rows] = await pool.query(
       `SELECT
@@ -1086,29 +1016,30 @@ router.get("/:id", async (req, res) => {
          r.tipo_reporte,
          r.area_id,
          r.activo,
-         a.nombre       AS area_nombre,
+         a.nombre AS area_nombre,
          r.creado_por_user_id,
          r.creado_por_nombre,
          r.observaciones,
          r.creado_en
        FROM reportes r
-       LEFT JOIN areas a ON r.area_id = a.id
-       WHERE r.id = ?`,
-      [id]
+       LEFT JOIN areas a ON a.id = r.area_id
+       ${whereSql}
+       ORDER BY ${orderBy} ${orderDir}, r.id ${orderDir}
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
     );
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-
-    res.json(rows[0]);
+    return res.json({
+      page: pageNum,
+      limit: limitNum,
+      total,
+      total_pages,
+      items: rows,
+    });
   } catch (err) {
-    console.error("Error al obtener reporte:", err);
-    res.status(500).json({ error: "Error interno al obtener el reporte" });
+    console.error("Error al listar reportes:", err);
+    return res.status(500).json({ error: "Error interno al listar reportes" });
   }
 });
-
-// =====================================
-//======================================
 
 module.exports = router;
