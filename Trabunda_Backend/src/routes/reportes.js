@@ -8,7 +8,6 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 
-
 //const { width } = require("pdfkit/js/page");
 
 /* =========================
@@ -16,12 +15,9 @@ const { chromium } = require("playwright");
 ========================= */
 
 function esTipoReporteValido(tipo) {
-  return [
-    "SANEAMIENTO",
-    "APOYO_HORAS",
-    "TRABAJO_AVANCE",
-    "CONTEO_RAPIDO",
-  ].includes(tipo);
+  return ["SANEAMIENTO", "APOYO_HORAS", "TRABAJO_AVANCE", "CONTEO_RAPIDO"].includes(
+    tipo
+  );
 }
 
 function normalizarTurno(turno) {
@@ -33,7 +29,6 @@ function normalizarTurno(turno) {
 
 function esTurnoValido(turno) {
   const t = normalizarTurno(turno);
-  // Ajusta aquí si luego agregas Mañana/Tarde
   return ["Noche", "Día", "Dia"].includes(t);
 }
 
@@ -137,11 +132,68 @@ function flagParaTipoReporte(tipo) {
       return "es_apoyo_horas";
     case "TRABAJO_AVANCE":
       return "es_trabajo_avance";
-    case "SANEAMIENTO":
-      return "es_conteo_rapido"; // según tu nota
+    case "CONTEO_RAPIDO":
+      return "es_conteo_rapido";
+    // SANEAMIENTO no usa area_id (NO validar)
     default:
       return null;
   }
+}
+
+/**
+ * ✅ Recalcula estado del reporte según pendientes
+ * - APOYO_HORAS: pendiente si existe linea con hora_fin NULL
+ * - SANEAMIENTO: pendiente si existe linea con hora_fin NULL o labores vacías
+ * Si pendientes=0 => CERRADO + cerrado_en=NOW()
+ * Si pendientes>0 => ABIERTO + cerrado_en=NULL
+ */
+async function recalcularEstadoReporte(reporteId) {
+  const [repRows] = await pool.query(
+    "SELECT tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
+    [reporteId]
+  );
+  if (!repRows.length) return { pendientes: 0, estado: null };
+
+  const tipo = repRows[0].tipo_reporte;
+
+  let sql = null;
+  if (tipo === "APOYO_HORAS") {
+    sql = `
+      SELECT COUNT(*) AS cnt
+      FROM lineas_reporte
+      WHERE reporte_id = ?
+        AND hora_fin IS NULL
+    `;
+  } else if (tipo === "SANEAMIENTO") {
+    sql = `
+      SELECT COUNT(*) AS cnt
+      FROM lineas_reporte
+      WHERE reporte_id = ?
+        AND (
+          hora_fin IS NULL
+          OR labores IS NULL
+          OR TRIM(labores) = ''
+        )
+    `;
+  } else {
+    // otros tipos: por ahora no recalculamos aquí
+    return { pendientes: 0, estado: null };
+  }
+
+  const [pRows] = await pool.query(sql, [reporteId]);
+  const pendientes = Number(pRows[0]?.cnt ?? 0);
+
+  const nuevoEstado = pendientes === 0 ? "CERRADO" : "ABIERTO";
+
+  await pool.query(
+    `UPDATE reportes
+     SET estado = ?,
+         cerrado_en = CASE WHEN ? = 'CERRADO' THEN NOW() ELSE NULL END
+     WHERE id = ?`,
+    [nuevoEstado, nuevoEstado, reporteId]
+  );
+
+  return { pendientes, estado: nuevoEstado };
 }
 
 /* ===========================================================
@@ -224,7 +276,84 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
 /* ========================================
    GET /reportes/apoyo-horas/pendientes
 ======================================== */
-router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
+router.get("/saneamiento/open", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const turnoRaw = req.query.turno;
+    const turno = normalizarTurno(turnoRaw);
+    const { fecha } = req.query;
+
+    if (!turno) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turno)) {
+      return res.status(400).json({ error: "turno no valido" });
+    }
+
+    const fechaValue = fecha
+      ? String(fecha)
+      : new Date().toISOString().slice(0, 10);
+
+    // 1) buscar si ya existe un ABIERTO vigente para ese usuario+turno+fecha
+    const [rows] = await pool.query(
+      `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
+       FROM reportes
+       WHERE tipo_reporte = 'SANEAMIENTO'
+         AND creado_por_user_id = ?
+         AND turno = ?
+         AND fecha = ?
+         AND estado = 'ABIERTO'
+         AND (vence_en IS NULL OR vence_en > NOW())
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, turno, fechaValue]
+    );
+
+    if (rows.length) {
+      return res.json({ existente: true, reporte: rows[0] });
+    }
+
+    // 2) si no existe, crear uno nuevo
+    const [urows] = await pool.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [userId]
+    );
+    if (!urows.length) {
+      return res.status(401).json({ error: "Usuario invalido o desactivado" });
+    }
+
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    const [result] = await pool.query(
+      `INSERT INTO reportes
+       (fecha, turno, tipo_reporte, area, area_id,
+        creado_por_user_id, creado_por_nombre, observaciones,
+        estado, vence_en)
+       VALUES (?, ?, 'SANEAMIENTO', NULL, NULL,
+               ?, ?, NULL,
+               'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
+      [fechaValue, turno, userId, creado_por_nombre]
+    );
+
+    const [nuevo] = await pool.query(
+      `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
+       FROM reportes
+       WHERE id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    return res.status(201).json({ existente: false, reporte: nuevo[0] });
+  } catch (e) {
+    console.error("open saneamiento error:", e);
+    return res.status(500).json({ error: "Error interno open saneamiento" });
+  }
+});
+
+
+
+/* ========================================
+   GET /reportes/saneamiento/pendientes
+======================================== */
+router.get("/saneamiento/pendientes", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const horasParam = req.query.horas ?? req.query.hours ?? 24;
@@ -237,26 +366,33 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
           r.fecha,
           r.turno,
           r.creado_por_nombre,
-          COUNT(*) AS pendiente,
-          MAX(lr.area_nombre) AS area_nombre
+          r.estado,
+          r.vence_en,
+          COUNT(*) AS pendiente
        FROM reportes r
        JOIN lineas_reporte lr ON lr.reporte_id = r.id
-       WHERE r.tipo_reporte = 'APOYO_HORAS'
+       WHERE r.tipo_reporte = 'SANEAMIENTO'
          AND r.creado_por_user_id = ?
          AND r.estado = 'ABIERTO'
          AND (r.vence_en IS NULL OR r.vence_en > NOW())
-         AND lr.hora_fin IS NULL
+         AND r.creado_en >= (NOW() - INTERVAL ? HOUR)
+         AND (
+           lr.hora_fin IS NULL
+           OR lr.labores IS NULL
+           OR TRIM(lr.labores) = ''
+         )
        GROUP BY r.id
        ORDER BY r.id DESC`,
-      [userId]
+      [userId, horasFiltro]
     );
 
     return res.json({ items: rows });
-  } catch (err) {
-    console.error("pendientes apoyo-horas error:", err);
+  } catch (e) {
+    console.error("pendientes saneamiento error:", e);
     return res.status(500).json({ error: "Error interno de pendientes" });
   }
 });
+
 
 /* =========================================
    PATCH /reportes/lineas/:lineaId
@@ -287,6 +423,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     }
 
     const existingLinea = lineaRows[0];
+    const reporteId = existingLinea.reporte_id;
 
     const updates = [];
     const params = [];
@@ -375,23 +512,14 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Linea no encontrada" });
     }
 
-    // cerrar reporte si ya no hay pendientes
-    const reporteId = existingLinea.reporte_id;
-    if (reporteId) {
-      const [pend] = await pool.query(
-        "SELECT COUNT(*) AS c FROM lineas_reporte WHERE reporte_id = ? AND hora_fin IS NULL",
-        [reporteId]
-      );
-      const pendientes = Number(pend[0]?.c ?? 0);
-      if (pendientes === 0) {
-        await pool.query(
-          "UPDATE reportes SET estado = 'CERRADO', cerrado_en = NOW() WHERE id = ?",
-          [reporteId]
-        );
-      }
-    }
+    // ✅ Recalcular estado del reporte (aplica a APOYO_HORAS y SANEAMIENTO)
+    const info = await recalcularEstadoReporte(reporteId);
 
-    return res.json({ message: "Linea actualizada" });
+    return res.json({
+      message: "Linea actualizada",
+      pendientes: info.pendientes,
+      estado_reporte: info.estado,
+    });
   } catch (err) {
     console.error("Error actualizando linea:", err);
     return res.status(500).json({ error: "Error interno al actualizar linea" });
@@ -408,16 +536,30 @@ router.delete("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "lineaId inválido" });
     }
 
-    const [result] = await pool.query(
-      "DELETE FROM lineas_reporte WHERE id = ?",
+    // para recalcular estado, necesitamos reporte_id antes de borrar
+    const [lineaRows] = await pool.query(
+      "SELECT reporte_id FROM lineas_reporte WHERE id = ? LIMIT 1",
       [lineaId]
     );
+    if (!lineaRows.length) return res.status(404).json({ error: "Linea no encontrada" });
+
+    const reporteId = lineaRows[0].reporte_id;
+
+    const [result] = await pool.query("DELETE FROM lineas_reporte WHERE id = ?", [
+      lineaId,
+    ]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Linea no encontrada" });
     }
 
-    return res.json({ message: "Linea eliminada" });
+    const info = await recalcularEstadoReporte(reporteId);
+
+    return res.json({
+      message: "Linea eliminada",
+      pendientes: info.pendientes,
+      estado_reporte: info.estado,
+    });
   } catch (err) {
     console.error("Error eliminando linea:", err);
     return res.status(500).json({ error: "Error interno al eliminar linea" });
@@ -516,6 +658,7 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
         lr.hora_inicio,
         lr.hora_fin,
         lr.horas,
+        lr.labores,
         COALESCE(lr.area_nombre, a.nombre) AS area_apoyo
       FROM lineas_reporte lr
       LEFT JOIN areas a ON a.id = lr.area_id
@@ -525,21 +668,19 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
       [id]
     );
 
-    // Plantilla (elige según tipo)
-    // Por ahora usamos la de APOYO_HORAS (tu diseño de la imagen)
+    // Plantilla por tipo
     const templateNameByTipo = {
-  APOYO_HORAS: "apoyos_horas.html",
-  CONTEO_RAPIDO: "conteo_rapido.html",
-  TRABAJO_AVANCE: "trabajo_avance.html",
-  SANEAMIENTO: "saneamiento.html",
-};
+      APOYO_HORAS: "apoyos_horas.html",
+      CONTEO_RAPIDO: "conteo_rapido.html",
+      TRABAJO_AVANCE: "trabajo_avance.html",
+      SANEAMIENTO: "saneamiento.html",
+    };
 
-const templateName = templateNameByTipo[reporte.tipo_reporte] || "apoyos_horas.html";
-const templatePath = path.join(__dirname, "../templates", templateName);
+    const templateName =
+      templateNameByTipo[reporte.tipo_reporte] || "apoyos_horas.html";
+    const templatePath = path.join(__dirname, "../templates", templateName);
 
-let html = fs.readFileSync(templatePath, "utf8");
-
-    let htmlContent = fs.readFileSync(templatePath, "utf8");
+    let html = fs.readFileSync(templatePath, "utf8");
 
     const fechaTxt = String(reporte.fecha).slice(0, 10);
 
@@ -548,9 +689,12 @@ let html = fs.readFileSync(templatePath, "utf8");
         const hIni = l.hora_inicio ? String(l.hora_inicio).slice(0, 5) : "";
         const hFin = l.hora_fin ? String(l.hora_fin).slice(0, 5) : "";
         const horas = l.horas ?? "";
-        const codigo = l.trabajador_codigo ?? "";
+        const codigo = (l.trabajador_codigo ?? "").toString().trim();
         const nombre = l.trabajador_nombre ?? "";
-        const area = l.area_apoyo ?? "";
+        const labores = (l.labores ?? "").toString();
+        const areaOlabores =
+        reporte.tipo_reporte === "SANEAMIENTO" ? labores : (l.area_apoyo ?? "");
+
 
         return `
           <tr>
@@ -560,7 +704,7 @@ let html = fs.readFileSync(templatePath, "utf8");
             <td class="c">${hIni}</td>
             <td class="c">${hFin}</td>
             <td class="c">${horas}</td>
-            <td>${area}</td>
+            <td>${areaOlabores}</td>
           </tr>
         `;
       })
@@ -588,7 +732,7 @@ let html = fs.readFileSync(templatePath, "utf8");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="reporte_apoyos_${id}.pdf"`
+      `attachment; filename="reporte_${String(reporte.tipo_reporte).toLowerCase()}_${id}.pdf"`
     );
     return res.send(pdfBuffer);
   } catch (err) {
@@ -597,60 +741,10 @@ let html = fs.readFileSync(templatePath, "utf8");
   }
 });
 
-router.get("/saneamiento/open", authMiddleware, async (req, res) => {
-  try {
-    const turno = String(req.query.turno || "Dia");
-    const fecha = String(req.query.fecha || "");
-    if (!fecha) return res.status(400).json({ error: "fecha requerida" });
-
-    const userId = req.user.id;
-
-    // 1) Buscar reporte existente
-    const [rows] = await pool.query(
-      `SELECT id, fecha, turno, tipo_reporte
-       FROM reportes
-       WHERE fecha = ?
-         AND turno = ?
-         AND tipo_reporte = 'SANEAMIENTO'
-         AND creado_por_user_id = ?
-       ORDER BY id DESC
-       LIMIT 1`,
-      [fecha, turno, userId]
-    );
-
-    if (rows.length) {
-      return res.json({ reporte: rows[0] });
-    }
-
-    // 2) Crear si no existe
-    const [urows] = await pool.query(
-      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
-      [userId]
-    );
-    if (!urows.length) return res.status(401).json({ error: "Usuario inválido" });
-
-    const creado_por_nombre = urows[0].nombre || urows[0].username;
-
-    const [result] = await pool.query(
-      `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones)
-       VALUES (?, ?, 'SANEAMIENTO', NULL, NULL, ?, ?, NULL)`,
-      [fecha, turno, userId, creado_por_nombre]
-    );
-
-    return res.json({
-      reporte: { id: result.insertId, fecha, turno, tipo_reporte: "SANEAMIENTO" },
-    });
-  } catch (e) {
-    console.error("Error open saneamiento:", e);
-    return res.status(500).json({ error: "Error interno" });
-  }
-});
-
 /* =======================================
    GET /reportes/:id (cabecera)
 ======================================= */
-router.get("/:id", async (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -662,6 +756,9 @@ router.get("/:id", async (req, res) => {
          r.tipo_reporte,
          r.area_id,
          r.activo,
+         r.estado,
+         r.vence_en,
+         r.cerrado_en,
          a.nombre AS area_nombre,
          r.creado_por_user_id,
          r.creado_por_nombre,
@@ -676,6 +773,16 @@ router.get("/:id", async (req, res) => {
 
     if (!rows.length) {
       return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    // (opcional) seguridad: si no es admin, solo lo suyo
+    const role =
+      Array.isArray(req.user.roles) && req.user.roles.length
+        ? req.user.roles[0]
+        : undefined;
+
+    if (role !== "ADMINISTRADOR" && rows[0].creado_por_user_id !== req.user.id) {
+      return res.status(403).json({ error: "No autorizado" });
     }
 
     return res.json(rows[0]);
@@ -723,7 +830,9 @@ router.post("/", authMiddleware, async (req, res) => {
     const creado_por_nombre = urows[0].nombre || urows[0].username;
 
     // area_id solo se requiere en algunos tipos
-    const requiereAreaEnCabecera = ["TRABAJO_AVANCE", "CONTEO_RAPIDO"].includes(tipo_reporte);
+    const requiereAreaEnCabecera = ["TRABAJO_AVANCE", "CONTEO_RAPIDO"].includes(
+      tipo_reporte
+    );
 
     // En APOYO_HORAS el área va por trabajador (líneas)
     // En SANEAMIENTO no se usa área
@@ -737,7 +846,6 @@ router.post("/", authMiddleware, async (req, res) => {
     let areaIdFinal = null;
 
     if (requiereAreaEnCabecera) {
-
       if (!area_id) {
         return res.status(400).json({
           error:
@@ -769,14 +877,28 @@ router.post("/", authMiddleware, async (req, res) => {
       areaNombre = areas[0].nombre;
       areaIdFinal = areas[0].id;
     } else {
-      areaNombre = "POR_TRABAJADOR";
-      areaIdFinal = null;
+      if (tipo_reporte === "APOYO_HORAS") {
+        areaNombre = "POR_TRABAJADOR";
+        areaIdFinal = null;
+      } else if (tipo_reporte === "SANEAMIENTO") {
+        areaNombre = null;
+        areaIdFinal = null;
+      } else {
+        areaNombre = null;
+        areaIdFinal = null;
+      }
     }
+
+    // ✅ estado/vence_en (24h) para módulos con “espera”
+    const usaEspera24h = ["APOYO_HORAS", "SANEAMIENTO"].includes(tipo_reporte);
 
     const [result] = await pool.query(
       `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id, creado_por_user_id, creado_por_nombre, observaciones)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (fecha, turno, tipo_reporte, area, area_id,
+        creado_por_user_id, creado_por_nombre, observaciones,
+        estado, vence_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+               ?, ?)`,
       [
         fecha,
         turnoNormalizado,
@@ -786,6 +908,8 @@ router.post("/", authMiddleware, async (req, res) => {
         creado_por_user_id,
         creado_por_nombre,
         observaciones || null,
+        "ABIERTO",
+        usaEspera24h ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
       ]
     );
 
@@ -847,6 +971,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
           error: "Para SANEAMIENTO se requiere 'labores'",
         });
       }
+      // saneamiento no usa area_id
       areaIdFinal = null;
       areaNombre = null;
     }
@@ -930,45 +1055,48 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       }
     }
 
-    // ✅ evitar duplicados: si existe pendiente del mismo trabajador => UPDATE (SANEAMIENTO)
-if (tipo === "SANEAMIENTO") {
-  const [pendiente] = await pool.query(
-    `SELECT id
-     FROM lineas_reporte
-     WHERE reporte_id = ?
-       AND trabajador_id = ?
-       AND hora_fin IS NULL
-     ORDER BY id DESC
-     LIMIT 1`,
-    [reporteId, trabajador_id]
-  );
+    // ✅ evitar duplicados por trabajador con pendiente (SANEAMIENTO)
+    if (tipo === "SANEAMIENTO") {
+      const [pendiente] = await pool.query(
+        `SELECT id
+         FROM lineas_reporte
+         WHERE reporte_id = ?
+           AND trabajador_id = ?
+           AND hora_fin IS NULL
+         ORDER BY id DESC
+         LIMIT 1`,
+        [reporteId, trabajador_id]
+      );
 
-  if (pendiente.length) {
-    await pool.query(
-      `UPDATE lineas_reporte
-       SET hora_inicio = ?,
-           hora_fin = ?,
-           horas = ?,
-           labores = ?
-       WHERE id = ?`,
-      [
-        hora_inicio ?? null,
-        horaFinValue ?? null,
-        horasValue ?? null,
-        (labores ?? null),
-        pendiente[0].id,
-      ]
-    );
+      if (pendiente.length) {
+        await pool.query(
+          `UPDATE lineas_reporte
+           SET hora_inicio = ?,
+               hora_fin = ?,
+               horas = ?,
+               labores = ?
+           WHERE id = ?`,
+          [
+            hora_inicio ?? null,
+            horaFinValue ?? null,
+            horasValue ?? null,
+            labores ?? null,
+            pendiente[0].id,
+          ]
+        );
 
-    return res.json({
-      message: "Linea actualizada (pendiente existente)",
-      linea_id: pendiente[0].id,
-    });
-  }
-}
+        const info = await recalcularEstadoReporte(reporteId);
 
+        return res.json({
+          message: "Linea actualizada (pendiente existente)",
+          linea_id: pendiente[0].id,
+          pendientes: info.pendientes,
+          estado_reporte: info.estado,
+        });
+      }
+    }
 
-    // evitar duplicados: si existe pendiente del mismo trabajador => UPDATE (solo APOYO_HORAS)
+    // ✅ evitar duplicados por trabajador con pendiente (APOYO_HORAS)
     if (tipo === "APOYO_HORAS") {
       const [pendiente] = await pool.query(
         `SELECT id
@@ -1000,9 +1128,13 @@ if (tipo === "SANEAMIENTO") {
           ]
         );
 
+        const info = await recalcularEstadoReporte(reporteId);
+
         return res.json({
           message: "Linea actualizada (pendiente existente)",
           linea_id: pendiente[0].id,
+          pendientes: info.pendientes,
+          estado_reporte: info.estado,
         });
       }
     }
@@ -1017,9 +1149,9 @@ if (tipo === "SANEAMIENTO") {
         reporteId,
         trabajador.id,
         cuadrilla_id ?? null,
-        areaIdFinal,        // ✅
-        areaNombre,         // ✅
-        trabajador.codigo,
+        areaIdFinal, // ✅
+        areaNombre, // ✅
+        (trabajador.codigo ?? "").toString().trim(),
         trabajador.nombre_completo,
         horasValue,
         hora_inicio ?? null,
@@ -1029,16 +1161,19 @@ if (tipo === "SANEAMIENTO") {
       ]
     );
 
+    const info = await recalcularEstadoReporte(reporteId);
+
     return res.status(201).json({
       message: "Linea creada",
       linea_id: result.insertId,
+      pendientes: info.pendientes,
+      estado_reporte: info.estado,
     });
   } catch (err) {
     console.error("Error creando linea:", err);
     return res.status(500).json({ error: "Error interno al crear linea" });
   }
 });
-
 
 /* =====================================
    PUT /reportes/:id (actualizar)
@@ -1075,6 +1210,13 @@ router.put("/:id", authMiddleware, async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")) {
       updates.push("observaciones = ?");
       params.push(observaciones || null);
+    }
+
+    // SANEAMIENTO no usa area_id en cabecera
+    if (tipoReporte === "SANEAMIENTO") {
+      if (area_id !== undefined) {
+        return res.status(400).json({ error: "SANEAMIENTO no usa area_id" });
+      }
     }
 
     let areaNombre = null;
@@ -1262,6 +1404,9 @@ router.get("/", authMiddleware, async (req, res) => {
          r.tipo_reporte,
          r.area_id,
          r.activo,
+         r.estado,
+         r.vence_en,
+         r.cerrado_en,
          a.nombre AS area_nombre,
          r.creado_por_user_id,
          r.creado_por_nombre,

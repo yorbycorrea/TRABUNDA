@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
+import 'package:mobile/features/state_saneamiento.dart';
 
 // import 'package:mobile/menu/presentation/pages/saneamiento_form_page.dart';
 
@@ -258,7 +259,23 @@ class _ReportCreateSaneamientoPageState
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: (_creando || _loadingSanea) ? null : _abrirSaneamiento,
+              onTap: (_creando || _loadingSanea)
+                  ? null
+                  : () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SaneamientoHomePage(
+                            api: widget.api,
+                            turno: _turno,
+                          ),
+                        ),
+                      );
+
+                      // al volver, refresca el estado "EN ESPERA"
+                      if (!mounted) return;
+                      await _openOrGetSaneamiento();
+                    },
 
               child: Padding(
                 padding: const EdgeInsets.all(14),

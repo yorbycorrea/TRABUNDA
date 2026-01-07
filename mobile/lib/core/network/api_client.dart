@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'token_storage.dart';
 
@@ -31,15 +32,41 @@ class ApiClient {
   // HTTP verbs
   // -----------------------
   Future<http.Response> get(String path) async {
-    return _http.get(_uri(path), headers: await _headers());
+    final uri = Uri.parse('$baseUrl$path');
+    final heders = await _headers();
+    debugPrint('GET $uri');
+    debugPrint('headers: $heders');
+
+    final resp = await _http.get(uri, headers: heders);
+
+    debugPrint('${resp.statusCode} GET $uri');
+    debugPrint('body: ${resp.body}');
+    return resp;
+
+    //return _http.get(_uri(path), headers: await _headers());
   }
 
   Future<http.Response> post(String path, Object body) async {
-    return _http.post(
-      _uri(path),
-      headers: await _headers(),
+    final uri = Uri.parse('$baseUrl$path');
+    final headers = await _headers();
+    debugPrint('➡️ POST $uri');
+    debugPrint('➡️ headers: $headers');
+    debugPrint('➡️ body: ${jsonEncode(body)}');
+
+    final resp = await _http.post(
+      uri,
+      headers: headers,
       body: jsonEncode(body),
     );
+
+    debugPrint('⬅️ ${resp.statusCode} POST $uri');
+    debugPrint('⬅️ body: ${resp.body}');
+    return resp;
+    //return _http.post(
+    //_uri(path),
+    //headers: await _headers(),
+    //7body: jsonEncode(body),
+    //);
   }
 
   Future<http.Response> patch(String path, Object body) async {

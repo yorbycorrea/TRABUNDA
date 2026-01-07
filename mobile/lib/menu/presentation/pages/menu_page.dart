@@ -118,7 +118,7 @@ class HomeMenuPage extends StatelessWidget {
                             'reports/create_saneamiento',
                           );
                         } else {
-                          Navigator.pushNamed(context, 'reports/create');
+                          Navigator.pushNamed(context, '/reports/create');
                         }
                       },
                     ),

@@ -1,92 +1,145 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <title>Reporte de Saneamiento</title>
   <style>
-    @page { size: A4; margin: 10mm; }
-    body { font-family: Arial, sans-serif; font-size: 10px; color:#000; }
-    .sheet { border: 2px solid #000; padding: 10px; }
-    .row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-    .box { border:1px solid #000; padding:6px; }
-    .center { text-align:center; }
-    .right { text-align:right; }
-    .bold { font-weight:700; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      margin: 0;
+      padding: 20px;
+      color: #000;
+    }
 
-    table { width:100%; border-collapse:collapse; margin-top:8px; }
-    th, td { border:1px solid #000; padding:4px; vertical-align:top; }
-    th { text-align:center; font-weight:700; }
-    td.c { text-align:center; }
+    .header {
+      border: 1px solid #000;
+      padding: 10px;
+    }
 
-    .signs { margin-top:18px; display:flex; justify-content:space-between; gap:16px; }
-    .sign { width:46%; text-align:center; }
-    .signbox { height:65px; border:1px solid #000; margin-bottom:6px; }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
 
-    .bigbox { margin-top:14px; height:380px; border:1px solid #000; }
+    .title {
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .box {
+      border: 1px solid #000;
+      padding: 6px;
+      font-size: 10px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+
+    .row div {
+      width: 48%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      border: 1px solid #000;
+      padding: 4px;
+      font-size: 10px;
+    }
+
+    th {
+      text-align: center;
+      font-weight: bold;
+    }
+
+    td.c {
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 11px;
+    }
+
+    .signatures {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .signature-box {
+      width: 45%;
+      height: 60px;
+      border: 1px solid #000;
+      text-align: center;
+      padding-top: 40px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <div class="sheet">
+
+  <!-- ENCABEZADO -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="title">TRABUNDA SAC</div>
+        <div><b>FORMATO :</b> SANEAMIENTO</div>
+      </div>
+      <div class="box">
+        <div><b>Código del formato:</b> COD-SAN-001</div>
+        <div><b>Versión:</b> 01</div>
+        <div><b>Fecha emisión:</b> {{FECHA}}</div>
+        <div><b>Página:</b> 1 de 1</div>
+      </div>
+    </div>
+
     <div class="row">
-      <div class="box" style="width:28%;">
-        <div class="bold">TRABUNDA SAC</div>
-      </div>
-
-      <div class="box center" style="width:44%;">
-        <div class="bold">FORMATO</div>
-        <div class="bold">SANEAMIENTO</div>
-      </div>
-
-      <div class="box right" style="width:28%;">
-        <div>Código: TRABUNDA SAC</div>
-        <div>COD-SA-01</div>
-        <div>Versión: 01</div>
-        <div>Fecha emisión: {{FECHA}}</div>
-      </div>
+      <div><b>Área:</b> Saneamiento</div>
+      <div><b>Supervisor:</b> {{PLANILLERO}}</div>
     </div>
-
-    <div class="row" style="margin-top:8px;">
-      <div style="width:55%;">
-        <div>Supervisor:</div>
-        <div>Turno: <span class="bold">{{TURNO}}</span></div>
-        <div>Fecha: <span class="bold">{{FECHA}}</span></div>
-      </div>
-      <div class="right" style="width:45%;">
-        <div class="bold">{{ELABORADO_POR}}</div>
-        <div>{{TURNO}}</div>
-        <div>{{FECHA}}</div>
-      </div>
+    <div class="row">
+      <div><b>Turno:</b> {{TURNO}}</div>
+      <div><b>Fecha:</b> {{FECHA}}</div>
     </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width:6%;">N°</th>
-          <th>DETALLE / ACTIVIDAD</th>
-          <th style="width:18%;">ÁREA</th>
-          <th style="width:18%;">OBS.</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{FILAS}}
-      </tbody>
-    </table>
-
-    <div class="box" style="margin-top:10px;">
-      <span class="bold">PERSONA QUE ELABORÓ EL INFORME:</span> {{ELABORADO_POR}}
-    </div>
-
-    <div class="signs">
-      <div class="sign">
-        <div class="signbox"></div>
-        <div class="bold">SUPERVISOR</div>
-      </div>
-      <div class="sign">
-        <div class="signbox"></div>
-        <div class="bold">PRODUCCIÓN</div>
-      </div>
-    </div>
-
-    <div class="bigbox"></div>
   </div>
+
+  <!-- TABLA -->
+  <table>
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>CÓDIGO</th>
+        <th>APELLIDOS Y NOMBRES</th>
+        <th>H.Ini</th>
+        <th>H.Fin</th>
+        <th>Tot. Hrs</th>
+        <th>LABORES REALIZADAS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{FILAS}}
+    </tbody>
+  </table>
+
+  <!-- PIE -->
+  <div class="footer">
+    <b>PERSONA QUE ELABORÓ EL INFORME:</b> {{PLANILLERO}}
+  </div>
+
+  <div class="signatures">
+    <div class="signature-box">SUPERVISOR</div>
+    <div class="signature-box">PRODUCCIÓN</div>
+  </div>
+
 </body>
 </html>
