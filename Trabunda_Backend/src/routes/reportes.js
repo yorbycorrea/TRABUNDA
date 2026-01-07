@@ -527,8 +527,19 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
 
     // Plantilla (elige según tipo)
     // Por ahora usamos la de APOYO_HORAS (tu diseño de la imagen)
-    const templatePath = path.join(__dirname, "../templates/apoyos_horas.html");
-    let html = fs.readFileSync(templatePath, "utf8");
+    const templateNameByTipo = {
+  APOYO_HORAS: "apoyos_horas.html",
+  CONTEO_RAPIDO: "conteo_rapido.html",
+  TRABAJO_AVANCE: "trabajo_avance.html",
+  SANEAMIENTO: "saneamiento.html",
+};
+
+const templateName = templateNameByTipo[reporte.tipo_reporte] || "apoyos_horas.html";
+const templatePath = path.join(__dirname, "../templates", templateName);
+
+let html = fs.readFileSync(templatePath, "utf8");
+
+    let htmlContent = fs.readFileSync(templatePath, "utf8");
 
     const fechaTxt = String(reporte.fecha).slice(0, 10);
 

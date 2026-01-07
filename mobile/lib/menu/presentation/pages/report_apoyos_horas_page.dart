@@ -33,11 +33,43 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   final List<_ApoyoFormModel> _trabajadores = [_ApoyoFormModel()];
 
+  // ✅ Evita duplicados en el mismo reporte
+  bool _yaExisteTrabajador({
+    int? trabajadorId,
+    String? codigo,
+    int? exceptIndex,
+  }) {
+    final cod = (codigo ?? '').trim();
+
+    for (var i = 0; i < _trabajadores.length; i++) {
+      if (exceptIndex != null && i == exceptIndex) continue;
+
+      final it = _trabajadores[i];
+
+      // Comparación por ID (mejor)
+      if (trabajadorId != null && it.trabajadorId == trabajadorId) return true;
+
+      // Fallback por código (si no hay id)
+      final itCod = it.codigoCtrl.text.trim();
+      if (trabajadorId == null && cod.isNotEmpty && itCod == cod) return true;
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
     _loadAreas();
     _loadLineasExistentes();
+  }
+
+  @override
+  void dispose() {
+    for (final t in _trabajadores) {
+      t.codigoCtrl.dispose();
+      t.nombreCtrl.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _loadAreas() async {
@@ -151,14 +183,13 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
           ? decoded['items'] as List
           : <dynamic>[];
 
-      // ✅ Si no hay líneas, dejamos el form con 1 vacío (como ya lo tienes)
       if (items.isEmpty) return;
 
       final models = <_ApoyoFormModel>[];
 
       TimeOfDay? parseTime(dynamic v) {
         if (v == null) return null;
-        final s = v.toString(); // puede venir "08:00:00" o "08:00"
+        final s = v.toString(); // "08:00:00" o "08:00"
         final parts = s.split(':');
         if (parts.length < 2) return null;
         return TimeOfDay(
@@ -184,13 +215,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         m.inicio = parseTime(it['hora_inicio']);
         m.fin = parseTime(it['hora_fin']);
 
-        // horas (solo asignamos si vino valor o podemos calcularla)
         final horasValue = it['horas'];
         if (horasValue != null && horasValue is num) {
           m.horas = horasValue.toDouble();
         }
 
-        // Si hay inicio+fin y horas no vino, calculamos
         if (m.horas == null && m.inicio != null && m.fin != null) {
           m.horas = _calcHoras(m.inicio!, m.fin!);
         }
@@ -200,12 +229,16 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
       if (!mounted) return;
       setState(() {
+        // limpiar los controllers viejos
+        for (final t in _trabajadores) {
+          t.codigoCtrl.dispose();
+          t.nombreCtrl.dispose();
+        }
         _trabajadores
           ..clear()
           ..addAll(models);
       });
     } catch (e) {
-      // No bloquees la pantalla: solo muestra error
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudieron cargar líneas: $e')),
@@ -215,6 +248,37 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // ✅ Validación: no duplicados en la lista (por id y por código)
+    final seenIds = <int>{};
+    final seenCods = <String>{};
+
+    for (final t in _trabajadores) {
+      final id = t.trabajadorId;
+      final cod = t.codigoCtrl.text.trim();
+
+      if (id != null) {
+        if (!seenIds.add(id)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Hay trabajadores repetidos. Elimina el duplicado.',
+              ),
+            ),
+          );
+          return;
+        }
+      } else if (cod.isNotEmpty) {
+        if (!seenCods.add(cod)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Hay códigos repetidos. Elimina el duplicado.'),
+            ),
+          );
+          return;
+        }
+      }
+    }
 
     // Validación mínima
     for (final t in _trabajadores) {
@@ -244,14 +308,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         final payload = <String, dynamic>{
           'trabajador_id': t.trabajadorId,
           'hora_inicio': horaInicio,
-          'hora_fin': horaFin, // puede ser null
-          'horas': horas, // puede ser null
+          'hora_fin': horaFin,
+          'horas': horas,
           'area_id': t.areaId,
-          // ❌ tu backend no necesita "area" (usa area_id y arma area_nombre)
-          // 'area': t.areaNombre,
         };
 
-        // ✅ Si ya existe una línea en BD -> PATCH. Si no -> POST.
         late final resp;
         if (t.lineaId != null) {
           resp = await widget.api.patch(
@@ -276,7 +337,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
           throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
         }
 
-        // ✅ Si fue creación, guarda el linea_id para que la próxima sea PATCH
         if (t.lineaId == null) {
           final decoded = jsonDecode(resp.body);
           final newId = (decoded is Map && decoded['linea_id'] is num)
@@ -357,31 +417,43 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         _trabajadores[i].areaNombre = a.nombre;
                       });
                     },
-                    // ✅ ESTE ES EL FIX: actualizar con setState en el padre
+
+                    // ✅ AQUÍ: validación anti-duplicado al escanear
                     onFillFromScan: (result) {
+                      final idAny = result['id'];
+                      final idNum = (idAny is num)
+                          ? idAny
+                          : num.tryParse(idAny?.toString() ?? '');
+                      final trabajadorId = idNum?.toInt();
+
+                      final codigo = (result['codigo'] ?? '').toString().trim();
+                      final dni = (result['dni'] ?? '').toString().trim();
+                      final codigoFinal = codigo.isNotEmpty ? codigo : dni;
+
+                      // ✅ si ya existe en otra fila -> no permitir
+                      if (_yaExisteTrabajador(
+                        trabajadorId: trabajadorId,
+                        codigo: codigoFinal,
+                        exceptIndex: i,
+                      )) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Ese trabajador ya fue agregado en este reporte.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
                       setState(() {
-                        final idAny = result['id'];
-                        final idNum = (idAny is num)
-                            ? idAny
-                            : num.tryParse(idAny?.toString() ?? '');
+                        _trabajadores[i].trabajadorId = trabajadorId;
 
-                        _trabajadores[i].trabajadorId = (idNum == null)
-                            ? null
-                            : idNum.toInt();
-
-                        final codigo = (result['codigo'] ?? '')
-                            .toString()
-                            .trim();
-                        final dni = (result['dni'] ?? '').toString().trim();
                         final nombre = (result['nombre_completo'] ?? '')
                             .toString()
                             .trim();
 
-                        // si viene codigo úsalo; si no viene, usa dni
-                        _trabajadores[i].codigoCtrl.text = codigo.isNotEmpty
-                            ? codigo
-                            : dni;
-
+                        _trabajadores[i].codigoCtrl.text = codigoFinal;
                         _trabajadores[i].nombreCtrl.text = nombre;
 
                         debugPrint('SCAN RESULT MAP: $result');
@@ -420,8 +492,10 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
 class _ApoyoFormModel {
   _ApoyoFormModel({this.horas});
+
   int? lineaId;
   int? trabajadorId;
+
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();
 
@@ -465,7 +539,6 @@ class _TrabajadorCard extends StatelessWidget {
   final void Function(_AreaItem) onChangedArea;
   final ApiClient api;
 
-  /// callback al padre para hacer setState
   final void Function(Map<String, dynamic> result) onFillFromScan;
 
   String _horaText(TimeOfDay? t) {
@@ -533,8 +606,6 @@ class _TrabajadorCard extends StatelessWidget {
                     );
 
                     if (result == null) return;
-
-                    // ✅ manda al padre para setState
                     onFillFromScan(result);
                   },
                 ),

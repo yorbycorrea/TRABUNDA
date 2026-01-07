@@ -29,6 +29,8 @@ class _ReportCreatePlanilleroPageState
   String? _tipoReporte;
   bool _creandoReporte = false;
 
+  final TextEditingController _fechaCtrl = TextEditingController();
+
   final TextEditingController _planilleroCtrl = TextEditingController();
 
   @override
@@ -36,7 +38,7 @@ class _ReportCreatePlanilleroPageState
     super.didChangeDependencies();
     final auth = AuthControllerScope.read(context);
     final user = auth.user;
-    if (user != null) _planilleroCtrl.text = user.username;
+    if (user != null) _planilleroCtrl.text = user.nombre;
   }
 
   @override
