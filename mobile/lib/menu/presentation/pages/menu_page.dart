@@ -112,7 +112,14 @@ class HomeMenuPage extends StatelessWidget {
                       title: 'Ingresar informacion',
                       description: 'Registra informacion',
                       onTap: () {
-                        Navigator.pushNamed(context, '/reports/create');
+                        if (role == 'SANEAMIENTO') {
+                          Navigator.pushNamed(
+                            context,
+                            'reports/create_saneamiento',
+                          );
+                        } else {
+                          Navigator.pushNamed(context, 'reports/create');
+                        }
                       },
                     ),
                     const Spacer(),

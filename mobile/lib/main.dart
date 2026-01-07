@@ -12,6 +12,7 @@ import 'package:mobile/menu/presentation/pages/menu_page.dart';
 import 'package:mobile/menu/presentation/pages/report_create_planillero_page.dart';
 import 'package:mobile/features/state_apoyo_horas.dart';
 import 'package:mobile/menu/presentation/pages/report_view_page.dart';
+import 'package:mobile/menu/presentation/pages/report_create_saneamiento_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,11 @@ class TrabundaApp extends StatelessWidget {
 
           case '/reports/list':
             return MaterialPageRoute(builder: (_) => ReportViewPage(api: api));
+
+          case 'reports/create_saneamiento':
+            return MaterialPageRoute(
+              builder: (_) => ReportCreateSaneamientoPage(api: api),
+            );
 
           default:
             return MaterialPageRoute(
