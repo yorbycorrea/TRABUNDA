@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 const { asyncHandler } = require("../middlewares/asyncHandler");
+const { authMiddleware } = require("../middlewares/auth");
 
 function parseFlag(value, fieldName) {
   if (value == undefined) {
@@ -237,5 +238,23 @@ router.patch("/:id/activar", async (req, res) => {
     });
   }
 });
+
+router.get("/conteo-rapido", authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre
+       FROM areas
+       WHERE activo = 1 AND es_conteo_rapido = 1
+       ORDER BY nombre`
+    );
+    res.json({ areas: rows });
+  } catch (e) {
+    res.status(500).json({ error: "Error cargando áreas", details: String(e) });
+  }
+});
+
+
+
+
 
 module.exports = router;

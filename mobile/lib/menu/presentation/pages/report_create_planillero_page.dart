@@ -5,6 +5,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
 import 'package:mobile/features/state_apoyo_horas.dart';
+import 'package:mobile/menu/presentation/pages/conteo_rapido_page.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
@@ -181,8 +182,12 @@ class _ReportCreatePlanilleroPageState
       }
 
       if (tipo == 'CONTEO_RAPIDO') {
-        _toast('Falta implementar Conteo rápido');
-        return;
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ConteoRapidoPage(api: widget.api)),
+        );
       }
 
       _toast('Tipo no soportado: $tipo');
@@ -219,156 +224,84 @@ class _ReportCreatePlanilleroPageState
     final apoyoExiste = _apoyoReporteId != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear reporte')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      backgroundColor: const Color(0xFFFAFAFA),
+      appBar: AppBar(
+        title: const Text('Crear reporte'),
+        elevation: 0,
+        backgroundColor: cs.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
         children: [
-          Card(
-            elevation: 0,
-            color: cs.surfaceVariant.withOpacity(.4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          readOnly: true,
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              firstDate: DateTime(2023, 1, 1),
-                              lastDate: DateTime(2100, 12, 31),
-                              initialDate: _fecha,
-                            );
-                            if (picked != null) setState(() => _fecha = picked);
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Fecha',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
-                          ),
-                          controller: TextEditingController(
-                            text: _fecha.toLocal().toString().split(' ').first,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _turno,
-                          items: const [
-                            DropdownMenuItem(value: 'Dia', child: Text('Dia')),
-                            DropdownMenuItem(
-                              value: 'Noche',
-                              child: Text('Noche'),
+          // Header bonito (solo visual)
+          _HeaderCompacto(primary: cs.primary, secondary: cs.secondary),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                // 1) APOYOS POR HORAS (manteniendo tu lógica exacta)
+                _BigActionCard(
+                  primary: cs.primary,
+                  icon: Icons.access_time_rounded,
+                  title: apoyoExiste
+                      ? 'Continuar Apoyos por horas'
+                      : 'Apoyos por horas',
+                  subtitle: _loadingApoyo
+                      ? 'Verificando...'
+                      : _errorApoyo != null
+                      ? 'Error: $_errorApoyo'
+                      : apoyoExiste
+                      ? 'EN ESPERA • Reporte ID: $_apoyoReporteId'
+                      : 'Registrar personal de apoyo por horas',
+                  badgeText: apoyoExiste ? 'ABIERTO' : null,
+                  loading: _loadingApoyo,
+                  onTap: _loadingApoyo
+                      ? null
+                      : () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ApoyosHorasHomePage(
+                                api: widget.api,
+                                turno: _turno, // tu lógica se mantiene
+                              ),
                             ),
-                          ],
-                          decoration: const InputDecoration(
-                            labelText: 'Turno',
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: _creandoReporte
-                              ? null
-                              : (v) => setState(() => _turno = v ?? 'Dia'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _planilleroCtrl,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Planillero',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.badge_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (_tipoReporte != null)
-                          Chip(label: Text('Tipo: $_tipoReporte')),
-                        if (_reporteIdBackend != null)
-                          Chip(label: Text('ID: $_reporteIdBackend')),
-                        if (_creandoReporte)
-                          const Chip(label: Text('Creando...')),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.access_time)),
-            title: Text(
-              apoyoExiste ? 'Continuar Apoyos por horas' : 'Apoyos por horas',
-            ),
-            subtitle: Text(
-              _loadingApoyo
-                  ? 'Verificando...'
-                  : _errorApoyo != null
-                  ? 'Error: $_errorApoyo'
-                  : apoyoExiste
-                  ? 'EN ESPERA • Reporte ID: $_apoyoReporteId'
-                  : 'Registrar personal de apoyo por horas',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _loadingApoyo
-                ? null
-                : () async {
-                    // Entra SIEMPRE a la pantalla especial de APOYO_HORAS (pendientes / 24h).
-                    // Esa pantalla se encarga de:
-                    //  - ver si hay pendientes
-                    //  - crear/obtener el reporte ABIERTO
-                    //  - abrir el formulario con los datos guardados
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ApoyosHorasHomePage(
-                          api: widget.api,
-                          turno: _turno, // 'Dia' o 'Noche'
-                        ),
-                      ),
-                    );
+                          );
 
-                    // (Opcional) al volver, refresca el estado para que el tile cambie
-                    if (!mounted) return;
-                    await _openOrGetApoyoHoras();
-                  },
-          ),
-          const SizedBox(height: 8),
-          _OptionCard(
-            icon: Icons.groups_2_rounded,
-            title: 'Trabajo por avance',
-            subtitle: 'Registrar cuadrillas / kilos',
-            onTap: _creandoReporte
-                ? () {}
-                : () => _goToModulo('TRABAJO_AVANCE'),
-          ),
-          const SizedBox(height: 8),
-          _OptionCard(
-            icon: Icons.groups_rounded,
-            title: 'Conteo rápido',
-            subtitle: 'Registrar conteo rápido de personal',
-            onTap: _creandoReporte ? () {} : () => _goToModulo('CONTEO_RAPIDO'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: _onFinalizarPressed,
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Finalizar'),
+                          if (!mounted) return;
+                          await _openOrGetApoyoHoras();
+                        },
+                ),
+
+                const SizedBox(height: 12),
+
+                // 2) TRABAJO POR AVANCE (misma lógica que ya tenías)
+                _BigActionCard(
+                  primary: cs.primary,
+                  icon: Icons.groups_2_rounded,
+                  title: 'Trabajo por avance',
+                  subtitle: 'Registrar cuadrillas / kilos',
+                  loading: _creandoReporte,
+                  onTap: _creandoReporte
+                      ? null
+                      : () => _goToModulo('TRABAJO_AVANCE'),
+                ),
+
+                const SizedBox(height: 12),
+
+                // 3) CONTEO RÁPIDO (misma lógica que ya tenías)
+                _BigActionCard(
+                  primary: cs.primary,
+                  icon: Icons.flash_on_rounded,
+                  title: 'Conteo rápido',
+                  subtitle: 'Registrar conteo rápido de personal',
+                  loading: _creandoReporte,
+                  onTap: _creandoReporte
+                      ? null
+                      : () => _goToModulo('CONTEO_RAPIDO'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -376,65 +309,160 @@ class _ReportCreatePlanilleroPageState
   }
 }
 
-class _OptionCard extends StatelessWidget {
+/// Header simple (bonito) sin campos extra
+class _HeaderCompacto extends StatelessWidget {
+  final Color primary;
+  final Color secondary;
+
+  const _HeaderCompacto({required this.primary, required this.secondary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primary, secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Selecciona un módulo',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Elige el tipo de reporte que deseas registrar',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta grande bonita (solo UI)
+class _BigActionCard extends StatelessWidget {
+  final Color primary;
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final String? badgeText;
+  final bool loading;
+  final VoidCallback? onTap;
 
-  const _OptionCard({
+  const _BigActionCard({
+    required this.primary,
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.loading,
     required this.onTap,
+    this.badgeText,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
+
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  color: primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, color: cs.primary),
+                child: Icon(icon, color: primary, size: 28),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              color: enabled ? Colors.black87 : Colors.black38,
+                            ),
+                          ),
+                        ),
+                        if (badgeText != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              badgeText!,
+                              style: TextStyle(
+                                color: primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 6),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: Colors.black54,
+                        color: enabled ? Colors.black54 : Colors.black26,
+                        height: 1.2,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded),
+              const SizedBox(width: 12),
+              if (loading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: enabled ? Colors.black38 : Colors.black26,
+                ),
             ],
           ),
         ),

@@ -4,22 +4,43 @@
   <meta charset="utf-8" />
   <style>
     @page { size: A4; margin: 10mm; }
-    body { font-family: Arial, sans-serif; font-size: 10px; color:#000; }
-    .sheet { border: 2px solid #000; padding: 10px; }
-    .row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-    .box { border:1px solid #000; padding:6px; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color:#000; margin: 0; padding: 0; }
+    .sheet { border: 2px solid #000; padding: 20px; min-height: 270mm; position: relative; }
+    
+    /* Encabezado */
+    .row { display:flex; justify-content:space-between; align-items:stretch; gap:0px; }
+    .box { border:1px solid #000; padding:6px; display: flex; flex-direction: column; justify-content: center; }
     .center { text-align:center; }
     .right { text-align:right; }
     .bold { font-weight:700; }
 
+    /* Tabla */
     table { width:100%; border-collapse:collapse; margin-top:8px; }
-    th, td { border:1px solid #000; padding:4px; vertical-align:top; }
-    th { text-align:center; font-weight:700; }
+    th, td { border:1px solid #000; padding:4px; vertical-align:middle; }
+    th { text-align:center; font-weight:700; background-color: #f2f2f2; }
     td.c { text-align:center; }
 
-    .signs { margin-top:18px; display:flex; justify-content:space-between; gap:16px; }
-    .sign { width:46%; text-align:center; }
-    .signbox { height:65px; border:1px solid #000; margin-bottom:6px; }
+    /* SECCIÓN DE FIRMAS CORREGIDA */
+    .signs-container {
+      margin-top: 50px; /* Espacio antes de las firmas */
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+    }
+
+    .sign-block {
+      width: 40%;
+      border-top: 1px solid #000; /* La línea de la firma */
+      text-align: center;
+      padding-top: 6px; /* Espacio entre línea y texto */
+      margin-top: 50px; /* Espacio para que firmen arriba de la línea */
+    }
+
+    .sign-text {
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
 
     .bigbox { margin-top:14px; height:360px; border:1px solid #000; }
   </style>
@@ -27,33 +48,29 @@
 <body>
   <div class="sheet">
     <div class="row">
-      <div class="box" style="width:28%;">
+      <div class="box" style="width:25%;">
         <div class="bold">TRABUNDA SAC</div>
       </div>
 
-      <div class="box center" style="width:44%;">
+      <div class="box center" style="width:45%;">
         <div class="bold">FORMATO</div>
         <div class="bold">PERSONAL POR HORAS (APOYOS)</div>
       </div>
 
-      <div class="box right" style="width:28%;">
-        <div>Código: TRABUNDA SAC</div>
-        <div>COD-AP-01</div>
-        <div>Versión: 02</div>
-        <div>Fecha emisión: {{FECHA}}</div>
+      <div class="box right" style="width:30%; font-size: 9px;">
+        <div><b>Código del formato:</b> COD-AP-01</div>
+        <div><b>Versión:</b> 02</div>
+        <div><b>Fecha emisión:</b>01/01/2026</div>
       </div>
     </div>
 
-    <div class="row" style="margin-top:8px;">
-      <div style="width:55%;">
-        <div>Supervisor:</div>
-        <div>Turno: <span class="bold">{{TURNO}}</span></div>
-        <div>Fecha: <span class="bold">{{FECHA}}</span></div>
+    <div class="row" style="margin-top:10px; border: 1px solid #000; padding: 5px;">
+      <div style="width:50%;">
+        <div><span class="bold">Planillero:</span> {{PLANILLERO}}</div>
+        <div><span class="bold">Turno:</span> {{TURNO}}</div>
       </div>
-      <div class="right" style="width:45%;">
-        <div class="bold">{{PLANILLERO}}</div>
-        <div>{{TURNO}}</div>
-        <div>{{FECHA}}</div>
+      <div class="right" style="width:50%;">
+        <div><span class="bold">Fecha:</span> {{FECHA}}</div>
       </div>
     </div>
 
@@ -74,22 +91,19 @@
       </tbody>
     </table>
 
-    <div class="box" style="margin-top:10px;">
+    <div style="margin-top:15px; font-size: 11px;">
       <span class="bold">PERSONA QUE ELABORÓ EL INFORME:</span> {{PLANILLERO}}
     </div>
 
-    <div class="signs">
-      <div class="sign">
-        <div class="signbox"></div>
-        <div class="bold">SUPERVISOR</div>
+    <div class="signs-container">
+      <div class="sign-block">
+        <div class="sign-text">PLANILLERO: {{PLANILLERO}}</div>
       </div>
-      <div class="sign">
-        <div class="signbox"></div>
-        <div class="bold">PRODUCCIÓN</div>
+      <div class="sign-block">
+        <div class="sign-text">PRODUCCIÓN</div>
       </div>
     </div>
 
-    <div class="bigbox"></div>
   </div>
 </body>
 </html>

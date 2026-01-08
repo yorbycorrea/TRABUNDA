@@ -276,6 +276,40 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
 /* ========================================
    GET /reportes/apoyo-horas/pendientes
 ======================================== */
+router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const horasParam = req.query.horas ?? req.query.hours ?? 24;
+    const horas = Number(horasParam);
+    const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
+
+    const [rows] = await pool.query(
+      `SELECT 
+          r.id AS report_id,
+          r.fecha,
+          r.turno,
+          r.creado_por_nombre,
+          COUNT(*) AS pendiente,
+          MAX(lr.area_nombre) AS area_nombre
+       FROM reportes r
+       JOIN lineas_reporte lr ON lr.reporte_id = r.id
+       WHERE r.tipo_reporte = 'APOYO_HORAS'
+         AND r.creado_por_user_id = ?
+         AND r.estado = 'ABIERTO'
+         AND (r.vence_en IS NULL OR r.vence_en > NOW())
+         AND lr.hora_fin IS NULL
+       GROUP BY r.id
+       ORDER BY r.id DESC`,
+      [userId]
+    );
+
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error("pendientes apoyo-horas error:", err);
+    return res.status(500).json({ error: "Error interno de pendientes" });
+  }
+});
+
 router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -392,6 +426,203 @@ router.get("/saneamiento/pendientes", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Error interno de pendientes" });
   }
 });
+
+// ========================================
+// GET /reportes/conteo-rapido/open
+// ========================================
+router.get("/conteo-rapido/open", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const turno = normalizarTurno(req.query.turno);
+    const fechaValue = req.query.fecha
+      ? String(req.query.fecha)
+      : new Date().toISOString().slice(0, 10);
+
+    if (!turno) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no válido" });
+
+    // ⚠️ tu BD usa enum('Dia','Noche'), asegúrate que normalizarTurno devuelve "Dia" o "Noche"
+    // (sin tilde)
+
+    // 1) buscar reporte existente
+    const [repRows] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE tipo_reporte = 'CONTEO_RAPIDO'
+         AND creado_por_user_id = ?
+         AND fecha = ?
+         AND turno = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, fechaValue, turno]
+    );
+
+    // si existe -> devolver con items
+    if (repRows.length) {
+      const reporte = repRows[0];
+      const [items] = await pool.query(
+        `SELECT d.area_id, a.nombre AS area_nombre, d.cantidad
+         FROM conteo_rapido_detalle d
+         JOIN areas a ON a.id = d.area_id
+         WHERE d.reporte_id = ?
+         ORDER BY a.nombre`,
+        [reporte.id]
+      );
+      return res.json({ existente: true, reporte, items });
+    }
+
+    // 2) si NO existe, crear cabecera VACÍA
+    const [urows] = await pool.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [userId]
+    );
+    if (!urows.length) return res.status(401).json({ error: "Usuario inválido o desactivado" });
+
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    // tu columna reportes.area es NOT NULL -> pon algo fijo
+    const [ins] = await pool.query(
+      `INSERT INTO reportes
+       (fecha, turno, tipo_reporte, area, area_id,
+        creado_por_user_id, creado_por_nombre, observaciones,
+        estado, vence_en)
+       VALUES (?, ?, 'CONTEO_RAPIDO', ?, NULL,
+               ?, ?, NULL,
+               'ABIERTO', NULL)`,
+      [fechaValue, turno, "POR_AREAS", userId, creado_por_nombre]
+    );
+
+    const reporteId = ins.insertId;
+
+    const [nuevo] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE id = ?
+       LIMIT 1`,
+      [reporteId]
+    );
+
+    return res.status(201).json({ existente: false, reporte: nuevo[0], items: [] });
+  } catch (e) {
+    console.error("open conteo-rapido error:", e);
+    return res.status(500).json({ error: "Error interno open conteo-rapido" });
+  }
+});
+
+
+// ===============================================
+// POST /reportes/conteo-rapido  (GUARDAR)
+// Body: { fecha: 'YYYY-MM-DD', turno: 'Dia'|'Noche', items: [{area_id, cantidad}] }
+// ===============================================
+router.post("/conteo-rapido", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+
+  const { fecha, turno, items } = req.body;
+
+  if (!fecha) return res.status(400).json({ error: "fecha es requerida" });
+  if (!turno) return res.status(400).json({ error: "turno es requerido" });
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "items es requerido (lista de áreas)" });
+  }
+
+  // Normaliza turno como ya lo haces
+  const turnoNormalizado = normalizarTurno(turno);
+  if (!esTurnoValido(turnoNormalizado)) {
+    return res.status(400).json({ error: "turno no válido" });
+  }
+
+  // Validación items
+  for (const it of items) {
+    const areaId = Number(it.area_id);
+    const cantidad = Number(it.cantidad);
+    if (!Number.isInteger(areaId) || areaId <= 0) {
+      return res.status(400).json({ error: "area_id inválido en items" });
+    }
+    if (!Number.isFinite(cantidad) || cantidad < 0) {
+      return res.status(400).json({ error: "cantidad inválida en items" });
+    }
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // nombre del usuario (planillero) desde BD
+    const [urows] = await conn.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [userId]
+    );
+    if (!urows.length) {
+      await conn.rollback();
+      return res.status(401).json({ error: "Usuario inválido o desactivado" });
+    }
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    // 1) buscar si ya existe reporte CONTEO_RAPIDO del user/fecha/turno
+    const [exist] = await conn.query(
+      `SELECT id
+       FROM reportes
+       WHERE tipo_reporte = 'CONTEO_RAPIDO'
+         AND creado_por_user_id = ?
+         AND fecha = ?
+         AND turno = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, fecha, turnoNormalizado]
+    );
+
+    let reporteId;
+    if (exist.length) {
+      reporteId = exist[0].id;
+    } else {
+      // 2) crear cabecera reporte
+      const [ins] = await conn.query(
+  `INSERT INTO reportes
+   (fecha, turno, tipo_reporte, area, area_id,
+    creado_por_user_id, creado_por_nombre, observaciones,
+    estado, vence_en)
+   VALUES (?, ?, 'CONTEO_RAPIDO', ?, NULL,
+           ?, ?, NULL,
+           'ABIERTO', NULL)`,
+  [fecha, turnoNormalizado, "POR_AREAS", userId, creado_por_nombre]
+);
+
+      reporteId = ins.insertId;
+    }
+
+    // 3) guardar detalle en conteo_rapido_detalle (upsert)
+    // Requiere UNIQUE(reporte_id, area_id)
+    for (const it of items) {
+      const areaId = Number(it.area_id);
+      const cantidad = Number(it.cantidad);
+
+      await conn.query(
+        `INSERT INTO conteo_rapido_detalle (reporte_id, area_id, cantidad)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE cantidad = VALUES(cantidad)`,
+        [reporteId, areaId, cantidad]
+      );
+    }
+
+    // (Opcional) cerrar al guardar
+    await conn.query(
+      `UPDATE reportes
+       SET estado = 'CERRADO', cerrado_en = NOW()
+       WHERE id = ?`,
+      [reporteId]
+    );
+
+    await conn.commit();
+    return res.status(201).json({ ok: true, reporte_id: reporteId });
+  } catch (e) {
+    await conn.rollback();
+    console.error("POST /reportes/conteo-rapido error:", e);
+    return res.status(500).json({ error: "Error guardando conteo rápido", details: String(e) });
+  } finally {
+    conn.release();
+  }
+});
+
 
 
 /* =========================================
@@ -682,7 +913,15 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
 
     let html = fs.readFileSync(templatePath, "utf8");
 
-    const fechaTxt = String(reporte.fecha).slice(0, 10);
+    const d = new Date(reporte.fecha);
+      const fechaTxt = Number.isNaN(d.getTime())
+        ? ""
+        : d.toLocaleDateString("es-PE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+
 
     const filasHtml = lineas
       .map((l, i) => {
@@ -1272,6 +1511,48 @@ router.put("/:id", authMiddleware, async (req, res) => {
       .json({ error: "Error interno al actualizar el reporte" });
   }
 });
+
+
+
+// TEST
+router.get("/test", (req, res) => {
+  res.json({ ok: true });
+});
+
+// ===============================================
+// VER DETALLE DE UN REPORTE
+// GET /reportes/conteo-rapido/:id
+//==============================================
+router.get("/conteo-rapido/:id", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    if (!reporteId) return res.status(400).json({ error: "id inválido" });
+
+    const [cab] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE id = ? AND tipo_reporte = 'CONTEO_RAPIDO'
+       LIMIT 1`,
+      [reporteId]
+    );
+    if (cab.length === 0) return res.status(404).json({ error: "Reporte no encontrado" });
+
+    const [det] = await pool.query(
+      `SELECT d.area_id, a.nombre AS area_nombre, d.cantidad
+       FROM conteo_rapido_detalle d
+       JOIN areas a ON a.id = d.area_id
+       WHERE d.reporte_id = ?
+       ORDER BY a.nombre`,
+      [reporteId]
+    );
+
+    res.json({ reporte: cab[0], items: det });
+  } catch (e) {
+    res.status(500).json({ error: "Error consultando reporte", details: String(e) });
+  }
+});
+
+
 
 /* ======================================
    PATCH /reportes/:id/activar

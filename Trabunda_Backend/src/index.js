@@ -12,6 +12,7 @@ const reportesRoutes = require("./routes/reportes");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
+const reportesConteoRapidoRoutes = require("./routes/reportes")
 
 // 2. INICIALIZAR APP (Esto debe ir ANTES de cualquier app.use)
 const app = express();
@@ -36,6 +37,7 @@ app.use("/areas", areasRutas);
 app.use("/auth", authRoutes); 
 //console.log("userRoutes:", userRoutes);
 app.use("/users", userRoutes);
+app.use("/reportes", reportesConteoRapidoRoutes)
 
 // 6. MANEJO DE ERRORES Y PUERTO
 const PORT = process.env.PORT || 3000;

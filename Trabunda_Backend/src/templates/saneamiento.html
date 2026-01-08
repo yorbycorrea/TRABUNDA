@@ -19,19 +19,48 @@
 
     .header-top {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+      justify-content: space-between; /* Empuja el nombre a la izquierda y el cuadro a la derecha */
+      align-items: center;
+      position: relative; /* Importante: permite que el título central se guíe por este contenedor */
+      min-height: 80px; /* Ajusta según el alto de tu cuadro de la derecha */
+    }
+
+    
+    .header-top > div {
+      flex: 1; 
+    }
+
+    .title-container {
+      display: flex;
+      gap: 20px; /* Ajusta el espacio horizontal entre los dos textos */
+      align-items: center; /* Alineación vertical perfecta entre ambos */
     }
 
     .title {
+        font-weight: bold;
+        font-size: 20px;
+        white-space: nowrap; /* Evita que el nombre se parta en dos líneas */
+    }
+
+    .subtitle {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%); /* Este es el truco para el centrado perfecto */
       font-weight: bold;
       font-size: 13px;
+      white-space: nowrap; /* Evita que se amontone en varias líneas */
+    }
+
+    .format-box-container {
+      display: flex;
+      justify-content: flex-end; /* Empuja el cuadro de código a la derecha */
     }
 
     .box {
       border: 1px solid #000;
       padding: 6px;
       font-size: 10px;
+      text-align: left;
     }
 
     .row {
@@ -41,7 +70,7 @@
     }
 
     .row div {
-      width: 48%;
+      width: auto;
     }
 
     table {
@@ -78,11 +107,20 @@
 
     .signature-box {
       width: 45%;
-      height: 60px;
-      border: 1px solid #000;
+      /* Quitamos el borde total y ponemos solo el de arriba */
+      border-top: 1px solid #000; 
+      
+      /* Centramos el texto */
       text-align: center;
-      padding-top: 40px;
+      
+      /* Espacio entre la línea y el texto "SUPERVISOR" */
+      padding-top: 10px; 
+      
+      /* Espacio arriba de la línea para que el supervisor tenga donde firmar */
+      margin-top: 60px; 
+      
       font-weight: bold;
+      font-family: Arial, sans-serif; /* Opcional: para mejor legibilidad */
     }
   </style>
 </head>
@@ -91,21 +129,24 @@
   <!-- ENCABEZADO -->
   <div class="header">
     <div class="header-top">
-      <div>
+      <div class="title-container">
         <div class="title">TRABUNDA SAC</div>
-        <div><b>FORMATO :</b> SANEAMIENTO</div>
+        <div class="subtitle"><b>FORMATO :</b> SANEAMIENTO</div>
       </div>
+
+      <div class="format-box-container">
       <div class="box">
         <div><b>Código del formato:</b> COD-SAN-001</div>
         <div><b>Versión:</b> 01</div>
-        <div><b>Fecha emisión:</b> {{FECHA}}</div>
+        <div><b>Fecha emisión:</b>01/01/2026</div>
         <div><b>Página:</b> 1 de 1</div>
+      </div>
       </div>
     </div>
 
     <div class="row">
       <div><b>Área:</b> Saneamiento</div>
-      <div><b>Supervisor:</b> {{PLANILLERO}}</div>
+      
     </div>
     <div class="row">
       <div><b>Turno:</b> {{TURNO}}</div>
@@ -137,7 +178,7 @@
   </div>
 
   <div class="signatures">
-    <div class="signature-box">SUPERVISOR</div>
+    <div class="signature-box"><b>Supervisor:</b> {{PLANILLERO}}</div>
     <div class="signature-box">PRODUCCIÓN</div>
   </div>
 
