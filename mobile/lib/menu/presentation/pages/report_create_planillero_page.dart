@@ -218,30 +218,36 @@ class _ReportCreatePlanilleroPageState
     );
   }
 
+  // ✅ Paleta oficial (como tu Home)
+  static const Color kBluePrimary = Color(0xFF0A7CFF);
+  static const Color kBlueSecondary = Color(0xFF4FC3F7);
+  static const Color kBg = Color(0xFFF5F7FA);
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final apoyoExiste = _apoyoReporteId != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: kBg,
       appBar: AppBar(
         title: const Text('Crear reporte'),
         elevation: 0,
-        backgroundColor: cs.primary,
+        backgroundColor: kBluePrimary,
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // Header bonito (solo visual)
-          _HeaderCompacto(primary: cs.primary, secondary: cs.secondary),
+          // Header bonito (solo visual) con la paleta azul
+          const _HeaderCompacto(),
+
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
                 // 1) APOYOS POR HORAS (manteniendo tu lógica exacta)
                 _BigActionCard(
-                  primary: cs.primary,
+                  primary: kBluePrimary,
+                  secondary: kBlueSecondary,
                   icon: Icons.access_time_rounded,
                   title: apoyoExiste
                       ? 'Continuar Apoyos por horas'
@@ -277,7 +283,8 @@ class _ReportCreatePlanilleroPageState
 
                 // 2) TRABAJO POR AVANCE (misma lógica que ya tenías)
                 _BigActionCard(
-                  primary: cs.primary,
+                  primary: kBluePrimary,
+                  secondary: kBlueSecondary,
                   icon: Icons.groups_2_rounded,
                   title: 'Trabajo por avance',
                   subtitle: 'Registrar cuadrillas / kilos',
@@ -291,7 +298,8 @@ class _ReportCreatePlanilleroPageState
 
                 // 3) CONTEO RÁPIDO (misma lógica que ya tenías)
                 _BigActionCard(
-                  primary: cs.primary,
+                  primary: kBluePrimary,
+                  secondary: kBlueSecondary,
                   icon: Icons.flash_on_rounded,
                   title: 'Conteo rápido',
                   subtitle: 'Registrar conteo rápido de personal',
@@ -309,27 +317,24 @@ class _ReportCreatePlanilleroPageState
   }
 }
 
-/// Header simple (bonito) sin campos extra
+/// Header simple (bonito) sin campos extra (paleta azul de la app)
 class _HeaderCompacto extends StatelessWidget {
-  final Color primary;
-  final Color secondary;
-
-  const _HeaderCompacto({required this.primary, required this.secondary});
+  const _HeaderCompacto();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [primary, secondary],
+          colors: [Color(0xFF0A7CFF), Color(0xFF4FC3F7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
         ),
       ),
       child: const Column(
@@ -339,18 +344,14 @@ class _HeaderCompacto extends StatelessWidget {
             'Selecciona un módulo',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
             ),
           ),
           SizedBox(height: 6),
           Text(
             'Elige el tipo de reporte que deseas registrar',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
@@ -358,9 +359,10 @@ class _HeaderCompacto extends StatelessWidget {
   }
 }
 
-/// Tarjeta grande bonita (solo UI)
+/// Tarjeta grande bonita (solo UI) con paleta azul
 class _BigActionCard extends StatelessWidget {
   final Color primary;
+  final Color secondary;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -370,6 +372,7 @@ class _BigActionCard extends StatelessWidget {
 
   const _BigActionCard({
     required this.primary,
+    required this.secondary,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -382,88 +385,115 @@ class _BigActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onTap != null;
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: primary.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 18,
+            offset: Offset(0, 10),
+            color: Colors.black12,
+          ),
+        ],
+      ),
+      child: Card(
+        elevation: 0,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primary.withOpacity(0.18),
+                        secondary.withOpacity(0.18),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(icon, color: primary, size: 28),
                 ),
-                child: Icon(icon, color: primary, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                              color: enabled ? Colors.black87 : Colors.black38,
-                            ),
-                          ),
-                        ),
-                        if (badgeText != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primary.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
                             child: Text(
-                              badgeText!,
+                              title,
                               style: TextStyle(
-                                color: primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: enabled
+                                    ? const Color(0xFF1F2937)
+                                    : Colors.black38,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: enabled ? Colors.black54 : Colors.black26,
-                        height: 1.2,
+                          if (badgeText != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: primary.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: primary.withOpacity(0.25),
+                                ),
+                              ),
+                              child: Text(
+                                badgeText!,
+                                style: TextStyle(
+                                  color: primary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: enabled
+                              ? const Color(0xFF6B7280)
+                              : Colors.black26,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              if (loading)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: enabled ? Colors.black38 : Colors.black26,
-                ),
-            ],
+                const SizedBox(width: 12),
+                if (loading)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: enabled ? Colors.black38 : Colors.black26,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

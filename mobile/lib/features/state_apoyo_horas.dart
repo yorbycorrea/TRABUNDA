@@ -25,9 +25,19 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
   _PendienteItem? _pendiente;
 
+  // ✅ Estado local para el header seleccionable
+  late DateTime _fechaSel;
+  late String _turnoSel;
+
+  static const Color kBluePrimary = Color(0xFF0A7CFF);
+  static const Color kBlueSecondary = Color(0xFF4FC3F7);
+  static const Color kBg = Color(0xFFF5F7FA);
+
   @override
   void initState() {
     super.initState();
+    _fechaSel = DateTime.now();
+    _turnoSel = widget.turno;
     _loadPendientes();
   }
 
@@ -39,6 +49,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     });
 
     try {
+      // ⚠️ NO cambio tu lógica del endpoint (solo refresco la UI)
       final resp = await widget.api.get(
         '/reportes/apoyo-horas/pendientes?hours=24',
       );
@@ -70,6 +81,14 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
             : <String, dynamic>{};
 
         _pendiente = _PendienteItem.fromJson(m);
+
+        // ✅ Si vino un pendiente con fecha/turno, lo reflejamos en el header (solo UI)
+        final p = _pendiente!;
+        final f = _parseFecha(p.fecha);
+        final t = p.turno.isNotEmpty ? p.turno : _turnoSel;
+
+        _fechaSel = f;
+        _turnoSel = t;
       }
 
       if (!mounted) return;
@@ -85,7 +104,6 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
   DateTime _parseFecha(String? s) {
     if (s == null || s.trim().isEmpty) return DateTime.now();
-    // Espera YYYY-MM-DD
     try {
       return DateTime.parse(s);
     } catch (_) {
@@ -95,6 +113,28 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  Future<void> _pickFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaSel,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked == null) return;
+
+    setState(() => _fechaSel = picked);
+
+    // ✅ Solo recargar (misma lógica). Si luego quieres filtrar por fecha,
+    // ahí sí habría que cambiar el endpoint.
+    _loadPendientes();
+  }
+
+  void _setTurno(String v) {
+    setState(() => _turnoSel = v);
+    _loadPendientes();
+  }
 
   Future<void> _openPendiente() async {
     final p = _pendiente;
@@ -109,28 +149,26 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
           api: widget.api,
           reporteId: p.reportId,
           fecha: fecha,
-          turno: p.turno.isEmpty ? widget.turno : p.turno,
+          turno: p.turno.isEmpty ? _turnoSel : p.turno,
           planillero: p.creadoPorNombre,
         ),
       ),
     );
 
-    // Al volver, recargar para ver si ya cerró (pendientes=0)
     if (!mounted) return;
     _loadPendientes();
   }
 
   Future<void> _crearNuevoYEntrar() async {
-    // Tu backend "open" crea uno si no existe
-    // GET /reportes/apoyo-horas/open?turno=Dia
     try {
       setState(() {
         _loading = true;
         _error = null;
       });
 
+      // ⚠️ Tu lógica ya usa turno. Usamos el turno seleccionado (solo UI)
       final resp = await widget.api.get(
-        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(widget.turno)}',
+        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turnoSel)}',
       );
 
       final body = resp.body.trimLeft();
@@ -156,7 +194,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
       final reporteId = (reporte['id'] as num).toInt();
       final fecha = _parseFecha(reporte['fecha']?.toString());
-      final turno = (reporte['turno'] ?? widget.turno).toString();
+      final turno = (reporte['turno'] ?? _turnoSel).toString();
       final planillero = (reporte['creado_por_nombre'] ?? '').toString();
 
       if (!mounted) return;
@@ -196,8 +234,12 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     final tienePendiente = pendiente != null && pendiente.pendientes > 0;
 
     return Scaffold(
+      backgroundColor: kBg,
       appBar: AppBar(
         title: const Text('Apoyos por horas'),
+        elevation: 0,
+        backgroundColor: kBluePrimary,
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             onPressed: _loading ? null : _loadPendientes,
@@ -207,101 +249,296 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.zero,
           children: [
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              Card(
-                elevation: 0,
-                child: ListTile(
-                  title: const Text('Error cargando información'),
-                  subtitle: Text(_error!),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.refresh),
-                    onPressed: _loadPendientes,
-                  ),
-                ),
-              ),
+            // ✅ Header seleccionable (Fecha + Turno)
+            _HeaderFechaTurno(
+              fechaText: _formatDate(_fechaSel),
+              turnoValue: _turnoSel,
+              onPickFecha: _pickFecha,
+              onChangedTurno: _setTurno,
+            ),
 
-            if (!_loading && _error == null) ...[
-              // ===== Encabezado (como tu imagen) =====
-              if (pendiente != null) ...[
-                Text('Fecha: ${_formatDate(_parseFecha(pendiente.fecha))}'),
-                Text(
-                  'Turno: ${pendiente.turno.isEmpty ? widget.turno : pendiente.turno}',
-                ),
-                Text('Planillero: ${pendiente.creadoPorNombre}'),
-              ] else ...[
-                Text('Turno: ${widget.turno}'),
-              ],
-
-              const SizedBox(height: 12),
-              const Divider(),
-
-              // ===== Banner amarillo =====
-              if (tienePendiente) ...[
-                _WarningBanner(
-                  text:
-                      'Tienes ${pendiente!.pendientes} apoyo(s) pendiente(s). Completa la hora fin para cerrar el reporte.',
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ===== Sección Reportes en espera =====
-              Text(
-                'Reportes en espera (24h)',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-
-              // ===== Tarjeta pendiente =====
-              if (tienePendiente)
-                _PendienteCard(
-                  pendientes: pendiente!.pendientes,
-                  tarea: pendiente.areaNombre.isEmpty
-                      ? 'Área pendiente'
-                      : pendiente.areaNombre,
-                  onTap: _openPendiente,
-                )
-              else
-                Card(
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'No tienes apoyos pendientes (24h)',
-                          style: TextStyle(fontWeight: FontWeight.w800),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_error != null)
+                    Card(
+                      elevation: 0,
+                      child: ListTile(
+                        title: const Text('Error cargando información'),
+                        subtitle: Text(_error!),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _loadPendientes,
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Puedes iniciar un reporte nuevo. Si dejas líneas sin hora fin, aparecerán aquí por 24 horas.',
+                      ),
+                    ),
+
+                  if (!_loading && _error == null) ...[
+                    if (pendiente != null) ...[
+                      Text(
+                        'Planillero: ${pendiente.creadoPorNombre}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    const Divider(),
+
+                    if (tienePendiente) ...[
+                      _WarningBanner(
+                        text:
+                            'Tienes ${pendiente!.pendientes} apoyo(s) pendiente(s). Completa la hora fin para cerrar el reporte.',
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    Text(
+                      'Reportes en espera (24h)',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    if (tienePendiente)
+                      _PendienteCard(
+                        pendientes: pendiente!.pendientes,
+                        tarea: pendiente.areaNombre.isEmpty
+                            ? 'Área pendiente'
+                            : pendiente.areaNombre,
+                        onTap: _openPendiente,
+                      )
+                    else
+                      Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          height: 48,
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _loading ? null : _crearNuevoYEntrar,
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Iniciar reporte'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'No tienes apoyos pendientes (24h)',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Puedes iniciar un reporte nuevo. Si dejas líneas sin hora fin, aparecerán aquí por 24 horas.',
+                              ),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                height: 48,
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: _loading
+                                      ? null
+                                      : _crearNuevoYEntrar,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: kBluePrimary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.play_arrow_rounded),
+                                  label: const Text('Iniciar reporte'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderFechaTurno extends StatelessWidget {
+  const _HeaderFechaTurno({
+    required this.fechaText,
+    required this.turnoValue,
+    required this.onPickFecha,
+    required this.onChangedTurno,
+  });
+
+  final String fechaText;
+  final String turnoValue;
+  final VoidCallback onPickFecha;
+  final ValueChanged<String> onChangedTurno;
+
+  static const Color kBluePrimary = Color(0xFF0A7CFF);
+  static const Color kBlueSecondary = Color(0xFF4FC3F7);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [kBluePrimary, kBlueSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _FechaBox(
+              label: 'Fecha',
+              value: fechaText,
+              onTap: onPickFecha,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _TurnoBox(
+              label: 'Turno',
+              value: turnoValue,
+              onChanged: onChangedTurno,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FechaBox extends StatelessWidget {
+  const _FechaBox({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
                     ),
                   ),
                 ),
-            ],
+                const Icon(Icons.calendar_month_rounded, color: Colors.black54),
+              ],
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TurnoBox extends StatelessWidget {
+  const _TurnoBox({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.black54,
+            ),
+          ),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down_rounded),
+              items: const ['Dia', 'Noche']
+                  .map(
+                    (t) => DropdownMenuItem<String>(
+                      value: t,
+                      child: Text(
+                        t,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                onChanged(v);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
