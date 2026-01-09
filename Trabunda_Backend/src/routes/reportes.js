@@ -279,9 +279,38 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
 router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
+
     const horasParam = req.query.horas ?? req.query.hours ?? 24;
     const horas = Number(horasParam);
     const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
+
+    const fecha = req.query.fecha ? String(req.query.fecha) : null; // "YYYY-MM-DD"
+    const turno = req.query.turno ? String(req.query.turno) : null; // "Dia" | "Noche"
+
+    // ✅ WHERE dinámico
+    const where = `
+      r.tipo_reporte = 'APOYO_HORAS'
+      AND r.creado_por_user_id = ?
+      AND r.estado = 'ABIERTO'
+      AND (r.vence_en IS NULL OR r.vence_en > NOW())
+      AND lr.hora_fin IS NULL
+      ${turno ? "AND r.turno = ?" : ""}
+      ${
+        fecha
+          ? "AND DATE(CONVERT_TZ(r.fecha,'+00:00','-05:00')) = ?"
+          : "AND r.fecha >= (NOW() - INTERVAL ? HOUR)"
+      }
+    `;
+
+    // ✅ Parámetros en orden según lo que agregues
+    const params = [userId];
+    if (turno) params.push(turno);
+
+    if (fecha) {
+      params.push(fecha);
+    } else {
+      params.push(horasFiltro);
+    }
 
     const [rows] = await pool.query(
       `SELECT 
@@ -293,14 +322,10 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
           MAX(lr.area_nombre) AS area_nombre
        FROM reportes r
        JOIN lineas_reporte lr ON lr.reporte_id = r.id
-       WHERE r.tipo_reporte = 'APOYO_HORAS'
-         AND r.creado_por_user_id = ?
-         AND r.estado = 'ABIERTO'
-         AND (r.vence_en IS NULL OR r.vence_en > NOW())
-         AND lr.hora_fin IS NULL
+       WHERE ${where}
        GROUP BY r.id
        ORDER BY r.id DESC`,
-      [userId]
+      params
     );
 
     return res.json({ items: rows });
@@ -309,6 +334,7 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Error interno de pendientes" });
   }
 });
+
 
 router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {

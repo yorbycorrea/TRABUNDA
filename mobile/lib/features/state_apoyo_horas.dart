@@ -49,9 +49,17 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     });
 
     try {
-      // ⚠️ NO cambio tu lógica del endpoint (solo refresco la UI)
+      // ✅ Formato YYYY-MM-DD para el backend
+      final f =
+          "${_fechaSel.year.toString().padLeft(4, '0')}-"
+          "${_fechaSel.month.toString().padLeft(2, '0')}-"
+          "${_fechaSel.day.toString().padLeft(2, '0')}";
+
+      // ✅ Ahora sí mandamos fecha y turno al endpoint
       final resp = await widget.api.get(
-        '/reportes/apoyo-horas/pendientes?hours=24',
+        '/reportes/apoyo-horas/pendientes?hours=24'
+        '&fecha=$f'
+        '&turno=${Uri.encodeQueryComponent(_turnoSel)}',
       );
 
       final body = resp.body.trimLeft();
@@ -82,13 +90,13 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
         _pendiente = _PendienteItem.fromJson(m);
 
-        // ✅ Si vino un pendiente con fecha/turno, lo reflejamos en el header (solo UI)
+        // ✅ Si vino un pendiente con fecha/turno, reflejarlo en el header (solo UI)
         final p = _pendiente!;
-        final f = _parseFecha(p.fecha);
-        final t = p.turno.isNotEmpty ? p.turno : _turnoSel;
+        final f2 = _parseFecha(p.fecha);
+        final t2 = p.turno.isNotEmpty ? p.turno : _turnoSel;
 
-        _fechaSel = f;
-        _turnoSel = t;
+        _fechaSel = f2;
+        _turnoSel = t2;
       }
 
       if (!mounted) return;
@@ -167,8 +175,13 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
       });
 
       // ⚠️ Tu lógica ya usa turno. Usamos el turno seleccionado (solo UI)
+      final f =
+          "${_fechaSel.year.toString().padLeft(4, '0')}-"
+          "${_fechaSel.month.toString().padLeft(2, '0')}-"
+          "${_fechaSel.day.toString().padLeft(2, '0')}";
+
       final resp = await widget.api.get(
-        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turnoSel)}',
+        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turnoSel)}&fecha=$f',
       );
 
       final body = resp.body.trimLeft();

@@ -293,14 +293,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
                               ),
                             ),
                           ),
-                        TextFormField(
-                          initialValue: planillero,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Planillero',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
+
                         const SizedBox(height: 12),
                         InkWell(
                           onTap: _saving ? null : _pickFecha,
@@ -323,22 +316,6 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
                         const SizedBox(height: 12),
 
                         // Buscador
-                        TextField(
-                          enabled: !_saving,
-                          decoration: const InputDecoration(
-                            labelText: 'Buscar área',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                          onChanged: (v) {
-                            setState(() {
-                              _search = v;
-                              _aplicarFiltro();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
                         const Text(
                           'Áreas (cantidad)',
                           style: TextStyle(fontWeight: FontWeight.bold),
