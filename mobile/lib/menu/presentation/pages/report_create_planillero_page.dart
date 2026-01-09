@@ -6,6 +6,7 @@ import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
 import 'package:mobile/features/state_apoyo_horas.dart';
 import 'package:mobile/menu/presentation/pages/conteo_rapido_page.dart';
+import 'package:mobile/core/theme/app_colors.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
@@ -342,7 +343,7 @@ class _HeaderCompacto extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF4F8DF7), Color(0xFF7BB6FF)],
+          colors: [AppColors.frenchBlue, AppColors.turquoise],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

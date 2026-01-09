@@ -1,6 +1,7 @@
 //import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
+import 'package:mobile/core/theme/app_colors.dart';
 
 // Importación necesaria para el Scope
 
@@ -27,7 +28,7 @@ class HomeMenuPage extends StatelessWidget {
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Color(0xFF0A7CFF), Color(0xFF4FC3F7)],
+                      colors: [AppColors.frenchBlue, AppColors.turquoise],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ),
