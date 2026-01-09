@@ -72,9 +72,10 @@ dev_dependencies:
   build_runner: ^2.4.7
   path_provider_platform_interface: ^2.1.2
   plugin_platform_interface: ^2.1.8
-  mocktail: ^1.0.3
+  mocktail: ^1.0.4
   http: ^1.1.0
   test: ^1.24.0
+  
 
 flutter_icons:
   android: true

@@ -153,12 +153,12 @@ class _ReportCreatePlanilleroPageState
       _toast('Planillero vacío');
       return;
     }
+
     try {
       if (!mounted) return;
 
       if (tipo == 'APOYO_HORAS') {
         final reporteId = await _ensureReporteCreado(tipo: 'APOYO_HORAS');
-
         if (!mounted) return;
 
         await Navigator.push(
@@ -182,12 +182,25 @@ class _ReportCreatePlanilleroPageState
       }
 
       if (tipo == 'CONTEO_RAPIDO') {
+        // Si tu flujo requiere crear/abrir reporte en backend para conteo rápido,
+        // descomenta la siguiente línea y pásale reporteId a la página si lo necesitas.
+        // final reporteId = await _ensureReporteCreado(tipo: 'CONTEO_RAPIDO');
+
         if (!mounted) return;
 
         await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ConteoRapidoPage(api: widget.api)),
+          MaterialPageRoute(
+            builder: (_) => ConteoRapidoPage(
+              api: widget.api,
+              // fechaInicial: _fecha,
+              // turnoInicial: _turno,
+              // si agregas reporteId al constructor, pásalo aquí:
+              // reporteId: reporteId,
+            ),
+          ),
         );
+        return; // ✅ IMPORTANTE: evita que caiga en "Tipo no soportado"
       }
 
       _toast('Tipo no soportado: $tipo');
@@ -222,6 +235,7 @@ class _ReportCreatePlanilleroPageState
   static const Color kBluePrimary = Color(0xFF0A7CFF);
   static const Color kBlueSecondary = Color(0xFF4FC3F7);
   static const Color kBg = Color(0xFFF5F7FA);
+  static const Color primarySoftBlue = Color(0xFF3B82F6);
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +342,7 @@ class _HeaderCompacto extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0A7CFF), Color(0xFF4FC3F7)],
+          colors: [Color(0xFF4F8DF7), Color(0xFF7BB6FF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

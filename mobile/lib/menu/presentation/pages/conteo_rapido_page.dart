@@ -35,24 +35,34 @@ class ConteoRapidoPage extends StatefulWidget {
 }
 
 class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
+  // ✅ Selección (clave del reporte)
   DateTime _fecha = DateTime.now();
   String _turno = 'Dia';
 
-  bool _loading = true;
+  // ✅ Estado flujo iniciar
+  bool _checkingOpen = false;
+  String? _openError;
+
+  bool _tieneReporte = false;
+  bool _existente = false;
+  bool _mostrarListado = false;
+
+  int? _reporteId;
+  List<Map<String, dynamic>> _itemsOpen = [];
+
+  // ✅ Estado de data
+  bool _loadingAreas = true; // solo carga catálogo
   bool _saving = false;
 
   List<AreaConteo> _areas = [];
   List<AreaConteo> _areasFiltradas = [];
-
-  String _search = '';
-  int? _reporteIdAbierto; // para mostrar "Editando reporte #X"
 
   @override
   void initState() {
     super.initState();
     _fecha = widget.fechaInicial ?? DateTime.now();
     _turno = widget.turnoInicial ?? 'Dia';
-    _cargarAreasYConteoGuardado();
+    _cargarCatalogoAreas(); // ✅ solo catálogo, no abre reporte automáticamente
   }
 
   // ----------------------------
@@ -72,14 +82,8 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   }
 
   void _aplicarFiltro() {
-    final q = _search.trim().toLowerCase();
-    if (q.isEmpty) {
-      _areasFiltradas = List.of(_areas);
-    } else {
-      _areasFiltradas = _areas
-          .where((a) => a.nombre.toLowerCase().contains(q))
-          .toList(growable: false);
-    }
+    // ✅ Quitaste buscador => siempre todos
+    _areasFiltradas = List.of(_areas);
   }
 
   void _inc(AreaConteo a) => setState(() => a.cantidad++);
@@ -91,12 +95,16 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     final sel = _turno == v;
     return Expanded(
       child: ElevatedButton(
-        onPressed: _saving
+        onPressed: (_saving || _checkingOpen)
             ? null
             : () async {
                 setState(() => _turno = v);
-                // al cambiar turno, recargar lo guardado para ese turno
-                await _cargarAreasYConteoGuardado(recargarAreas: false);
+
+                // ✅ al cambiar clave (turno/fecha) reinicia flujo
+                _resetFlujo();
+
+                // no toca catálogo, pero deja lista en 0 (hasta iniciar)
+                _resetCantidades();
               },
         style: ElevatedButton.styleFrom(
           backgroundColor: sel ? const Color(0xFF00796B) : Colors.grey[300],
@@ -108,81 +116,157 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     );
   }
 
+  void _resetFlujo() {
+    setState(() {
+      _openError = null;
+      _tieneReporte = false;
+      _existente = false;
+      _mostrarListado = false;
+      _reporteId = null;
+      _itemsOpen = [];
+    });
+  }
+
+  void _resetCantidades() {
+    for (final a in _areas) {
+      a.cantidad = 0;
+    }
+    _aplicarFiltro();
+  }
+
   Future<void> _pickFecha() async {
-    if (_saving) return;
+    if (_saving || _checkingOpen) return;
+
     final picked = await showDatePicker(
       context: context,
       initialDate: _fecha,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
+
     if (picked != null) {
       setState(() => _fecha = picked);
-      // al cambiar fecha, recargar lo guardado para esa fecha/turno
-      await _cargarAreasYConteoGuardado(recargarAreas: false);
+
+      // ✅ al cambiar clave (turno/fecha) reinicia flujo
+      _resetFlujo();
+
+      // deja cantidades en 0 hasta iniciar
+      _resetCantidades();
     }
   }
 
   // ----------------------------
-  // Data loading
+  // Data loading (solo catálogo)
   // ----------------------------
-  Future<void> _cargarAreasYConteoGuardado({bool recargarAreas = true}) async {
-    setState(() => _loading = true);
+  Future<void> _cargarCatalogoAreas() async {
+    setState(() => _loadingAreas = true);
 
     try {
-      // 1) Cargar catálogo de áreas (solo si se pide)
-      if (recargarAreas || _areas.isEmpty) {
-        final respAreas = await widget.api.get('/areas/conteo-rapido');
-        if (respAreas.statusCode != 200) {
-          throw Exception(
-            'Áreas error ${respAreas.statusCode}: ${respAreas.body}',
-          );
-        }
-        final dataAreas = jsonDecode(respAreas.body) as Map<String, dynamic>;
-        final listAreas = (dataAreas['areas'] as List)
-            .cast<Map<String, dynamic>>();
-
-        _areas = listAreas.map(AreaConteo.fromJson).toList();
+      final respAreas = await widget.api.get('/areas/conteo-rapido');
+      if (respAreas.statusCode != 200) {
+        throw Exception(
+          'Áreas error ${respAreas.statusCode}: ${respAreas.body}',
+        );
       }
+      final dataAreas = jsonDecode(respAreas.body) as Map<String, dynamic>;
+      final listAreas = (dataAreas['areas'] as List)
+          .cast<Map<String, dynamic>>();
 
-      // 2) Abrir/revisar reporte guardado para fecha/turno (trae items)
-      final fechaStr = _fmtFecha(_fecha);
-      final respOpen = await widget.api.get(
-        '/reportes/conteo-rapido/open?fecha=$fechaStr&turno=${Uri.encodeQueryComponent(_turno)}',
-      );
-
-      if (respOpen.statusCode != 200 && respOpen.statusCode != 201) {
-        throw Exception('Open error ${respOpen.statusCode}: ${respOpen.body}');
-      }
-
-      final dataOpen = jsonDecode(respOpen.body) as Map<String, dynamic>;
-      final reporte = dataOpen['reporte'] as Map<String, dynamic>;
-      _reporteIdAbierto = (reporte['id'] as num).toInt();
-
-      final items =
-          (dataOpen['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-
-      // 3) Aplicar cantidades guardadas a las áreas
-      final mapCant = <int, int>{};
-      for (final it in items) {
-        final aid = (it['area_id'] as num).toInt();
-        final cant = (it['cantidad'] as num).toInt();
-        mapCant[aid] = cant;
-      }
-
-      for (final a in _areas) {
-        a.cantidad = mapCant[a.id] ?? 0;
-      }
-
-      // 4) Filtrar
+      _areas = listAreas.map(AreaConteo.fromJson).toList();
       _aplicarFiltro();
 
-      setState(() => _loading = false);
+      setState(() => _loadingAreas = false);
     } catch (e) {
-      setState(() => _loading = false);
+      setState(() => _loadingAreas = false);
       if (!mounted) return;
-      _toast('No se pudo cargar: $e');
+      _toast('No se pudo cargar áreas: $e');
     }
+  }
+
+  // ----------------------------
+  // OPEN / INICIAR
+  // ----------------------------
+  Future<void> _iniciarReporte() async {
+    if (_checkingOpen || _saving) return;
+
+    setState(() {
+      _checkingOpen = true;
+      _openError = null;
+      _tieneReporte = false;
+      _existente = false;
+      _mostrarListado = false;
+      _reporteId = null;
+      _itemsOpen = [];
+    });
+
+    try {
+      final fechaStr = _fmtFecha(_fecha);
+
+      final resp = await widget.api.get(
+        "/reportes/conteo-rapido/open?turno=${Uri.encodeQueryComponent(_turno)}&fecha=$fechaStr",
+      );
+
+      final decoded = jsonDecode(resp.body);
+
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        final msg = (decoded is Map && decoded["error"] != null)
+            ? decoded["error"].toString()
+            : "Error HTTP ${resp.statusCode}";
+        throw Exception(msg);
+      }
+
+      final existente = decoded["existente"] == true;
+      final rep = (decoded["reporte"] as Map).cast<String, dynamic>();
+      final id = (rep["id"] as num).toInt();
+
+      final items = (decoded["items"] is List)
+          ? (decoded["items"] as List)
+                .whereType<Map>()
+                .map((e) => e.cast<String, dynamic>())
+                .toList()
+          : <Map<String, dynamic>>[];
+
+      setState(() {
+        _tieneReporte = true;
+        _existente = existente;
+        _reporteId = id;
+        _itemsOpen = items;
+
+        // ✅ si NO existe, ya se empieza a llenar
+        if (!existente) {
+          _mostrarListado = true;
+        }
+      });
+
+      // Si existe: mostramos tarjeta "ya existe" y el usuario decide "Continuar"
+    } catch (e) {
+      setState(() => _openError = e.toString());
+    } finally {
+      if (mounted) setState(() => _checkingOpen = false);
+    }
+  }
+
+  void _continuarReporteExistente() {
+    // ✅ aplicar cantidades devueltas por open/items
+    final mapCant = <int, int>{};
+    for (final it in _itemsOpen) {
+      final aid = (it['area_id'] as num).toInt();
+      final cantAny = it['cantidad'];
+      final cant = (cantAny is num)
+          ? cantAny.toInt()
+          : int.tryParse('$cantAny') ?? 0;
+      mapCant[aid] = cant;
+    }
+
+    for (final a in _areas) {
+      a.cantidad = mapCant[a.id] ?? 0;
+    }
+
+    _aplicarFiltro();
+
+    setState(() {
+      _mostrarListado = true;
+    });
   }
 
   // ----------------------------
@@ -190,6 +274,12 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   // ----------------------------
   Future<void> _guardar() async {
     if (_saving) return;
+
+    // ✅ No guardar si no inició
+    if (!_mostrarListado || _reporteId == null) {
+      _toast('Primero inicia el reporte.');
+      return;
+    }
 
     final items = _areas
         .where((a) => a.cantidad > 0)
@@ -243,8 +333,12 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       if (!mounted) return;
       _toast('Guardado. Reporte #$reporteId');
 
-      // recarga para asegurarnos que quedó tal cual en BD (y mantener id)
-      await _cargarAreasYConteoGuardado(recargarAreas: false);
+      // ✅ volver a abrir para reflejar lo guardado y marcar como existente
+      await _iniciarReporte();
+      if (_existente && !_mostrarListado) {
+        // si el open devuelve existente:true luego de guardar, auto-continuamos
+        _continuarReporteExistente();
+      }
     } catch (e) {
       if (!mounted) return;
       _toast('No se pudo guardar: $e');
@@ -254,12 +348,103 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   }
 
   // ----------------------------
+  // UI Blocks
+  // ----------------------------
+  Widget _bloqueInicioUI() {
+    if (_openError != null) {
+      return Card(
+        child: ListTile(
+          title: const Text("Error"),
+          subtitle: Text(_openError!),
+          trailing: IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _checkingOpen ? null : _iniciarReporte,
+          ),
+        ),
+      );
+    }
+
+    // Antes de iniciar
+    if (!_tieneReporte) {
+      return SizedBox(
+        height: 52,
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: (_checkingOpen || _saving) ? null : _iniciarReporte,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00796B),
+            foregroundColor: Colors.white,
+          ),
+          icon: _checkingOpen
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.play_arrow_rounded),
+          label: const Text("INICIAR REPORTE"),
+        ),
+      );
+    }
+
+    // Existe reporte para esa fecha+turno y aún no decidieron continuar
+    if (_existente && _reporteId != null && !_mostrarListado) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Ya existe un reporte para esta fecha y turno",
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Reporte #${_reporteId!}",
+                style: const TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _continuarReporteExistente,
+                      child: const Text("Continuar"),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // ✅ Cambia esta ruta por la tuya real
+                        Navigator.pushNamed(context, "/reports/list");
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00796B),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text("Ver reportes"),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  // ----------------------------
   // Build
   // ----------------------------
   @override
   Widget build(BuildContext context) {
     final auth = AuthControllerScope.of(context);
-    final planillero = auth.user?.nombre ?? '';
+    final planillero = auth.user?.nombre ?? ''; // ya no se muestra
 
     return Scaffold(
       appBar: AppBar(
@@ -267,15 +452,19 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
         backgroundColor: const Color(0xFF00796B),
         actions: [
           IconButton(
-            onPressed: (_saving || _loading)
+            onPressed: (_saving || _checkingOpen)
                 ? null
-                : () => _cargarAreasYConteoGuardado(recargarAreas: true),
+                : () async {
+                    await _cargarCatalogoAreas();
+                    _resetFlujo();
+                    _resetCantidades();
+                  },
             icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: SafeArea(
-        child: _loading
+        child: _loadingAreas
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
@@ -283,20 +472,9 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
                     child: ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
-                        if (_reporteIdAbierto != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              'Editando reporte #$_reporteIdAbierto',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(height: 12),
+                        // ✅ Fecha + Turno (la clave)
                         InkWell(
-                          onTap: _saving ? null : _pickFecha,
+                          onTap: (_saving || _checkingOpen) ? null : _pickFecha,
                           child: InputDecorator(
                             decoration: const InputDecoration(
                               labelText: 'Fecha',
@@ -313,82 +491,93 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
                             _turnoButton('Noche'),
                           ],
                         ),
-                        const SizedBox(height: 12),
 
-                        // Buscador
-                        const Text(
-                          'Áreas (cantidad)',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 14),
 
-                        ..._areasFiltradas.map(
-                          (a) => Card(
-                            child: ListTile(
-                              title: Text(a.nombre),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove),
-                                    onPressed: _saving ? null : () => _dec(a),
-                                  ),
-                                  SizedBox(
-                                    width: 30,
-                                    child: Text(
-                                      '${a.cantidad}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(fontSize: 16),
+                        // ✅ Botón iniciar / ya existe
+                        _bloqueInicioUI(),
+
+                        const SizedBox(height: 14),
+
+                        // ✅ Listado SOLO después de iniciar (o continuar)
+                        if (_mostrarListado) ...[
+                          const Text(
+                            'Áreas (cantidad)',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 10),
+
+                          ..._areasFiltradas.map(
+                            (a) => Card(
+                              child: ListTile(
+                                title: Text(a.nombre),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed: _saving ? null : () => _dec(a),
                                     ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add),
-                                    onPressed: _saving ? null : () => _inc(a),
-                                  ),
-                                ],
+                                    SizedBox(
+                                      width: 30,
+                                      child: Text(
+                                        '${a.cantidad}',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(fontSize: 16),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed: _saving ? null : () => _inc(a),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                        if (_areasFiltradas.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 20),
-                            child: Text('No hay áreas con ese filtro.'),
-                          ),
+                          if (_areasFiltradas.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 20),
+                              child: Text('No hay áreas disponibles.'),
+                            ),
+                        ],
                       ],
                     ),
                   ),
 
-                  // Footer fijo sin overflow
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _saving
-                                  ? null
-                                  : () => Navigator.pop(context),
-                              child: const Text('Volver'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _saving ? null : _guardar,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00796B),
+                  // ✅ Footer solo cuando ya puedes guardar
+                  if (_mostrarListado)
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _saving
+                                    ? null
+                                    : () => Navigator.pop(context),
+                                child: const Text('Volver'),
                               ),
-                              child: Text(_saving ? 'Guardando...' : 'Guardar'),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _saving ? null : _guardar,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00796B),
+                                ),
+                                child: Text(
+                                  _saving ? 'Guardando...' : 'Guardar',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
       ),

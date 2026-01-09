@@ -3,19 +3,25 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
 
-// Importa tu ApiClient real
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/network/token_storage.dart';
 
-// Importa el fake
-import '../../fakes/fake_token_storage.dart';
+// 1) Mock de TokenStorage
+class MockTokenStorage extends Mock implements TokenStorage {}
 
 void main() {
   test('ApiClient GET agrega Authorization cuando hay token', () async {
-    // 1) Creamos un MockClient para interceptar el request
-    late http.Request captured;
+    // Mock de TokenStorage
+    final tokens = MockTokenStorage();
 
-    final mock = MockClient((req) async {
+    // Stub: readAccess devuelve token
+    when(() => tokens.readAccess()).thenAnswer((_) async => 'ABC123');
+
+    // Mock HTTP para capturar request
+    late http.Request captured;
+    final mockHttp = MockClient((req) async {
       captured = req;
       return http.Response(
         jsonEncode({'ok': true}),
@@ -24,42 +30,34 @@ void main() {
       );
     });
 
-    // 2) Tokens fake con un access token
-    final tokens = FakeTokenStorage(access: 'ABC123');
-
-    // 3) ApiClient usando el mock http client
     final api = ApiClient(
       baseUrl: 'http://example.com',
-      tokens: tokens as dynamic, // <- explico abajo
-      httpClient: mock,
+      tokens: tokens,
+      httpClient: mockHttp,
     );
 
-    // 4) Ejecutamos GET
     final resp = await api.get('/ping');
 
-    // 5) Verificaciones
     expect(resp.statusCode, 200);
     expect(captured.url.toString(), 'http://example.com/ping');
-
-    // Headers: Content-Type y Authorization
     expect(captured.headers['Content-Type'], 'application/json');
     expect(captured.headers['Authorization'], 'Bearer ABC123');
   });
 
   test('ApiClient GET NO agrega Authorization si token es null', () async {
-    late http.Request captured;
+    final tokens = MockTokenStorage();
+    when(() => tokens.readAccess()).thenAnswer((_) async => null);
 
-    final mock = MockClient((req) async {
+    late http.Request captured;
+    final mockHttp = MockClient((req) async {
       captured = req;
       return http.Response('OK', 200);
     });
 
-    final tokens = FakeTokenStorage(access: null);
-
     final api = ApiClient(
       baseUrl: 'http://example.com',
-      tokens: tokens as dynamic,
-      httpClient: mock,
+      tokens: tokens,
+      httpClient: mockHttp,
     );
 
     await api.get('/ping');
@@ -69,19 +67,19 @@ void main() {
   });
 
   test('ApiClient POST manda body en JSON', () async {
-    late http.Request captured;
+    final tokens = MockTokenStorage();
+    when(() => tokens.readAccess()).thenAnswer((_) async => 'XYZ');
 
-    final mock = MockClient((req) async {
+    late http.Request captured;
+    final mockHttp = MockClient((req) async {
       captured = req;
       return http.Response('OK', 200);
     });
 
-    final tokens = FakeTokenStorage(access: 'XYZ');
-
     final api = ApiClient(
       baseUrl: 'http://example.com',
-      tokens: tokens as dynamic,
-      httpClient: mock,
+      tokens: tokens,
+      httpClient: mockHttp,
     );
 
     await api.post('/login', {'user': 'a', 'pass': 'b'});
