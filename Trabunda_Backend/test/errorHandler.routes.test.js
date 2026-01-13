@@ -7,7 +7,7 @@ jest.mock("../src/db", () => ({
 }));
 
 const { pool } = require("../src/db");
-const app = require("../src/app");
+const app = require("../src/index");
 
 describe("errorHandler en rutas de areas", () => {
   beforeEach(() => {

@@ -9,6 +9,7 @@ import '../widgets/report_resumen_card.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:mobile/features/reports/data/reportes_api_service.dart';
 
 class ReportViewPage extends StatefulWidget {
   const ReportViewPage({super.key, required this.api});
@@ -47,6 +48,14 @@ class _ReportViewPageState extends State<ReportViewPage> {
     'CONTEO_RAPIDO',
     'TRABAJO_AVANCE',
   ];
+
+  late final ReportesApiService _reportesService;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportesService = ReportesApiService(widget.api);
+  }
 
   Future<List<UserPickerItem>> _fetchUsersForAdminPicker() async {
     final resp = await widget.api.get(
@@ -220,6 +229,17 @@ class _ReportViewPageState extends State<ReportViewPage> {
     }
   }
 
+  Future<void> _descargarExcel(int reporteId) async {
+    try {
+      await _reportesService.descargarExcel(reporteId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo descargar el Excel')),
+      );
+    }
+  }
+
   Widget _buildFiltroDinamico(String role) {
     // 1) PLANILLERO: solo selector de tipo (3)
     if (role == rolePlanillero) {
@@ -388,6 +408,7 @@ class _ReportViewPageState extends State<ReportViewPage> {
                       return ReportResumenCard(
                         reporte: r,
                         onDownloadPdf: () => _descargarPdf(r.id),
+                        onDownloadExcel: () => _descargarExcel(r.id),
                       );
                     },
                   ),

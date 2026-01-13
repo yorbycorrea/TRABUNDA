@@ -8,14 +8,19 @@ class ReportResumenCard extends StatelessWidget {
     super.key,
     required this.reporte,
     required this.onDownloadPdf,
+    this.onDownloadExcel,
   });
 
   final ReportResumen reporte;
   final VoidCallback onDownloadPdf;
+  final VoidCallback? onDownloadExcel;
 
   @override
   Widget build(BuildContext context) {
     final fechaTxt = DateFormat('dd/MM/yyyy').format(reporte.fecha);
+    final bool isConteo = reporte.tipoReporte == 'CONTEO_RAPIDO';
+    final VoidCallback? action = isConteo ? onDownloadExcel : onDownloadPdf;
+    debugPrint('isConteo=$isConteo onDownloadExcel=${onDownloadExcel != null}');
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -117,9 +122,9 @@ class ReportResumenCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: onDownloadPdf,
+                onPressed: isConteo ? onDownloadExcel : onDownloadPdf,
                 icon: const Icon(Icons.download_outlined),
-                label: const Text('Descargar reporte'),
+                label: Text(isConteo ? 'Descargar Excel' : 'Descargar reporte'),
               ),
             ),
           ],

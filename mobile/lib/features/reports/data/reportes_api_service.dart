@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../../../core/network/api_client.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 
 class ReportesApiService {
   ReportesApiService(this._api);
@@ -68,5 +71,39 @@ class ReportesApiService {
     final id = data['detalle_id'];
     if (id is! int) return -1;
     return id;
+  }
+
+  Future<void> descargarExcel(int reporteId) async {
+    final resp = await _api.get('/reportes/conteo-rapido/$reporteId/excel');
+
+    // DEBUG útil (déjalo mientras pruebas)
+    final ct = resp.headers['content-type'] ?? '';
+    final preview = String.fromCharCodes(resp.bodyBytes.take(120));
+    // ignore: avoid_print
+    print(
+      'EXCEL status=${resp.statusCode} content-type=$ct bytes=${resp.bodyBytes.length}',
+    );
+    // ignore: avoid_print
+    print('EXCEL preview=$preview');
+
+    if (resp.statusCode != 200) {
+      // normalmente aquí viene JSON con {error: "..."}
+      throw Exception('Error ${resp.statusCode}: $preview');
+    }
+
+    // Validación rápida: un .xlsx real (ZIP) empieza con "PK"
+    final bytes = resp.bodyBytes;
+    final isZip = bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B;
+    if (!isZip) {
+      throw Exception(
+        'La respuesta no es un .xlsx válido. content-type=$ct preview=$preview',
+      );
+    }
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/reporte_conteo_$reporteId.xlsx');
+
+    await file.writeAsBytes(bytes, flush: true);
+    await OpenFilex.open(file.path);
   }
 }

@@ -7,6 +7,7 @@ const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
+const ExcelJS = require('exceljs');
 
 //const { width } = require("pdfkit/js/page");
 
@@ -867,6 +868,204 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Error interno al listar lineas" });
   }
 });
+
+// ===================================================
+// GET /reportes/conteo-rapido/:id/excel
+
+// ====================================================
+
+router.get('/conteo-rapido/:id/excel', authMiddleware, async (req, res) => {
+  try {
+    const reporteId = req.params.id;
+
+    // 1️⃣ Traer cabecera del reporte
+    const [[reporte]] = await pool.query(
+      `
+      SELECT r.fecha, r.turno, u.nombre AS planillero
+      FROM reportes r
+      JOIN users u ON u.id = r.creado_por_user_id
+      WHERE r.id = ?
+    `,
+      [reporteId]
+    );
+
+    if (!reporte) {
+      return res.status(404).json({ error: 'Reporte no existe' });
+    }
+
+    // 2️⃣ Traer detalle por área
+    const [detalles] = await pool.query(
+      `
+      SELECT a.nombre AS area, d.cantidad
+      FROM conteo_rapido_detalle d
+      JOIN areas a ON a.id = d.area_id
+      WHERE d.reporte_id = ?
+    `,
+      [reporteId]
+    );
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Reporte Personal');
+
+    /* =============================
+       ESTILOS
+    ============================= */
+    const thinBorder = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+
+    const headerBlue = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '1F4E78' },
+    };
+
+    const applyBorderRow = (rowNumber) => {
+      sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = thinBorder;
+      });
+    };
+
+    const applyBorderRangeAB = (startRow, endRow) => {
+      for (let r = startRow; r <= endRow; r++) {
+        sheet.getRow(r).getCell(1).border = thinBorder; // A
+        sheet.getRow(r).getCell(2).border = thinBorder; // B
+      }
+    };
+
+    /* =============================
+       TÍTULO
+    ============================= */
+    sheet.mergeCells('A1:B1');
+    sheet.getCell('A1').value = 'REPORTE PERSONAL';
+    sheet.getCell('A1').fill = headerBlue;
+    sheet.getCell('A1').font = { bold: true, color: { argb: 'FFFFFF' } };
+    sheet.getCell('A1').alignment = { horizontal: 'center' };
+
+    // Bordes del título (al estar merge, ponemos borde a A1 y B1)
+    sheet.getCell('A1').border = thinBorder;
+    sheet.getCell('B1').border = thinBorder;
+
+    /* =============================
+       CABECERA
+    ============================= */
+    sheet.addRow(['DÍA:', reporte.fecha.toISOString().slice(0, 10)]);
+    sheet.addRow(['TURNO:', reporte.turno]);
+    sheet.addRow(['PLANILLERO:', reporte.planillero]);
+
+    // Bordes en filas de cabecera (2,3,4)
+    applyBorderRangeAB(2, 4);
+
+    // Fila vacía
+    sheet.addRow([]);
+    // Si quieres que la fila vacía también tenga líneas, descomenta:
+    // applyBorderRow(5);
+
+    /* =============================
+       TABLA
+    ============================= */
+    const tableStartRow = sheet.rowCount + 1; // donde empieza "AREA | N° Personas"
+
+    sheet.addRow(['AREA', 'N° Personas']);
+    const headerRowNumber = sheet.lastRow.number;
+
+    sheet.getRow(headerRowNumber).eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill = headerBlue;
+      cell.font = { bold: true, color: { argb: 'FFFFFF' } };
+      cell.alignment = { horizontal: 'center' };
+      cell.border = thinBorder;
+    });
+
+    let total = 0;
+
+    detalles.forEach((d) => {
+      const qty = Number(d.cantidad) || 0;
+      total += qty;
+
+      sheet.addRow([d.area, qty]);
+      const r = sheet.lastRow.number;
+
+      // Bordes por fila de datos
+      sheet.getRow(r).getCell(1).border = thinBorder;
+      sheet.getRow(r).getCell(2).border = thinBorder;
+
+      // Alineación (opcional)
+      sheet.getRow(r).getCell(1).alignment = { horizontal: 'left' };
+      sheet.getRow(r).getCell(2).alignment = { horizontal: 'right' };
+    });
+
+    /* =============================
+       TOTAL
+    ============================= */
+    sheet.addRow(['TOTAL:', total]);
+    const totalRowNumber = sheet.lastRow.number;
+
+    sheet.getRow(totalRowNumber).font = { bold: true };
+    sheet.getRow(totalRowNumber).getCell(1).border = thinBorder;
+    sheet.getRow(totalRowNumber).getCell(2).border = thinBorder;
+
+    // Si quieres el TOTAL con fondo gris (opcional)
+    // sheet.getRow(totalRowNumber).eachCell({ includeEmpty: true }, (cell) => {
+    //   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } };
+    // });
+
+    // Por si quieres asegurar bordes en todo el bloque de tabla:
+    const tableEndRow = sheet.rowCount;
+    applyBorderRangeAB(tableStartRow, tableEndRow);
+
+    // 🔘 Fila TOTAL en gris
+    sheet.getRow(totalRowNumber).eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'D9D9D9' }, // gris claro tipo Excel
+      };
+
+      cell.font = { bold: true };
+
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: cell.col === 2 ? 'right' : 'left',
+      };
+    });
+
+
+    /* =============================
+       ANCHOS
+    ============================= */
+    sheet.columns = [{ width: 55 }, { width: 25 }];
+
+    /* =============================
+       RESPUESTA
+    ============================= */
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=reporte_conteo_${reporteId}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: e.message || 'Error generando Excel' });
+  }
+});
+
+
 
 /* ===============================================
    GET /reportes/:id/pdf  (antes que /:id)

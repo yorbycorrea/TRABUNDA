@@ -1,6 +1,9 @@
 const express = require("express");
-console.log("INDEX REAL:", __filename);
-require("dotenv").config();
+//console.log("INDEX REAL:", __filename);
+if (process.env.NODE_ENV !== "test") {
+  require("dotenv").config();
+}
+
 const { pool } = require("./db");
 
 // 1. IMPORTAR RUTAS
@@ -19,7 +22,10 @@ app.use(express.json());
 
 // 4. LOG DE PETICIONES (Muévelo aquí abajo)
 app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== "test") {
   console.log(`Petición recibida: ${req.method} ${req.url}`);
+}
+
   next();
 });
 
