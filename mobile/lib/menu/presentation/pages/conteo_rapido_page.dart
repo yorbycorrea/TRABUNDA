@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
+import 'package:mobile/core/ui/notifications.dart';
 
 class AreaConteo {
   final int id;
@@ -69,6 +70,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   // Helpers UI
   // ----------------------------
   void _toast(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -132,6 +134,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       a.cantidad = 0;
     }
     _aplicarFiltro();
+    if (mounted) setState(() {});
   }
 
   Future<void> _pickFecha() async {
@@ -178,7 +181,6 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       setState(() => _loadingAreas = false);
     } catch (e) {
       setState(() => _loadingAreas = false);
-      if (!mounted) return;
       _toast('No se pudo cargar áreas: $e');
     }
   }
@@ -292,19 +294,20 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     }
 
     final resumen = _resumenItems();
+    final parentContext = context;
 
     final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
+      context: parentContext,
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmar conteo'),
         content: SingleChildScrollView(child: Text(resumen)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Seguir editando'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Confirmar y guardar'),
           ),
         ],
@@ -314,6 +317,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     if (confirmar != true) return;
 
     setState(() => _saving = true);
+
     try {
       final payload = {
         'fecha': _fmtFecha(_fecha),
@@ -331,16 +335,18 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       final reporteId = data['reporte_id'];
 
       if (!mounted) return;
-      _toast('Guardado. Reporte #$reporteId');
 
-      // ✅ volver a abrir para reflejar lo guardado y marcar como existente
-      await _iniciarReporte();
-      if (_existente && !_mostrarListado) {
-        // si el open devuelve existente:true luego de guardar, auto-continuamos
-        _continuarReporteExistente();
-      }
-    } catch (e) {
+      // ✅ Mostrar notificación bonita
+      showSavedToast(context, message: 'Guardado. Reporte #$reporteId');
+
+      // ✅ dar un mini tiempo para que se vea el toast antes de salir
+      await Future.delayed(const Duration(milliseconds: 450));
+
       if (!mounted) return;
+
+      // ✅ SALIR de ConteoRapidoPage (así ya no se queda la lista)
+      Navigator.of(context).pop(true);
+    } catch (e) {
       _toast('No se pudo guardar: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -445,6 +451,8 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   Widget build(BuildContext context) {
     final auth = AuthControllerScope.of(context);
     final planillero = auth.user?.nombre ?? ''; // ya no se muestra
+    // ignore: unused_local_variable
+    final _ = planillero;
 
     return Scaffold(
       appBar: AppBar(
@@ -491,7 +499,6 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
                             _turnoButton('Noche'),
                           ],
                         ),
-
                         const SizedBox(height: 14),
 
                         // ✅ Botón iniciar / ya existe
