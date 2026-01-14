@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Recepción y Fileteado</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color:#111; }
+    .page { padding: 14px 16px; }
+
+    /* ===== Header ===== */
+    .top-bar{
+      border: 2px solid #111;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 120px 1fr 120px;
+      align-items: center;
+    }
+    .logo{
+      height: 38px;
+      object-fit: contain;
+    }
+    .title{
+      text-align:center;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: .3px;
+    }
+
+    /* ===== Meta ===== */
+    .meta{
+      margin-top: 10px;
+      border-top: 2px solid #111;
+      border-bottom: 2px solid #111;
+      padding: 8px 0;
+      font-size: 12px;
+    }
+    .meta-row{
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 10px;
+      padding: 3px 0;
+      border-top: 1px solid #bbb;
+    }
+    .meta-row:first-child{ border-top: none; }
+    .meta-label{ font-weight: 800; }
+
+    /* ===== Table (Excel-like) ===== */
+    table{
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    th, td{
+      border: 1px solid #111;
+      padding: 6px 6px;
+      vertical-align: middle;
+    }
+    th{
+      background: #e8eef7;
+      font-weight: 800;
+      text-align: center;
+    }
+    td.num{ text-align: right; }
+    td.center{ text-align:center; }
+
+    .row-total td{
+      font-weight: 800;
+      background: #f1f1f1;
+    }
+
+    /* ===== Section title bar ===== */
+    .section-title{
+      margin-top: 14px;
+      background: #dbe8f6;
+      border-top: 1px solid #111;
+      border-bottom: 1px solid #111;
+      text-align: center;
+      font-weight: 800;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
+
+    /* ===== Codes blocks (3 columns) ===== */
+    .codes-grid{
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      padding: 10px 0;
+    }
+    .code-box{
+      border-top: 2px solid #111;
+      padding-top: 6px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      min-height: 120px;
+    }
+    .code-box .hdr{
+      background: #eee;
+      padding: 4px 6px;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-bottom: 1px solid #111;
+      font-size: 12px;
+    }
+    .code-box .sub{
+      text-align: center;
+      font-style: italic;
+      font-weight: 800;
+      margin: 4px 0 6px;
+      font-size: 12px;
+    }
+    .code-list{
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 4px 10px;
+      font-size: 12px;
+      padding: 0 6px;
+    }
+    .muted{ color:#666; font-size: 12px; padding: 6px; }
+
+    /* page breaks */
+    .page-break{ page-break-before: always; break-before: page; }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <div class="top-bar">
+      <div>
+        <img class="logo" src="{{LOGO_DATA_URI}}" />
+      </div>
+
+      <div class="title">RECEPCIÓN Y FILETEADO DE POTILLA</div>
+
+      <div></div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-row">
+        <div class="meta-label">DÍA:</div>
+        <div>{{DIA}}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">FECHA:</div>
+        <div>{{FECHA}}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">TURNO:</div>
+        <div>{{TURNO}}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">RESPONSABLE TRABUNDA:</div>
+        <div>{{PLANILLERO}}</div>
+      </div>
+    </div>
+
+    <!-- TABLA PRINCIPAL (Recepción + Fileteado) -->
+    {{TABLA_PRINCIPAL}}
+
+    <div class="section-title">CÓDIGOS DE RECEPCIONISTAS</div>
+    <div class="codes-grid">
+      {{CODIGOS_RECEPCION}}
+    </div>
+
+    <div class="section-title">CÓDIGOS DE FILETEROS</div>
+    <div class="codes-grid">
+      {{CODIGOS_FILETEADO}}
+    </div>
+
+    <div class="section-title">APOYOS DE RECEPCIÓN</div>
+    <div class="codes-grid">
+      {{CODIGOS_APOYO}}
+    </div>
+
+  </div>
+</body>
+</html>

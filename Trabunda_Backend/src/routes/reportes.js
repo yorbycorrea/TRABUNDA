@@ -1426,6 +1426,282 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
             year: "numeric",
           });
 
+    // ======================================================
+// ✅ TRABAJO_AVANCE: PDF por cuadrillas (no usa lineas_reporte)
+// ======================================================
+if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
+
+  const toNum = (v) => {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return v;
+    const n = Number(String(v).trim().replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const fmt2 = (n) => toNum(n).toFixed(2);
+
+  const timeToMinutes = (s) => {
+    if (!s) return null;
+    const parts = String(s).split(":");
+    if (parts.length < 2) return null;
+    const hh = Number(parts[0]);
+    const mm = Number(parts[1]);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    return hh * 60 + mm;
+  };
+
+  const diffHours = (hi, hf) => {
+    const a = timeToMinutes(hi);
+    const b = timeToMinutes(hf);
+    if (a === null || b === null) return 0;
+    let d = b - a;
+    if (d < 0) d += 24 * 60; // por si cruza medianoche
+    return d / 60;
+  };
+
+  // 1) cuadrillas del reporte
+  const [cuadrillas] = await pool.query(
+    `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+     FROM trabajo_avance_cuadrillas
+     WHERE reporte_id = ?
+     ORDER BY tipo ASC, id ASC`,
+    [id]
+  );
+
+  // 2) trabajadores de esas cuadrillas (+ nombre desde tabla trabajadores)
+  const [trabajadores] = await pool.query(
+    `SELECT
+       tav.id,
+       tav.cuadrilla_id,
+       TRIM(tav.trabajador_codigo) AS trabajador_codigo,
+       COALESCE(
+         NULLIF(TRIM(tav.trabajador_nombre), ''),
+         TRIM(t.nombre_completo)
+       ) AS trabajador_nombre,
+       tav.kg
+     FROM trabajo_avance_trabajadores tav
+     LEFT JOIN trabajadores t
+       ON TRIM(t.codigo) = TRIM(tav.trabajador_codigo)
+     WHERE tav.cuadrilla_id IN (
+       SELECT id FROM trabajo_avance_cuadrillas WHERE reporte_id = ?
+     )
+     ORDER BY tav.cuadrilla_id ASC, tav.id ASC`,
+    [id]
+  );
+
+  // agrupar trabajadores por cuadrilla
+  const workersByCuadrilla = new Map();
+  for (const w of trabajadores) {
+    const cid = Number(w.cuadrilla_id);
+    if (!workersByCuadrilla.has(cid)) workersByCuadrilla.set(cid, []);
+    workersByCuadrilla.get(cid).push(w);
+  }
+
+  // helpers HTML
+  const escapeHtml = (s) =>
+    String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  const codeBoxHtml = (title, codes, tolvaText = "") => {
+    const list = (!codes || codes.length === 0)
+      ? `<div class="muted">Sin códigos</div>`
+      : `<div class="code-list">
+          ${codes.map((c, i) => `
+            <div class="center">${i + 1}</div>
+            <div>${escapeHtml(String(c).trim())}</div>
+          `).join("")}
+        </div>`;
+
+    return `
+      <div class="code-box">
+        <div class="hdr">CUADRILLA: ${escapeHtml(title)}</div>
+        <div class="sub">${escapeHtml(tolvaText)}</div>
+        ${list}
+      </div>
+    `;
+  };
+
+  // ===========================
+  // TABLA PRINCIPAL (estilo hoja)
+  // ===========================
+  // Filas: recepcion + fileteado (solo esos dos tipos en tabla principal)
+  const tablaRows = cuadrillas
+    .filter(c => c.tipo === "RECEPCION" || c.tipo === "FILETEADO")
+    .map(c => {
+      const ws = workersByCuadrilla.get(Number(c.id)) || [];
+      const pers = ws.length;
+
+      const kg = toNum(c.produccion_kg);
+      const hi = c.hora_inicio ? String(c.hora_inicio).slice(0,5) : "";
+      const hf = c.hora_fin ? String(c.hora_fin).slice(0,5) : "";
+      const he = diffHours(c.hora_inicio, c.hora_fin);
+
+      const kgHrsPers = (pers > 0 && he > 0) ? (kg / (he * pers)) : 0;
+
+      return {
+        tipo: c.tipo,
+        nombre: String(c.nombre || ""),
+        pers,
+        kg,
+        hi,
+        hf,
+        he,
+        kgHrsPers
+      };
+    });
+
+  const totalPers = tablaRows.reduce((a,r)=> a + (r.pers||0), 0);
+  const totalKg   = tablaRows.reduce((a,r)=> a + (r.kg||0), 0);
+  const totalHe   = tablaRows.reduce((a,r)=> a + (r.he||0), 0);
+  const totalKgHrsPers = (totalPers > 0 && totalHe > 0) ? (totalKg / (totalHe * totalPers)) : 0;
+
+  // Nota: tu hoja tiene columnas (Descarga, Fileteado, Desuñado, Aleta).
+  // En tu app hoy solo tenemos “produccion_kg”.
+  // Para que el formato quede igual, ponemos produccion_kg en “DESCARGA (KG)”
+  // y dejamos el resto en blanco.
+  const tablaHtml = `
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;"></th>
+          <th>CUADRILLA</th>
+          <th style="width:70px;"># PERS.</th>
+          <th style="width:120px;">DESCARGA (KG)</th>
+          <th style="width:90px;">FILETEADO</th>
+          <th style="width:90px;">DESUÑADO</th>
+          <th style="width:90px;">ALETA</th>
+          <th style="width:60px;">H.I</th>
+          <th style="width:60px;">H.F</th>
+          <th style="width:60px;">H.E</th>
+          <th style="width:80px;">KG/HRS/PERS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tablaRows.map((r, idx) => `
+          <tr>
+            <td class="center">${idx + 1}</td>
+            <td>${escapeHtml(r.nombre)}</td>
+            <td class="center">${r.pers}</td>
+            <td class="num">${fmt2(r.kg)}</td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td class="center">${escapeHtml(r.hi)}</td>
+            <td class="center">${escapeHtml(r.hf)}</td>
+            <td class="num">${fmt2(r.he)}</td>
+            <td class="num">${fmt2(r.kgHrsPers)}</td>
+          </tr>
+        `).join("")}
+        <tr class="row-total">
+          <td></td>
+          <td class="center">TOTAL</td>
+          <td class="center">${totalPers}</td>
+          <td class="num">${fmt2(totalKg)}</td>
+          <td class="num"></td>
+          <td class="num"></td>
+          <td class="num"></td>
+          <td></td>
+          <td></td>
+          <td class="num">${fmt2(totalHe)}</td>
+          <td class="num">${fmt2(totalKgHrsPers)}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  // ===========================
+  // CÓDIGOS: por sección
+  // ===========================
+  const cuadrillasRecep = cuadrillas.filter(c => c.tipo === "RECEPCION");
+  const cuadrillasFilet = cuadrillas.filter(c => c.tipo === "FILETEADO");
+  const cuadrillasApoyo = cuadrillas.filter(c => c.tipo === "APOYO_RECEPCION");
+
+  const buildBoxes = (arr) => {
+    if (!arr.length) return `<div class="muted">Sin registros</div>`;
+    return arr.map(c => {
+      const ws = workersByCuadrilla.get(Number(c.id)) || [];
+      // Solo códigos (como en la hoja)
+      const codes = ws.map(w => String(w.trabajador_codigo || "").trim()).filter(Boolean);
+
+      // Si después quieres "código + nombre", dime y lo cambio
+      return codeBoxHtml(String(c.nombre||""), codes, "");
+    }).join("");
+  };
+
+  const codRecepHtml = buildBoxes(cuadrillasRecep);
+  const codFiletHtml = buildBoxes(cuadrillasFilet);
+  const codApoyoHtml = buildBoxes(cuadrillasApoyo);
+
+  // ===========================
+  // Meta: día, fecha, etc
+  // ===========================
+  const fechaObj = new Date(reporte.fecha);
+  const diaTxt = Number.isNaN(fechaObj.getTime())
+    ? ""
+    : fechaObj.toLocaleDateString("es-PE", { weekday: "long" });
+
+  const fechaTxt = Number.isNaN(fechaObj.getTime())
+    ? ""
+    : fechaObj.toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  // Turno puede venir "Dia" en BD; lo quieres como en hoja
+  const turnoTxt = (reporte.turno || "").toString();
+
+  // ===========================
+  // Logo embebido (data uri)
+  // ===========================
+  // Pon tu logo en: src/templates/assets/logo.png (o cambia la ruta)
+  const logoPath = path.join(__dirname, "../templates/assets/logo.png");
+  let logoDataUri = "";
+  try {
+    const img = fs.readFileSync(logoPath);
+    logoDataUri = `data:image/png;base64,${img.toString("base64")}`;
+  } catch (e) {
+    logoDataUri = ""; // si no hay logo, queda vacío
+  }
+
+  // 3) render html
+  const templatePath = path.join(__dirname, "../templates/trabajo_avance.html");
+  let html = fs.readFileSync(templatePath, "utf8");
+
+  html = html
+    .replaceAll("{{LOGO_DATA_URI}}", logoDataUri)
+    .replaceAll("{{DIA}}", diaTxt ? diaTxt.charAt(0).toUpperCase() + diaTxt.slice(1) : "")
+    .replaceAll("{{FECHA}}", fechaTxt)
+    .replaceAll("{{TURNO}}", escapeHtml(turnoTxt))
+    .replaceAll("{{PLANILLERO}}", escapeHtml(reporte.creado_por_nombre || ""))
+    .replaceAll("{{TABLA_PRINCIPAL}}", tablaHtml)
+    .replaceAll("{{CODIGOS_RECEPCION}}", codRecepHtml)
+    .replaceAll("{{CODIGOS_FILETEADO}}", codFiletHtml)
+    .replaceAll("{{CODIGOS_APOYO}}", codApoyoHtml);
+
+  // 4) PDF
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: "networkidle" });
+
+  const pdfBuffer = await page.pdf({
+    format: "A4",
+    printBackground: true,
+    margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+  });
+
+  await browser.close();
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="reporte_trabajo_avance_${id}.pdf"`
+  );
+  return res.send(pdfBuffer);
+}
+
+
+
 
     const filasHtml = lineas
       .map((l, i) => {
