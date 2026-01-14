@@ -7,6 +7,7 @@ import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
 import 'package:mobile/features/state_apoyo_horas.dart';
 import 'package:mobile/menu/presentation/pages/conteo_rapido_page.dart';
 import 'package:mobile/core/theme/app_colors.dart';
+import 'package:mobile/menu/presentation/pages/trabajo_avance_page.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
@@ -178,9 +179,38 @@ class _ReportCreatePlanilleroPageState
       }
 
       if (tipo == 'TRABAJO_AVANCE') {
-        _toast('Falta implementar la pantalla de Trabajo por avance');
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrabajoAvancePage(
+              api: widget.api,
+
+              // opcional si tu página lo soporta:
+            ),
+          ),
+        );
         return;
       }
+
+      if (tipo == 'CONTEO_RAPIDO') {
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ConteoRapidoPage(
+              api: widget.api,
+              // fechaInicial: _fecha,
+              // turnoInicial: _turno,
+            ),
+          ),
+        );
+        return;
+      }
+
+      _toast('Tipo no soportado: $tipo');
 
       if (tipo == 'CONTEO_RAPIDO') {
         // Si tu flujo requiere crear/abrir reporte en backend para conteo rápido,

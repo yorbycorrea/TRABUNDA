@@ -66,6 +66,9 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
   Future<void> _handleDetection(List<Barcode> barcodes) async {
     if (barcodes.isEmpty || _processing) return;
+    debugPrint(
+      'QR onDetect: processing=$_processing, barcodes=${barcodes.length}',
+    );
 
     final rawValue = barcodes.first.rawValue?.trim();
     debugPrint('QR scanner >>> [$rawValue]');
@@ -75,19 +78,24 @@ class _QrScannerPageState extends State<QrScannerPage> {
     // ✅ Bloquea ANTES del await para que no dispare múltiples requests
     if (mounted) setState(() => _processing = true);
 
+    bool popped = false;
+
     try {
       final data = await _lookupTrabajador(rawValue);
 
       if (!mounted) return;
 
-      // ✅ devolver EXACTO lo que tu página espera:
-      // id, codigo, dni, nombre_completo
       final idAny = data['id'];
       final idNum = (idAny is num) ? idAny : num.tryParse(idAny.toString());
 
       final codigo = (data['codigo'] ?? '').toString();
       final dni = (data['dni'] ?? '').toString();
       final nombre = (data['nombre_completo'] ?? '').toString();
+
+      popped = true;
+
+      // ✅ antes de salir, detén cámara (evita “freeze” al volver)
+      await _controller.stop();
 
       Navigator.pop<Map<String, dynamic>>(context, {
         'id': idNum?.toInt(),
@@ -101,14 +109,18 @@ class _QrScannerPageState extends State<QrScannerPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error escaneando/lookup: $e')));
-
-      // ✅ Permite reintentar
-      setState(() => _processing = false);
+    } finally {
+      // ✅ Si NO salimos de la pantalla, desbloquea overlay
+      if (!popped && mounted) {
+        setState(() => _processing = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('QR build');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scanner QR'),
@@ -153,6 +165,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                     borderRadius: BorderRadius.circular(16),
                     child: MobileScanner(
                       controller: _controller,
+
                       onDetect: (capture) => _handleDetection(capture.barcodes),
                     ),
                   ),

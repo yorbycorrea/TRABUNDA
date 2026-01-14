@@ -12,6 +12,14 @@ class AppColors {
   static const frostedBlue2 = Color(0xFFADE8F4);
   static const lightCyan = Color(0xFFCAF0F8);
 
+  static const barraNavegacion = Color(0xFF005B82);
+  static const fondoPantalla = Color(0xFFF5F7FA);
+  static const testoSecundario = Color(0xFF64748B);
+  static const colorCard = Color(0xFFFFFFFF);
+  static const bordeColorcard = Color(0xFFE2E8F0);
+  static const colorletra = Color(0xFF1E293B);
+  static const coloriconSuma = Color(0xFFD32F2F);
+
   // neutrals
   static const surface = Colors.white;
   static const textDark = Colors.black87;

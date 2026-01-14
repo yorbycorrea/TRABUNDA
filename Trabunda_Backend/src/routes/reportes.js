@@ -139,7 +139,17 @@ function flagParaTipoReporte(tipo) {
     default:
       return null;
   }
+
+  
+
+
 }
+
+function tipoTrabajoAvanceValido(tipo) {
+  return ["RECEPCION", "FILETEADO", "APOYO_RECEPCION"].includes(String(tipo || "").trim());
+}
+
+
 
 /**
  * ✅ Recalcula estado del reporte según pendientes
@@ -535,6 +545,275 @@ router.get("/conteo-rapido/open", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Error interno open conteo-rapido" });
   }
 });
+
+/* ========================================
+   GET /reportes/trabajo-avance/open
+======================================== */
+router.get("/trabajo-avance/open", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const turno = normalizarTurno(req.query.turno);
+    const fechaValue = req.query.fecha
+      ? String(req.query.fecha)
+      : new Date().toISOString().slice(0, 10);
+
+    if (!turno) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
+
+    // Buscar reporte existente (como conteo-rapido: no obligues estado ABIERTO si quieres editar)
+    const [rows] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE tipo_reporte = 'TRABAJO_AVANCE'
+         AND creado_por_user_id = ?
+         AND turno = ?
+         AND fecha = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, turno, fechaValue]
+    );
+
+    if (rows.length) {
+      return res.json({ existente: true, reporte: rows[0] });
+    }
+
+    const [urows] = await pool.query(
+      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
+      [userId]
+    );
+    if (!urows.length) return res.status(401).json({ error: "Usuario invalido o desactivado" });
+
+    const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    // ojo: en tu BD reportes.area es NOT NULL en algunos casos; pon algo fijo
+    const [ins] = await pool.query(
+      `INSERT INTO reportes
+       (fecha, turno, tipo_reporte, area, area_id,
+        creado_por_user_id, creado_por_nombre, observaciones,
+        estado, vence_en)
+       VALUES (?, ?, 'TRABAJO_AVANCE', ?, NULL,
+               ?, ?, NULL,
+               'ABIERTO', NULL)`,
+      [fechaValue, turno, "POR_CUADRILLA", userId, creado_por_nombre]
+    );
+
+    const [nuevo] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE id = ?
+       LIMIT 1`,
+      [ins.insertId]
+    );
+
+    return res.status(201).json({ existente: false, reporte: nuevo[0] });
+  } catch (e) {
+    console.error("open trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno open trabajo-avance" });
+  }
+});
+
+/* ========================================
+   GET /reportes/trabajo-avance/:id/resumen
+   (Lista cuadrillas por sección + totales)
+======================================== */
+router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    if (!Number.isInteger(reporteId) || reporteId <= 0) {
+      return res.status(400).json({ error: "id inválido" });
+    }
+
+    const [cuadrillas] = await pool.query(
+      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+       FROM trabajo_avance_cuadrillas
+       WHERE reporte_id = ?
+       ORDER BY FIELD(tipo,'RECEPCION','FILETEADO','APOYO_RECEPCION'), nombre`,
+      [reporteId]
+    );
+
+    const totales = { RECEPCION: 0, FILETEADO: 0, APOYO_RECEPCION: 0 };
+    for (const c of cuadrillas) totales[c.tipo] += Number(c.produccion_kg || 0);
+
+    return res.json({ reporteId, totales, cuadrillas });
+  } catch (e) {
+    console.error("resumen trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno resumen trabajo-avance" });
+  }
+});
+
+/* ========================================
+   POST /reportes/trabajo-avance/:id/cuadrillas
+   body: { tipo, nombre, apoyoDeCuadrillaId? }
+======================================== */
+router.post("/trabajo-avance/:id/cuadrillas", authMiddleware, async (req, res) => {
+  try {
+    const reporteId = Number(req.params.id);
+    const { tipo, nombre, apoyoDeCuadrillaId } = req.body || {};
+
+    if (!Number.isInteger(reporteId) || reporteId <= 0) return res.status(400).json({ error: "id inválido" });
+    if (!tipoTrabajoAvanceValido(tipo)) return res.status(400).json({ error: "tipo inválido" });
+    if (!nombre || !String(nombre).trim()) return res.status(400).json({ error: "nombre requerido" });
+
+    const [ins] = await pool.query(
+      `INSERT INTO trabajo_avance_cuadrillas (reporte_id, tipo, nombre, apoyo_de_cuadrilla_id)
+       VALUES (?, ?, ?, ?)`,
+      [reporteId, tipo, String(nombre).trim(), apoyoDeCuadrillaId ?? null]
+    );
+
+    const [[row]] = await pool.query(
+      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+       FROM trabajo_avance_cuadrillas WHERE id = ?`,
+      [ins.insertId]
+    );
+
+    return res.status(201).json({ ok: true, cuadrilla: row });
+  } catch (e) {
+    console.error("crear cuadrilla trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno creando cuadrilla" });
+  }
+});
+
+/* ========================================
+   GET /reportes/trabajo-avance/cuadrillas/:cuadrillaId
+======================================== */
+router.get(
+  "/trabajo-avance/cuadrillas/:cuadrillaId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const cuadrillaId = Number(req.params.cuadrillaId);
+      if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
+        return res.status(400).json({ error: "cuadrillaId inválido" });
+      }
+
+      const [[cuadrilla]] = await pool.query(
+        `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+         FROM trabajo_avance_cuadrillas
+         WHERE id = ?`,
+        [cuadrillaId]
+      );
+
+      if (!cuadrilla) {
+        return res.status(404).json({ error: "Cuadrilla no encontrada" });
+      }
+
+      // ✅ Traer nombre desde tabla "trabajadores" (JOIN) usando TRIM por los espacios
+      const [trabajadores] = await pool.query(
+        `SELECT
+           tav.id,
+           tav.cuadrilla_id,
+           TRIM(tav.trabajador_codigo) AS trabajador_codigo,
+           COALESCE(
+             NULLIF(TRIM(tav.trabajador_nombre), ''),
+             TRIM(t.nombre_completo)
+           ) AS trabajador_nombre,
+           tav.kg
+         FROM trabajo_avance_trabajadores tav
+         LEFT JOIN trabajadores t
+           ON TRIM(t.codigo) = TRIM(tav.trabajador_codigo)
+         WHERE tav.cuadrilla_id = ?
+         ORDER BY tav.id DESC`,
+        [cuadrillaId]
+      );
+
+      return res.json({ cuadrilla, trabajadores });
+    } catch (e) {
+      console.error("detalle cuadrilla trabajo-avance error:", e);
+      return res
+        .status(500)
+        .json({ error: "Error interno detalle cuadrilla" });
+    }
+  }
+);
+
+
+/* ========================================
+   PUT /reportes/trabajo-avance/cuadrillas/:cuadrillaId
+   body: { hora_inicio, hora_fin, produccion_kg }
+======================================== */
+router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req, res) => {
+  try {
+    const cuadrillaId = Number(req.params.cuadrillaId);
+    const { hora_inicio, hora_fin, produccion_kg } = req.body || {};
+
+    if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
+      return res.status(400).json({ error: "cuadrillaId inválido" });
+    }
+
+    await pool.query(
+      `UPDATE trabajo_avance_cuadrillas
+       SET hora_inicio = ?, hora_fin = ?, produccion_kg = ?
+       WHERE id = ?`,
+      [hora_inicio ?? null, hora_fin ?? null, produccion_kg ?? 0, cuadrillaId]
+    );
+
+    const [[row]] = await pool.query(
+      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+       FROM trabajo_avance_cuadrillas WHERE id = ?`,
+      [cuadrillaId]
+    );
+
+    return res.json({ ok: true, cuadrilla: row });
+  } catch (e) {
+    console.error("update cuadrilla trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno actualizando cuadrilla" });
+  }
+});
+
+/* ========================================
+   POST /reportes/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores
+   body: { codigo, nombre? }
+======================================== */
+router.post("/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores", authMiddleware, async (req, res) => {
+  try {
+    const cuadrillaId = Number(req.params.cuadrillaId);
+    const { codigo, nombre } = req.body || {};
+
+    if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
+      return res.status(400).json({ error: "cuadrillaId inválido" });
+    }
+    if (!codigo || !String(codigo).trim()) return res.status(400).json({ error: "codigo requerido" });
+
+    await pool.query(
+      `INSERT INTO trabajo_avance_trabajadores (cuadrilla_id, trabajador_codigo, trabajador_nombre)
+       VALUES (?, ?, ?)`,
+      [cuadrillaId, String(codigo).trim(), nombre ?? null]
+    );
+
+    const [trabajadores] = await pool.query(
+      `SELECT id, cuadrilla_id, trabajador_codigo, trabajador_nombre, kg
+       FROM trabajo_avance_trabajadores
+       WHERE cuadrilla_id = ?
+       ORDER BY id DESC`,
+      [cuadrillaId]
+    );
+
+    return res.status(201).json({ ok: true, trabajadores });
+  } catch (e) {
+    if (String(e?.code) === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "El trabajador ya está en esta cuadrilla" });
+    }
+    console.error("add trabajador trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno agregando trabajador" });
+  }
+});
+
+/* ========================================
+   DELETE /reportes/trabajo-avance/trabajadores/:id
+======================================== */
+router.delete("/trabajo-avance/trabajadores/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
+
+    await pool.query(`DELETE FROM trabajo_avance_trabajadores WHERE id = ?`, [id]);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("delete trabajador trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno eliminando trabajador" });
+  }
+});
+
 
 
 // ===============================================
