@@ -6,7 +6,16 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, Helvetica, sans-serif; color:#111; }
-    .page { padding: 14px 16px; }
+    
+    /* Corregido: El contenedor ahora debe abarcar TODO para empujar el footer */
+    .page { 
+      size: A4;
+      margin: 14mm 10mm 14mm 10mm;
+      padding: 0px 14px 16px;
+      position: relative;
+      min-height: calc(297mm - 28mm);
+      padding-bottom: 170px;
+    }
 
     /* ===== Header ===== */
     .top-bar{
@@ -20,10 +29,47 @@
       height: 38px;
       object-fit: contain;
     }
+
+    .header-table{
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: -10;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .header-table td{
+      border: 2px solid #000;
+      padding: 6px 8px;
+      vertical-align: middle;
+    }
+
+    /* IZQUIERDA */
+    .header-left {
+      width: 25%;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      font-style: italic;
+    }
+
+    /* CENTRO ARRIBA */
+    .header-center-top{
+      text-align: center;
+      font-size: 14px;
+      font-weight: 300;
+    }
+
+    /* DERECHA */
+    .header-right{
+      width: 30%;
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
     .title{
       text-align:center;
       font-weight: 800;
-      font-size: 20px;
+      font-size: 15px;
       letter-spacing: .3px;
     }
 
@@ -32,8 +78,8 @@
       margin-top: 10px;
       border-top: 2px solid #111;
       border-bottom: 2px solid #111;
-      padding: 8px 0;
-      font-size: 12px;
+      padding: 4px 0;
+      font-size: 8px;
     }
     .meta-row{
       display: grid;
@@ -43,18 +89,20 @@
       border-top: 1px solid #bbb;
     }
     .meta-row:first-child{ border-top: none; }
-    .meta-label{ font-weight: 800; }
+    .meta-label{ font-weight: 800;
+                font-size: 8px; }
 
     /* ===== Table (Excel-like) ===== */
     table{
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      font-size: 12px;
+      margin-bottom: 0px;
+      font-size: 8px;
     }
     th, td{
       border: 1px solid #111;
-      padding: 6px 6px;
+      padding: 2px 2px;
       vertical-align: middle;
     }
     th{
@@ -72,25 +120,94 @@
 
     /* ===== Section title bar ===== */
     .section-title{
-      margin-top: 14px;
+      margin-top: 2px;
       background: #dbe8f6;
-      border-top: 1px solid #111;
       border-bottom: 1px solid #111;
       text-align: center;
       font-weight: 800;
-      padding: 6px 8px;
-      font-size: 13px;
+      padding: 2px 8px;
+      font-size: 10px;
     }
 
-    /* ===== Codes blocks (3 columns) ===== */
-    .codes-grid{
+    .footer-final {
+      position: absolute;
+      bottom: 0px; 
+      left: 16px;
+      right: 16px;
+      border: 2px solid #000;
+      padding: 10px 12px 8px;
+      background: white;
+    }
+
+    /* fila superior: "persona que elaboro" + linea */
+    .footer-row-top{
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 6px 0 10px;
+    }
+
+    .footer-label{
+      font-size: 12px;
+      font-style: italic;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .footer-line{
+      border-bottom: 2px solid #000;
+      height: 18px;
+    }
+
+    /* bloque de firmas */
+    .footer-signs{
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
+      border-top: 2px solid #000;
+      margin-top: 8px;
+    }
+
+    .footer-sign{
+      padding: 14px 10px 10px;
+      min-height: 85px;
+      position: relative;
+    }
+
+    .footer-sign:not(:last-child){
+      border-right: 2px solid #000;
+    }
+
+    .sign-line{
+      border-bottom: 2px solid #000;
+      height: 40px;
+      margin: 0 20px 8px;
+    }
+
+    .sign-text{
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+    }
+
+    /* texto final */
+    .footer-legend{
+      border-top: 2px solid #000;
+      padding-top: 6px;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    /* ===== Codes blocks (5 columns) ===== */
+    .codes-grid{
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
       gap: 16px;
-      padding: 10px 0;
+      padding: 4px 0;
+      text-align: center;
     }
     .code-box{
-      border-top: 2px solid #111;
       padding-top: 6px;
       break-inside: avoid;
       page-break-inside: avoid;
@@ -102,45 +219,46 @@
       font-weight: 800;
       text-transform: uppercase;
       border-bottom: 1px solid #111;
-      font-size: 12px;
+      font-size: 9px;
     }
     .code-box .sub{
       text-align: center;
       font-style: italic;
       font-weight: 800;
       margin: 4px 0 6px;
-      font-size: 12px;
+      font-size: 9px;
     }
     .code-list{
       display: grid;
       grid-template-columns: 24px 1fr;
       gap: 4px 10px;
-      font-size: 12px;
+      font-size: 9px;
       padding: 0 6px;
     }
     .muted{ color:#666; font-size: 12px; padding: 6px; }
 
-    /* page breaks */
     .page-break{ page-break-before: always; break-before: page; }
   </style>
 </head>
 
 <body>
   <div class="page">
-
-    <div class="top-bar">
-      <div>
-        <img class="logo" src="{{LOGO_DATA_URI}}" />
-      </div>
-
-      <div class="title">RECEPCIÓN Y FILETEADO DE POTILLA</div>
-
-      <div></div>
-    </div>
+    <table class="header-table">
+      <tr>
+        <td class="header-left" rowspan="2">TRABUNDA SAC</td>
+        <td class="header-center-top">RECEPCION Y FILETEADO</td>
+        <td class="header-right">
+          <div><b>Código:</b> TRABUNDA SAC-GG-JO-F-01</div>
+          <div><b>Versión:</b> 02</div>
+          <div><b>Fecha de Emisión:</b> Octubre 2020</div>
+          <div><b>Página:</b> 1 de 1</div>
+        </td>
+      </tr>
+    </table>
 
     <div class="meta">
       <div class="meta-row">
-        <div class="meta-label">DÍA:</div>
+        <div class="meta-label">DIA:</div>
         <div>{{DIA}}</div>
       </div>
       <div class="meta-row">
@@ -151,21 +269,16 @@
         <div class="meta-label">TURNO:</div>
         <div>{{TURNO}}</div>
       </div>
-      <div class="meta-row">
-        <div class="meta-label">RESPONSABLE TRABUNDA:</div>
-        <div>{{PLANILLERO}}</div>
-      </div>
     </div>
 
-    <!-- TABLA PRINCIPAL (Recepción + Fileteado) -->
     {{TABLA_PRINCIPAL}}
 
-    <div class="section-title">CÓDIGOS DE RECEPCIONISTAS</div>
+    <div class="section-title">RECEPCIÓN</div>
     <div class="codes-grid">
       {{CODIGOS_RECEPCION}}
     </div>
 
-    <div class="section-title">CÓDIGOS DE FILETEROS</div>
+    <div class="section-title">FILETEROS</div>
     <div class="codes-grid">
       {{CODIGOS_FILETEADO}}
     </div>
@@ -175,6 +288,32 @@
       {{CODIGOS_APOYO}}
     </div>
 
-  </div>
-</body>
+    <div class="footer-final">
+      <div class="footer-row-top">
+        <div class="footer-label">PERSONA QUE ELABORO EL REPORTE:</div>
+        <div class="footer-line"></div>
+      </div>
+
+      <div class="footer-signs">
+        <div class="footer-sign">
+          <div class="sign-line"></div>
+          <div class="sign-text">JEFE DE TURNO</div>
+        </div>
+
+        <div class="footer-sign">
+          <div class="sign-line"></div>
+          <div class="sign-text">PLANILLERO</div>
+        </div>
+
+        <div class="footer-sign">
+          <div class="sign-line"></div>
+          <div class="sign-text">SUPERVISOR DE AREA</div>
+        </div>
+      </div>
+
+      <div class="footer-legend">
+        Documento controlado Prohibida su reproducción sin la autorización de TRABUNDA SAC
+      </div>
+    </div>
+  </div> </body>
 </html>

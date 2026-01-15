@@ -553,14 +553,44 @@ router.get("/trabajo-avance/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const turno = normalizarTurno(req.query.turno);
-    const fechaValue = req.query.fecha
-      ? String(req.query.fecha)
-      : new Date().toISOString().slice(0, 10);
+    const fechaValue = req.query.fecha ? String(req.query.fecha) : null;
 
+    if (!fechaValue) return res.status(400).json({ error: "fecha es requerida" });
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
     if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
 
-    // Buscar reporte existente (como conteo-rapido: no obligues estado ABIERTO si quieres editar)
+    const [rows] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE tipo_reporte='TRABAJO_AVANCE'
+         AND creado_por_user_id=?
+         AND fecha=?
+         AND turno=?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, fechaValue, turno]
+    );
+
+    if (!rows.length) return res.json({ existente: false });
+
+    return res.json({ existente: true, reporte: rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Error interno open trabajo-avance" });
+  }
+});
+
+router.post("/trabajo-avance/start", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const turno = normalizarTurno(req.body.turno);
+    const fechaValue = req.body.fecha ? String(req.body.fecha) : null;
+
+    if (!fechaValue) return res.status(400).json({ error: "fecha es requerida" });
+    if (!turno) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
+
+    // 1) si existe, devuélvelo (sin crear duplicado)
     const [rows] = await pool.query(
       `SELECT id, fecha, turno, estado, creado_por_nombre
        FROM reportes
@@ -577,6 +607,7 @@ router.get("/trabajo-avance/open", authMiddleware, async (req, res) => {
       return res.json({ existente: true, reporte: rows[0] });
     }
 
+    // 2) crear ABIERTO
     const [urows] = await pool.query(
       "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
       [userId]
@@ -585,7 +616,6 @@ router.get("/trabajo-avance/open", authMiddleware, async (req, res) => {
 
     const creado_por_nombre = urows[0].nombre || urows[0].username;
 
-    // ojo: en tu BD reportes.area es NOT NULL en algunos casos; pon algo fijo
     const [ins] = await pool.query(
       `INSERT INTO reportes
        (fecha, turno, tipo_reporte, area, area_id,
@@ -607,10 +637,14 @@ router.get("/trabajo-avance/open", authMiddleware, async (req, res) => {
 
     return res.status(201).json({ existente: false, reporte: nuevo[0] });
   } catch (e) {
-    console.error("open trabajo-avance error:", e);
-    return res.status(500).json({ error: "Error interno open trabajo-avance" });
+    console.error("start trabajo-avance error:", e);
+    return res.status(500).json({ error: "Error interno start trabajo-avance" });
   }
 });
+
+
+
+
 
 /* ========================================
    GET /reportes/trabajo-avance/:id/resumen
@@ -1439,6 +1473,11 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
   };
 
   const fmt2 = (n) => toNum(n).toFixed(2);
+  const filcar = (kg) => toNum(kg).toFixed(2);
+  const desu = (kg) => toNum(kg).toFixed(2);
+  const alet = (kg) => toNum(kg).toFixed(2);
+
+  
 
   const timeToMinutes = (s) => {
     if (!s) return null;
@@ -1458,6 +1497,25 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
     if (d < 0) d += 24 * 60; // por si cruza medianoche
     return d / 60;
   };
+
+  const filetecal = (kg) => {
+    const k = Number(kg);
+    const resultado = k  * 0.48 * 0.80;
+    return resultado;
+  }
+
+  const desucal = (kg) => {
+    const d = Number(kg);
+    const resuldesu = d * 0.15 * 0.82;
+    return resuldesu;
+  }
+
+  const aleta = (kg) => {
+    const f = Number(kg);
+    const resultadoaleta = f * 0.16 * 0.90;
+    return resultadoaleta;
+  }
+
 
   // 1) cuadrillas del reporte
   const [cuadrillas] = await pool.query(
@@ -1518,7 +1576,7 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
 
     return `
       <div class="code-box">
-        <div class="hdr">CUADRILLA: ${escapeHtml(title)}</div>
+        <div class="hdr"> ${escapeHtml(title)}</div>
         <div class="sub">${escapeHtml(tolvaText)}</div>
         ${list}
       </div>
@@ -1536,6 +1594,10 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       const pers = ws.length;
 
       const kg = toNum(c.produccion_kg);
+      const resultadoFilete = filetecal(kg);
+      const resultadodesu = desucal(kg);
+      const resultadoaleta1 = aleta(kg);  
+       
       const hi = c.hora_inicio ? String(c.hora_inicio).slice(0,5) : "";
       const hf = c.hora_fin ? String(c.hora_fin).slice(0,5) : "";
       const he = diffHours(c.hora_inicio, c.hora_fin);
@@ -1547,6 +1609,9 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
         nombre: String(c.nombre || ""),
         pers,
         kg,
+        resultado:resultadoFilete,
+        resuldesu:resultadodesu,
+        resultadoaleta:resultadoaleta1,
         hi,
         hf,
         he,
@@ -1556,9 +1621,12 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
 
   const totalPers = tablaRows.reduce((a,r)=> a + (r.pers||0), 0);
   const totalKg   = tablaRows.reduce((a,r)=> a + (r.kg||0), 0);
+  const totalfile = tablaRows.reduce((a,r) => a + (r.resultado || 0), 0);
+  const totaldes = tablaRows.reduce((a,r) => a + (r.resuldesu || 0), 0);
+  const totalaleta = tablaRows.reduce((a,r) => a + (r.resultadoaleta || 0), 0);
   const totalHe   = tablaRows.reduce((a,r)=> a + (r.he||0), 0);
   const totalKgHrsPers = (totalPers > 0 && totalHe > 0) ? (totalKg / (totalHe * totalPers)) : 0;
-
+  
   // Nota: tu hoja tiene columnas (Descarga, Fileteado, Desuñado, Aleta).
   // En tu app hoy solo tenemos “produccion_kg”.
   // Para que el formato quede igual, ponemos produccion_kg en “DESCARGA (KG)”
@@ -1587,9 +1655,9 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
             <td>${escapeHtml(r.nombre)}</td>
             <td class="center">${r.pers}</td>
             <td class="num">${fmt2(r.kg)}</td>
-            <td class="num"></td>
-            <td class="num"></td>
-            <td class="num"></td>
+            <td class="num">${filcar(r.resultado)}</td>
+            <td class="num">${desu(r.resuldesu)}</td>
+            <td class="num">${alet(r.resultadoaleta)}</td>
             <td class="center">${escapeHtml(r.hi)}</td>
             <td class="center">${escapeHtml(r.hf)}</td>
             <td class="num">${fmt2(r.he)}</td>
@@ -1601,9 +1669,9 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
           <td class="center">TOTAL</td>
           <td class="center">${totalPers}</td>
           <td class="num">${fmt2(totalKg)}</td>
-          <td class="num"></td>
-          <td class="num"></td>
-          <td class="num"></td>
+          <td class="num">${filcar(totalfile)}</td>
+          <td class="num">${desu(totaldes)}</td>
+          <td class="num">${alet(totalaleta)}</td>
           <td></td>
           <td></td>
           <td class="num">${fmt2(totalHe)}</td>

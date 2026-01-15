@@ -6,6 +6,8 @@ import 'package:mobile/features/trabajo_avance/models.dart';
 import 'trabajo_avance_cuadrilla_detalle_page.dart';
 import 'package:mobile/core/ui/notifications.dart';
 
+enum _TaMode { start, edit, view }
+
 class TrabajoAvancePage extends StatefulWidget {
   const TrabajoAvancePage({super.key, required this.api});
   final ApiClient api;
@@ -16,7 +18,8 @@ class TrabajoAvancePage extends StatefulWidget {
 
 class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   int? _reporteId;
-  bool _loading = true;
+
+  bool _loading = false;
   String? _error;
 
   // ✅ Cabecera (UI)
@@ -24,6 +27,13 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   DateTime _fecha = DateTime.now();
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
+
+  // Para el Card cuando existe
+  Map<String, dynamic>? _reporteEncontrado;
+
+  // Modo: start / edit / view
+  _TaMode _mode = _TaMode.start;
+  bool get _readOnly => _mode == _TaMode.view;
 
   List<TaCuadrilla> _cuadrillas = [];
   Map<String, double> _totales = {
@@ -35,7 +45,8 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   @override
   void initState() {
     super.initState();
-    _openAndLoad();
+    // Antes abrías de frente. Ahora empieza como Conteo Rápido (Start).
+    _mode = _TaMode.start;
   }
 
   String _fmtFechaApi(DateTime d) {
@@ -55,37 +66,22 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   Color _backgroundPorTipo(String tipo) {
     switch (tipo) {
       case "RECEPCION":
-        return AppColors.colorCard; // celeste claro
+        return AppColors.colorCard;
       case "FILETEADO":
-        return AppColors.colorCard; // azul suave
+        return AppColors.colorCard;
       case "APOYO_RECEPCION":
-        return AppColors.colorCard; // gris / verde claro
+        return AppColors.colorCard;
       default:
         return AppColors.surface;
-    }
-  }
-
-  BorderSide _borderPorTipo(String tipo) {
-    switch (tipo) {
-      case "RECEPCION":
-        return BorderSide(color: AppColors.bordeColorcard, width: 1);
-      case "FILETEADO":
-        return BorderSide(color: AppColors.bordeColorcard, width: 1);
-      case "APOYO_RECEPCION":
-        return BorderSide(color: AppColors.bordeColorcard, width: 1);
-      default:
-        return BorderSide.none;
     }
   }
 
   Color _titleColorPorTipo(String tipo) {
     switch (tipo) {
       case "RECEPCION":
-        return AppColors.barraNavegacion; // azul / celeste
       case "FILETEADO":
-        return AppColors.barraNavegacion; // teal / verde
       case "APOYO_RECEPCION":
-        return AppColors.barraNavegacion; // gris / verde suave
+        return AppColors.barraNavegacion;
       default:
         return Colors.black;
     }
@@ -94,11 +90,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   IconData _iconoPorTipo(String tipo) {
     switch (tipo) {
       case "RECEPCION":
-        return Icons.inventory_2; // caja
+        return Icons.inventory_2;
       case "FILETEADO":
-        return Icons.cut; // cuchillo
+        return Icons.cut;
       case "APOYO_RECEPCION":
-        return Icons.groups; // apoyo
+        return Icons.groups;
       default:
         return Icons.folder;
     }
@@ -128,19 +124,75 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     return "$h:$m:00";
   }
 
-  Future<void> _openAndLoad() async {
+  void _limpiarResumen() {
+    _cuadrillas = [];
+    _totales = {"RECEPCION": 0, "FILETEADO": 0, "APOYO_RECEPCION": 0};
+    _inicio = null;
+    _fin = null;
+  }
+
+  // =========================
+  // ✅ FLUJO tipo Conteo Rápido
+  // =========================
+
+  Future<void> _iniciarReporte() async {
     setState(() {
       _loading = true;
       _error = null;
+      _reporteEncontrado = null;
+      _reporteId = null;
+      _limpiarResumen();
     });
 
     try {
-      final openResp = await widget.api.get(
-        '/reportes/trabajo-avance/open?fecha=${_fmtFechaApi(_fecha)}&turno=${Uri.encodeQueryComponent(_turno)}',
-      );
-      final openJson = jsonDecode(openResp.body) as Map<String, dynamic>;
-      _reporteId = (openJson['reporte']['id'] as num).toInt();
+      final resp = await widget.api.post('/reportes/trabajo-avance/start', {
+        "fecha": _fmtFechaApi(_fecha),
+        "turno": _turno,
+      });
 
+      final j = jsonDecode(resp.body) as Map<String, dynamic>;
+
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        setState(() => _error = j['error']?.toString() ?? 'No se pudo iniciar');
+        return;
+      }
+
+      final existe = j['existente'] == true;
+      final rep = (j['reporte'] as Map).cast<String, dynamic>();
+
+      if (existe) {
+        // ✅ MODO START + Card con botones Ver/Continuar
+        setState(() {
+          _mode = _TaMode.start;
+          _reporteEncontrado = rep;
+          _reporteId = (rep['id'] as num).toInt();
+        });
+        return;
+      }
+
+      // ✅ No existía: entra directo a EDIT y carga resumen
+      setState(() {
+        _reporteId = (rep['id'] as num).toInt();
+        _mode = _TaMode.edit;
+      });
+      await _loadResumen();
+    } catch (e) {
+      setState(() => _error = "Error iniciando: $e");
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _verReporte() async {
+    if (_reporteId == null) return;
+    setState(() {
+      _mode = _TaMode.view;
+      _error = null;
+      _loading = true;
+      _limpiarResumen();
+    });
+
+    try {
       await _loadResumen();
     } catch (e) {
       setState(() => _error = "Error cargando: $e");
@@ -148,6 +200,39 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       setState(() => _loading = false);
     }
   }
+
+  Future<void> _continuarEditando() async {
+    if (_reporteId == null) return;
+    setState(() {
+      _mode = _TaMode.edit;
+      _error = null;
+      _loading = true;
+      _limpiarResumen();
+    });
+
+    try {
+      await _loadResumen();
+    } catch (e) {
+      setState(() => _error = "Error cargando: $e");
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  void _volverStart() {
+    setState(() {
+      _mode = _TaMode.start;
+      _error = null;
+      _reporteEncontrado = null;
+      _reporteId = null;
+      _loading = false;
+      _limpiarResumen();
+    });
+  }
+
+  // =========================
+  // ✅ Cargar resumen (solo cuando ya hay reporteId)
+  // =========================
 
   Future<void> _loadResumen() async {
     if (_reporteId == null) return;
@@ -157,8 +242,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     );
     final j = jsonDecode(resp.body) as Map<String, dynamic>;
 
-    final rep =
-        (j['reporte'] as Map<String, dynamic>?); // debe venir del backend
+    final rep = (j['reporte'] as Map<String, dynamic>?);
     final tot = (j['totales'] as Map<String, dynamic>);
     final cuad = (j['cuadrillas'] as List).cast<Map<String, dynamic>>();
 
@@ -179,7 +263,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       _cuadrillas.where((c) => c.tipo == tipo).toList();
 
   // =========================
-  // ✅ UI: Fecha / Turno / Horas (sin botón guardar aquí)
+  // ✅ UI header (en START no debe auto-open)
   // =========================
 
   Future<void> _pickFecha() async {
@@ -191,24 +275,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     );
     if (picked == null) return;
 
-    setState(() => _fecha = picked);
-    await _openAndLoad();
-  }
-
-  Future<void> _pickInicio() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _inicio ?? TimeOfDay.now(),
-    );
-    if (picked != null) setState(() => _inicio = picked);
-  }
-
-  Future<void> _pickFin() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _fin ?? TimeOfDay.now(),
-    );
-    if (picked != null) setState(() => _fin = picked);
+    setState(() {
+      _fecha = picked;
+      // en start: no consultamos nada hasta que presione "Iniciar"
+      if (_mode == _TaMode.start) _reporteEncontrado = null;
+    });
   }
 
   Widget _infoCard({
@@ -260,14 +331,15 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       child: Column(
         children: [
-          // Fecha + Turno
           Row(
             children: [
               _infoCard(
                 label: "Fecha",
                 value: _fmtFechaUi(_fecha),
                 icon: Icons.calendar_month,
-                onTap: _pickFecha,
+                onTap: _mode == _TaMode.start
+                    ? _pickFecha
+                    : () {}, // bloquea cambio en edit/view
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -305,11 +377,16 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                                     child: Text("Noche"),
                                   ),
                                 ],
-                                onChanged: (v) async {
-                                  if (v == null) return;
-                                  setState(() => _turno = v);
-                                  await _openAndLoad();
-                                },
+                                onChanged: _mode == _TaMode.start
+                                    ? (v) {
+                                        if (v == null) return;
+                                        setState(() {
+                                          _turno = v;
+                                          _reporteEncontrado =
+                                              null; // limpia card al cambiar
+                                        });
+                                      }
+                                    : null, // bloquea cambio en edit/view
                               ),
                             ),
                           ),
@@ -321,7 +398,6 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
         ],
       ),
@@ -329,7 +405,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   }
 
   // =========================
-  // ✅ Guardar (abajo de TODO)
+  // ✅ Guardar (solo en EDIT)
   // =========================
 
   Future<void> _guardarHorarioGlobal() async {
@@ -337,7 +413,6 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
 
     try {
       final resp = await widget.api.put(
-        // ✅ Debe existir en backend: PUT /reportes/trabajo-avance/:reporteId
         '/reportes/trabajo-avance/$_reporteId',
         {"hora_inicio": _fmtTime(_inicio), "hora_fin": _fmtTime(_fin)},
       );
@@ -350,7 +425,9 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       }
 
       showSavedToast(context, message: 'Guardado correctamente');
-      await _loadResumen();
+
+      // ✅ CERRAR como conteo rápido
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       showSavedToast(context, message: 'Error guardando: $e');
@@ -358,6 +435,8 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   }
 
   Widget _bottomGuardar() {
+    if (_mode != _TaMode.edit) return const SizedBox.shrink(); // SOLO en edit
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 18),
       child: SizedBox(
@@ -383,10 +462,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   }
 
   // =========================
-  // Secciones (sin hora inicio/fin por cuadrilla)
+  // ✅ Crear cuadrilla (bloqueado en VIEW)
   // =========================
 
   Future<void> _crearCuadrillaDialog(String tipo) async {
+    if (_readOnly) return; // ✅ bloqueo
     final ctrl = TextEditingController();
     int? apoyoDeId;
 
@@ -466,6 +546,10 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     }
   }
 
+  // =========================
+  // ✅ Sección (bloquea + y bloquea tap en VIEW si quieres)
+  // =========================
+
   Widget _seccion(String titulo, String tipo, double totalKg) {
     final items = _porTipo(tipo);
 
@@ -503,7 +587,9 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                 IconButton(
                   icon: const Icon(Icons.add_circle),
                   color: AppColors.coloriconSuma,
-                  onPressed: () => _crearCuadrillaDialog(tipo),
+                  onPressed: _readOnly
+                      ? null
+                      : () => _crearCuadrillaDialog(tipo),
                 ),
               ],
             ),
@@ -520,21 +606,22 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                   c.nombre,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-                // ✅ ya NO mostramos horario por cuadrilla
                 subtitle: null,
                 trailing: Text("${c.produccionKg.toStringAsFixed(2)} kg"),
-                onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TrabajoAvanceCuadrillaDetallePage(
-                        api: widget.api,
-                        cuadrillaId: c.id,
-                      ),
-                    ),
-                  );
-                  await _loadResumen();
-                },
+                onTap: _readOnly
+                    ? null // ✅ en VER no entra a detalle (así garantizas solo lectura)
+                    : () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TrabajoAvanceCuadrillaDetallePage(
+                              api: widget.api,
+                              cuadrillaId: c.id,
+                            ),
+                          ),
+                        );
+                        await _loadResumen();
+                      },
               ),
           ],
         ),
@@ -542,16 +629,144 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     );
   }
 
+  // =========================
+  // ✅ UI START: botón iniciar + Card (si existe)
+  // =========================
+
+  Widget _startActions() {
+    final rep = _reporteEncontrado;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.barraNavegacion,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: AppColors.bordeColorcard, width: 1),
+                ),
+              ),
+              onPressed: _loading ? null : _iniciarReporte,
+              icon: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.play_arrow, color: Colors.white),
+              label: const Text(
+                "Iniciar reporte",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          if (rep != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Ya existe un reporte para esta fecha y turno.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text("ID: ${rep['id']}  •  Estado: ${rep['estado']}"),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _verReporte,
+                            icon: const Icon(Icons.visibility),
+                            label: const Text("Ver reporte"),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _continuarEditando,
+                            icon: const Icon(Icons.edit),
+                            label: const Text("Continuar"),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // =========================
+  // ✅ UI principal
+  // =========================
+
   @override
   Widget build(BuildContext context) {
+    final isStart = _mode == _TaMode.start;
+
     return Scaffold(
       backgroundColor: AppColors.fondoPantalla,
       appBar: AppBar(
         backgroundColor: AppColors.barraNavegacion,
         foregroundColor: Colors.white,
         title: const Text("Trabajo por Avance"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (_mode == _TaMode.start) {
+              Navigator.pop(context);
+            } else {
+              _volverStart();
+            }
+          },
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _openAndLoad),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              if (isStart) {
+                // en start, solo limpia el card/error
+                setState(() {
+                  _error = null;
+                  _reporteEncontrado = null;
+                });
+              } else {
+                setState(() {
+                  _loading = true;
+                  _error = null;
+                });
+                try {
+                  await _loadResumen();
+                } catch (e) {
+                  setState(() => _error = "Error recargando: $e");
+                } finally {
+                  setState(() => _loading = false);
+                }
+              }
+            },
+          ),
         ],
       ),
       body: _loading
@@ -560,19 +775,28 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
           ? Center(child: Text(_error!))
           : ListView(
               children: [
-                // ✅ header como tu diseño (sin botón guardar aquí)
                 _headerUi(),
 
-                _seccion("Recepción", "RECEPCION", _totales["RECEPCION"] ?? 0),
-                _seccion("Fileteado", "FILETEADO", _totales["FILETEADO"] ?? 0),
-                _seccion(
-                  "Apoyos de Recepción",
-                  "APOYO_RECEPCION",
-                  _totales["APOYO_RECEPCION"] ?? 0,
-                ),
-
-                // ✅ botón guardar abajo de TODO
-                _bottomGuardar(),
+                if (_mode == _TaMode.start) ...[
+                  _startActions(),
+                ] else ...[
+                  _seccion(
+                    "Recepción",
+                    "RECEPCION",
+                    _totales["RECEPCION"] ?? 0,
+                  ),
+                  _seccion(
+                    "Fileteado",
+                    "FILETEADO",
+                    _totales["FILETEADO"] ?? 0,
+                  ),
+                  _seccion(
+                    "Apoyos de Recepción",
+                    "APOYO_RECEPCION",
+                    _totales["APOYO_RECEPCION"] ?? 0,
+                  ),
+                  _bottomGuardar(),
+                ],
               ],
             ),
     );
