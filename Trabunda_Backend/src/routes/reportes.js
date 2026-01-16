@@ -760,9 +760,60 @@ router.get(
   }
 );
 
+router.put("/trabajo-avance/:reporteId", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const reporteId = Number(req.params.reporteId);
+    const { estado } = req.body || {};
+
+    if (!Number.isInteger(reporteId) || reporteId <= 0) {
+      return res.status(400).json({ error: "reporteId inválido" });
+    }
+
+    const estadoFinal = (estado ?? "CERRADO").toString();
+
+    // validar que sea del usuario y del tipo correcto
+    const [[rep]] = await pool.query(
+      `SELECT id
+       FROM reportes
+       WHERE id = ?
+         AND tipo_reporte = 'TRABAJO_AVANCE'
+         AND creado_por_user_id = ?
+       LIMIT 1`,
+      [reporteId, userId]
+    );
+
+    if (!rep) return res.status(404).json({ error: "Reporte no encontrado" });
+
+    await pool.query(
+      `UPDATE reportes
+       SET estado = ?
+       WHERE id = ?`,
+      [estadoFinal, reporteId]
+    );
+
+    const [[row]] = await pool.query(
+      `SELECT id, fecha, turno, estado, creado_por_nombre
+       FROM reportes
+       WHERE id = ?
+       LIMIT 1`,
+      [reporteId]
+    );
+
+    return res.json({ ok: true, reporte: row });
+  } catch (e) {
+    console.error("put trabajo-avance reporte error:", e);
+    return res.status(500).json({ error: "Error interno actualizando reporte" });
+  }
+});
+
+
+
+
+
 
 /* ========================================
-   PUT /reportes/trabajo-avance/cuadrillas/:cuadrillaId
+   PUT /trabajo-avance/cuadrillas/:cuadrillaId
    body: { hora_inicio, hora_fin, produccion_kg }
 ======================================== */
 router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req, res) => {

@@ -49,6 +49,18 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     _mode = _TaMode.start;
   }
 
+  void _resetAfterSave() {
+    setState(() {
+      _mode = _TaMode.start;
+      _reporteId = null;
+      _reporteEncontrado = null;
+      _inicio = null;
+      _fin = null;
+      _cuadrillas.clear();
+      _totales = {"RECEPCION": 0, "FILETEADO": 0, "APOYO_RECEPCION": 0};
+    });
+  }
+
   String _fmtFechaApi(DateTime d) {
     final y = d.year.toString().padLeft(4, '0');
     final m = d.month.toString().padLeft(2, '0');
@@ -426,8 +438,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
 
       showSavedToast(context, message: 'Guardado correctamente');
 
-      // ✅ CERRAR como conteo rápido
-      Navigator.pop(context, true);
+      _resetAfterSave();
     } catch (e) {
       if (!mounted) return;
       showSavedToast(context, message: 'Error guardando: $e');
@@ -635,6 +646,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
 
   Widget _startActions() {
     final rep = _reporteEncontrado;
+    final cerrado = (rep?['estado']?.toString() ?? '') == 'CERRADO';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
@@ -703,6 +715,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _continuarEditando,
+                            // onPressed: cerrado? null: _continuarEditando => esto es para que se desabilite el reporte cuando ya se guarda y no se pueda seguir editando
                             icon: const Icon(Icons.edit),
                             label: const Text("Continuar"),
                           ),
@@ -736,6 +749,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (_mode == _TaMode.start) {
+              debugPrint('canPop = ${Navigator.canPop(context)}');
               Navigator.pop(context);
             } else {
               _volverStart();
