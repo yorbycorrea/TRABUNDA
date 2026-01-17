@@ -46,6 +46,91 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // ✅ Convierte errores técnicos en mensajes amigables
+  String _friendlyLoginError(String raw) {
+    final s = raw.toLowerCase();
+
+    // Credenciales
+    if (s.contains('401') ||
+        s.contains('403') ||
+        s.contains('credenciales') ||
+        s.contains('invalid') ||
+        s.contains('unauthorized')) {
+      return 'Usuario o contraseña incorrectos.';
+    }
+
+    // Conexión / red
+    if (s.contains('timeout') || s.contains('timed out')) {
+      return 'La conexión está tardando. Intenta nuevamente.';
+    }
+    if (s.contains('socket') ||
+        s.contains('failed host') ||
+        s.contains('network') ||
+        s.contains('connection')) {
+      return 'No hay conexión. Revisa tu Wi-Fi o datos móviles.';
+    }
+
+    // Genérico
+    return 'No se pudo iniciar sesión. Intenta nuevamente.';
+  }
+
+  // ✅ Banner bonito (similar a “alerta”)
+  Widget _errorBanner(String text) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFC9C9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFE2E2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.error_outline, color: Color(0xFFC62828)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Datos incorrectos',
+                  style: TextStyle(
+                    color: Color(0xFF8E1B1B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(text, style: const TextStyle(color: Color(0xFFC62828))),
+              ],
+            ),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.close, size: 18, color: Color(0xFFB71C1C)),
+            onPressed: () => setState(() => _bannerError = null),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -64,8 +149,10 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (!ok) {
+      final raw = auth.errorMessage ?? 'No se puede iniciar sesion';
       setState(() {
-        _bannerError = auth.errorMessage ?? 'No se puede iniciar sesion';
+        // ✅ aquí transformamos el error técnico a uno amigable
+        _bannerError = _friendlyLoginError(raw);
       });
     }
   }
@@ -74,18 +161,20 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final auth = AuthControllerScope.of(context);
-    // Nota: Asegúrate de tener isLoading o AuthStatus.loading en tu controlador
     final isLoading = auth.status == AuthStatus.loading;
 
-    final bannerText =
-        _bannerError ??
-        (auth.status == AuthStatus.error ? auth.errorMessage : null);
+    // ✅ ahora usamos el banner ya “limpio”
+    final rawBanner =
+        (auth.status == AuthStatus.error ? auth.errorMessage : null) ??
+        _bannerError;
+
+    final bannerText = (rawBanner != null && rawBanner.trim().isNotEmpty)
+        ? _friendlyLoginError(rawBanner)
+        : null;
 
     return Scaffold(
       body: Stack(
         children: [
-          // Si no tienes el _WavesPainter definido abajo, esto dará error.
-          // Puedes comentarlo si solo quieres probar el formulario.
           CustomPaint(
             painter: _WavesPainter(),
             size: Size(size.width, size.height),
@@ -114,18 +203,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 12),
 
                 if (bannerText != null && bannerText.trim().isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEAEA),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      bannerText,
-                      style: const TextStyle(color: Color(0xFFC62828)),
-                    ),
-                  ),
+                  _errorBanner(bannerText),
 
                 Card(
                   elevation: 4,
@@ -156,6 +234,11 @@ class _LoginPageState extends State<LoginPage> {
                           TextFormField(
                             controller: _pass,
                             obscureText: _obscure,
+                            onChanged: (_) {
+                              if (_bannerError != null) {
+                                setState(() => _bannerError = null);
+                              }
+                            },
                             decoration: InputDecoration(
                               labelText: 'Contraseña',
                               prefixIcon: const Icon(Icons.lock),
@@ -210,7 +293,6 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 24),
 
-                // PIE: texto + version
                 Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -246,7 +328,6 @@ class _LoginPageState extends State<LoginPage> {
 class _WavesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // Capa 1: fondo degradado
     final rect = Offset.zero & size;
     final bg = Paint()
       ..shader = const LinearGradient(
