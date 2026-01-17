@@ -277,7 +277,7 @@ class _ReportCreatePlanilleroPageState
       appBar: AppBar(
         title: const Text('Crear reporte'),
         elevation: 0,
-        backgroundColor: kBluePrimary,
+        backgroundColor: AppColors.barraNavegacion,
         foregroundColor: Colors.white,
       ),
       body: Column(
@@ -372,11 +372,7 @@ class _HeaderCompacto extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.frenchBlue, AppColors.turquoise],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.frostedBlue2,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
@@ -388,7 +384,7 @@ class _HeaderCompacto extends StatelessWidget {
           Text(
             'Selecciona un módulo',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.colorletra,
               fontSize: 20,
               fontWeight: FontWeight.w800,
             ),
@@ -396,7 +392,7 @@ class _HeaderCompacto extends StatelessWidget {
           SizedBox(height: 6),
           Text(
             'Elige el tipo de reporte que deseas registrar',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: AppColors.colorletra, fontSize: 14),
           ),
         ],
       ),
