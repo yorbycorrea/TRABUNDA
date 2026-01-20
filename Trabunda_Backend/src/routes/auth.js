@@ -277,4 +277,31 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
+// ==============================================
+// POST /auth/logout
+// body : { refreshToken }
+// ==============================================
+router.post("/logout", async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ error: "Falta refreshToken" });
+  }
+
+  try {
+    const refreshTokenHash = hashRefreshToken(refreshToken);
+
+    // Marcamos el token como revocado en la base de datos
+    await pool.query(
+      "UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ?",
+      [refreshTokenHash]
+    );
+
+    return res.json({ message: "Sesión cerrada exitosamente" });
+  } catch (err) {
+    console.error("LOGOUT ERROR: ", err);
+    return res.status(500).json({ error: "Error al cerrar sesión" });
+  }
+});
+
 module.exports = router;
