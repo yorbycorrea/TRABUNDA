@@ -1,18 +1,27 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
-import '../app_user.dart';
+import '../../../data/auth/entities/app_user.dart';
 import '../data/auth_api_service.dart';
 import '../../../core/network/api_client.dart';
+import 'package:mobile/data/auth/entities/app_user.dart';
+import 'package:mobile/domain/auth/usecases/get_current_user.dart';
+import 'package:mobile/domain/auth/usecases/login.dart';
+import 'package:mobile/domain/auth/usecases/logout.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated, loading, error }
 
 class AuthController extends ChangeNotifier {
-  final AuthApiService _authApi;
-  final ApiClient _api;
+  final GetCurrentUser _getCurrentUser;
+  final Login _login;
+  final Logout _logout;
 
-  AuthController({required AuthApiService authApi, required ApiClient api})
-    : _authApi = authApi,
-      _api = api;
+  AuthController({
+    required GetCurrentUser getCurrentUser,
+    required Login login,
+    required Logout logout,
+  }) : _getCurrentUser = getCurrentUser,
+       _login = login,
+       _logout = logout;
 
   AuthStatus _status = AuthStatus.unknown;
   AppUser? _user;
@@ -29,24 +38,14 @@ class AuthController extends ChangeNotifier {
   Future<void> init() async {
     _updateState(AuthStatus.loading);
     try {
-      final token = await _api.tokens.readAccess();
-
-      if (token == null || token.isEmpty) {
-        return _updateState(AuthStatus.unauthenticated);
-      }
-
-      final resp = await _api.get('/auth/me');
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        final userJson = (data['user'] ?? data) as Map<String, dynamic>;
-        _user = AppUser.fromJson(userJson);
-        _updateState(AuthStatus.authenticated);
-      } else {
-        await _api.tokens.clear();
+      final currentUser = await _getCurrentUser();
+      if (currentUser == null) {
         _user = null;
         _updateState(AuthStatus.unauthenticated);
+        return;
       }
+      _user = currentUser;
+      _updateState((AuthStatus.authenticated));
     } catch (e) {
       _errorMessage = 'Error de conexión: $e';
       _updateState(AuthStatus.error);
@@ -62,7 +61,7 @@ class AuthController extends ChangeNotifier {
 
     try {
       // Nota: Asegúrate que authApi.login internamente guarde el token en _api.tokens
-      final user = await _authApi.login(username: username, password: password);
+      final user = await _login(username: username, password: password);
       _user = user;
       _updateState(AuthStatus.authenticated);
       return true;
@@ -77,13 +76,13 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _updateState(AuthStatus.loading);
     try {
-      await _authApi.logout();
+      await _logout();
     } catch (_) {
       // Ignoramos error en logout para forzar cierre local
     } finally {
       _user = null;
       _errorMessage = null;
-      await _api.tokens.clear();
+
       _updateState(AuthStatus.unauthenticated);
     }
   }

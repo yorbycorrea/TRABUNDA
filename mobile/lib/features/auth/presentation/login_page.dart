@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
+import 'package:mobile/features/auth/presentation/login_view_model.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 
 class LoginPage extends StatefulWidget {
@@ -14,64 +14,31 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _user = TextEditingController();
   final _pass = TextEditingController();
+  final LoginViewModel _viewModel = LoginViewModel();
 
   bool _obscure = true;
   String? _bannerError;
-  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
-    _loadVersion();
+    _viewModel.addListener(_onViewModelChanged);
+    _viewModel.loadVersion();
   }
 
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() {
-        _appVersion = 'v${info.version}';
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() => _appVersion = '');
-      }
+  void _onViewModelChanged() {
+    if (!mounted) {
+      setState(() {});
     }
   }
 
   @override
   void dispose() {
+    _viewModel.removeListener(_onViewModelChanged);
+    _viewModel.dispose();
     _user.dispose();
     _pass.dispose();
     super.dispose();
-  }
-
-  // ✅ Convierte errores técnicos en mensajes amigables
-  String _friendlyLoginError(String raw) {
-    final s = raw.toLowerCase();
-
-    // Credenciales
-    if (s.contains('401') ||
-        s.contains('403') ||
-        s.contains('credenciales') ||
-        s.contains('invalid') ||
-        s.contains('unauthorized')) {
-      return 'Usuario o contraseña incorrectos.';
-    }
-
-    // Conexión / red
-    if (s.contains('timeout') || s.contains('timed out')) {
-      return 'La conexión está tardando. Intenta nuevamente.';
-    }
-    if (s.contains('socket') ||
-        s.contains('failed host') ||
-        s.contains('network') ||
-        s.contains('connection')) {
-      return 'No hay conexión. Revisa tu Wi-Fi o datos móviles.';
-    }
-
-    // Genérico
-    return 'No se pudo iniciar sesión. Intenta nuevamente.';
   }
 
   // ✅ Banner bonito (similar a “alerta”)
@@ -152,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
       final raw = auth.errorMessage ?? 'No se puede iniciar sesion';
       setState(() {
         // ✅ aquí transformamos el error técnico a uno amigable
-        _bannerError = _friendlyLoginError(raw);
+        _bannerError = _viewModel.friendlyError(raw);
       });
     }
   }
@@ -169,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
         _bannerError;
 
     final bannerText = (rawBanner != null && rawBanner.trim().isNotEmpty)
-        ? _friendlyLoginError(rawBanner)
+        ? _viewModel.friendlyError(rawBanner)
         : null;
 
     return Scaffold(
@@ -304,9 +271,9 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      if (_appVersion.isNotEmpty)
+                      if (_viewModel.appVersion.isNotEmpty)
                         Text(
-                          _appVersion,
+                          _viewModel.appVersion,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: const Color(0xFF6B7A8C),

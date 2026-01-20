@@ -5,6 +5,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:mobile/core/network/token_storage.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/data/auth/auth_repository_impl.dart';
+
+import 'package:mobile/domain/auth/usecases/get_current_user.dart';
+import 'package:mobile/domain/auth/usecases/login.dart';
+import 'package:mobile/domain/auth/usecases/logout.dart';
 import 'package:mobile/features/auth/data/auth_api_service.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/env.dart';
@@ -48,9 +53,15 @@ Future<void> main() async {
   // Inyección de dependencias
   final tokenStorage = TokenStorage(const FlutterSecureStorage());
   final apiClient = ApiClient(baseUrl: Env.baseUrl, tokens: tokenStorage);
-  final authController = AuthController(
-    authApi: AuthApiService(apiClient),
+  final authRepository = AuthRepositoryImpl(
     api: apiClient,
+    authApi: AuthApiService(apiClient),
+  );
+
+  final authController = AuthController(
+    getCurrentUser: GetCurrentUser(authRepository),
+    login: Login(authRepository),
+    logout: Logout(authRepository),
   );
 
   runApp(

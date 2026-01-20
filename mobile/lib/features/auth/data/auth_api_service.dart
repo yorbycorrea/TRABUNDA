@@ -1,6 +1,6 @@
 import 'dart:convert';
 import '../../../core/network/api_client.dart';
-import '../app_user.dart';
+import '../../../data/auth/entities/app_user.dart';
 
 class AuthApiService {
   final ApiClient api;
