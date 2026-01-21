@@ -1,15 +1,18 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
 
 import 'package:mobile/features/reports/data/models/report_resumen.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import '../widgets/report_resumen_card.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:mobile/features/reports/data/reportes_api_service.dart';
+//import 'package:mobile/features/reports/data/reportes_api_service.dart';
 
 class ReportViewPage extends StatefulWidget {
   const ReportViewPage({super.key, required this.api});
@@ -49,31 +52,23 @@ class _ReportViewPageState extends State<ReportViewPage> {
     'TRABAJO_AVANCE',
   ];
 
-  late final ReportesApiService _reportesService;
+  late final FetchUserPickers _fetchUserPickers;
+  late final FetchReportes _fetchReportes;
+  late final FetchReportePdf _fetchReportePdf;
+  late final FetchConteoRapidoExcel _fetchConteoRapidoExcel;
 
   @override
   void initState() {
     super.initState();
-    _reportesService = ReportesApiService(widget.api);
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchUserPickers = FetchUserPickers(repository);
+    _fetchReportes = FetchReportes(repository);
+    _fetchReportePdf = FetchReportePdf(repository);
+    _fetchConteoRapidoExcel = FetchConteoRapidoExcel(repository);
   }
 
   Future<List<UserPickerItem>> _fetchUsersForAdminPicker() async {
-    final resp = await widget.api.get(
-      '/users/pickers?roles=PLANILLERO,SANEAMIENTO',
-    );
-
-    if (resp.statusCode < 200 || resp.statusCode >= 300) {
-      throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
-    }
-
-    final decoded = jsonDecode(resp.body);
-    if (decoded is! List) {
-      throw Exception('Respuesta inválida: se esperaba lista de usuarios');
-    }
-
-    return decoded
-        .map((e) => UserPickerItem.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _fetchUserPickers.call(roles: const ['PLANILLERO', 'SANEAMIENTO']);
   }
 
   Future<void> _pickFecha() async {
@@ -104,14 +99,9 @@ class _ReportViewPageState extends State<ReportViewPage> {
     setState(() => _loading = true);
 
     try {
-      final params = <String, String>{};
-
-      if (_fecha != null) {
-        params['fecha'] = DateFormat('yyyy-MM-dd').format(_fecha!);
-      }
-      if (_turno != 'Todos') {
-        params['turno'] = _turno; // "Dia" o "Noche"
-      }
+      final turnoParam = _turno == 'Todos' ? null : _turno;
+      String? tipoParam;
+      int? userIdParam;
 
       // rol real del usuario (igual que en build)
       final auth = AuthControllerScope.of(context);
@@ -120,82 +110,41 @@ class _ReportViewPageState extends State<ReportViewPage> {
 
       // Si ADMIN: permitir user_id (si escogió)
       if (role == roleAdmin) {
-        if (_selectedUserId != null)
-          params['user_id'] = _selectedUserId.toString();
-
         if (_selectedUserRole == roleSaneamiento) {
-          params['tipo'] = 'SANEAMIENTO';
+          tipoParam = 'SANEAMIENTO';
         } else if (_selectedUserRole == rolePlanillero) {
-          params['tipo'] = _tipoReporte ?? tiposPlanillero.first;
+          tipoParam = _tipoReporte ?? tiposPlanillero.first;
         }
       }
 
       // Si PLANILLERO: tipo obligatorio (3)
       if (role == rolePlanillero) {
-        params['tipo'] = _tipoReporte ?? tiposPlanillero.first;
+        tipoParam = _tipoReporte ?? tiposPlanillero.first;
       }
 
       // Si SANEAMIENTO: tipo fijo
       if (role == roleSaneamiento) {
-        params['tipo'] = 'SANEAMIENTO';
+        tipoParam = 'SANEAMIENTO';
       }
 
       if (_selectedUserId != null) {
-        params['user_id'] = _selectedUserId.toString();
+        userIdParam = _selectedUserId;
       }
 
       if (_selectedUserRole == roleSaneamiento) {
         // saneamiento siempre SANEAMIENTO
-        params['tipo'] = 'SANEAMIENTO';
+        tipoParam = 'SANEAMIENTO';
       } else if (_tipoReporte != null && _tipoReporte!.isNotEmpty) {
-        params['tipo'] = _tipoReporte!;
+        tipoParam = _tipoReporte!;
       }
 
-      final path = params.isEmpty
-          ? '/reportes'
-          : '/reportes?${Uri(queryParameters: params).query}';
-
-      final resp = await widget.api.get(path);
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
-      }
-
-      debugPrint('REPORTES STATUS: ${resp.statusCode}');
-      debugPrint('REPORTES BODY: ${resp.body}');
-
-      final decoded = jsonDecode(resp.body);
-
-      // ✅ A) lista directa
-      if (decoded is List) {
-        final list = decoded
-            .map((e) => ReportResumen.fromJson(e as Map<String, dynamic>))
-            .toList();
-        setState(() => _reportes = list);
-        return;
-      }
-
-      // ✅ B) wrappers comunes
-      if (decoded is Map) {
-        if (decoded['items'] is List) {
-          final items = decoded['items'] as List;
-          final list = items
-              .map((e) => ReportResumen.fromJson(e as Map<String, dynamic>))
-              .toList();
-          setState(() => _reportes = list);
-          return;
-        }
-        if (decoded['data'] is List) {
-          final items = decoded['data'] as List;
-          final list = items
-              .map((e) => ReportResumen.fromJson(e as Map<String, dynamic>))
-              .toList();
-          setState(() => _reportes = list);
-          return;
-        }
-      }
-
-      throw Exception('Respuesta inválida (no lista): ${resp.body}');
+      final list = await _fetchReportes.call(
+        fecha: _fecha,
+        turno: turnoParam,
+        tipo: tipoParam,
+        userId: userIdParam,
+      );
+      setState(() => _reportes = list);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -208,16 +157,12 @@ class _ReportViewPageState extends State<ReportViewPage> {
 
   Future<void> _descargarPdf(int reporteId) async {
     try {
-      final resp = await widget.api.getRaw('/reportes/$reporteId/pdf');
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
-      }
+      final bytes = await _fetchReportePdf.call(reporteId);
 
       // Guardar en carpeta temporal (no pide permisos)
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/reporte_$reporteId.pdf');
-      await file.writeAsBytes(resp.bodyBytes);
+      await file.writeAsBytes(bytes);
 
       // Abrir
       await OpenFilex.open(file.path);
@@ -231,7 +176,11 @@ class _ReportViewPageState extends State<ReportViewPage> {
 
   Future<void> _descargarExcel(int reporteId) async {
     try {
-      await _reportesService.descargarExcel(reporteId);
+      final bytes = await _fetchConteoRapidoExcel.call(reporteId);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/reporte_conteo_$reporteId.xlsx');
+      await file.writeAsBytes(bytes, flush: true);
+      await OpenFilex.open(file.path);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -524,22 +473,6 @@ class _FiltrosCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class UserPickerItem {
-  final int id;
-  final String nombre;
-  final String role; // PLANILLERO | SANEAMIENTO
-
-  UserPickerItem({required this.id, required this.nombre, required this.role});
-
-  factory UserPickerItem.fromJson(Map<String, dynamic> json) {
-    return UserPickerItem(
-      id: (json['id'] as num).toInt(),
-      nombre: (json['nombre'] ?? '').toString(),
-      role: (json['role'] ?? json['codigo'] ?? '').toString(),
     );
   }
 }

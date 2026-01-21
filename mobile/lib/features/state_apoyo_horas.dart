@@ -1,9 +1,11 @@
-import 'dart:convert';
+//import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
-
 import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class ApoyosHorasHomePage extends StatefulWidget {
   const ApoyosHorasHomePage({
@@ -23,7 +25,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
   bool _loading = true;
   String? _error;
 
-  _PendienteItem? _pendiente;
+  ReportPendiente? _pendiente;
 
   // ✅ Estado local para el header seleccionable
   late DateTime _fechaSel;
@@ -33,11 +35,17 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
   static const Color kBlueSecondary = Color(0xFF4FC3F7);
   static const Color kBg = Color(0xFFF5F7FA);
 
+  late final FetchApoyoHorasPendientes _fetchApoyoHorasPendientes;
+  late final OpenApoyoHorasReport _openApoyoHorasReport;
+
   @override
   void initState() {
     super.initState();
     _fechaSel = DateTime.now();
     _turnoSel = widget.turno;
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchApoyoHorasPendientes = FetchApoyoHorasPendientes(repository);
+    _openApoyoHorasReport = OpenApoyoHorasReport(repository);
     _loadPendientes();
   }
 
@@ -50,45 +58,14 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
     try {
       // ✅ Formato YYYY-MM-DD para el backend
-      final f =
-          "${_fechaSel.year.toString().padLeft(4, '0')}-"
-          "${_fechaSel.month.toString().padLeft(2, '0')}-"
-          "${_fechaSel.day.toString().padLeft(2, '0')}";
-
-      // ✅ Ahora sí mandamos fecha y turno al endpoint
-      final resp = await widget.api.get(
-        '/reportes/apoyo-horas/pendientes?hours=24'
-        '&fecha=$f'
-        '&turno=${Uri.encodeQueryComponent(_turnoSel)}',
+      final items = await _fetchApoyoHorasPendientes.call(
+        hours: 24,
+        fecha: _fechaSel,
+        turno: _turnoSel,
       );
 
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa baseUrl o la ruta /reportes/apoyo-horas/pendientes.\n'
-          'HTTP ${resp.statusCode}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode != 200) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error cargando pendientes (HTTP ${resp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final items = (decoded is Map && decoded['items'] is List)
-          ? (decoded['items'] as List)
-          : <dynamic>[];
-
       if (items.isNotEmpty) {
-        final m = (items.first is Map)
-            ? (items.first as Map).cast<String, dynamic>()
-            : <String, dynamic>{};
-
-        _pendiente = _PendienteItem.fromJson(m);
+        _pendiente = items.first;
 
         // ✅ Si vino un pendiente con fecha/turno, reflejarlo en el header (solo UI)
         final p = _pendiente!;
@@ -174,41 +151,14 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         _error = null;
       });
 
-      // ⚠️ Tu lógica ya usa turno. Usamos el turno seleccionado (solo UI)
-      final f =
-          "${_fechaSel.year.toString().padLeft(4, '0')}-"
-          "${_fechaSel.month.toString().padLeft(2, '0')}-"
-          "${_fechaSel.day.toString().padLeft(2, '0')}";
-
-      final resp = await widget.api.get(
-        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turnoSel)}&fecha=$f',
+      final reporte = await _openApoyoHorasReport.call(
+        fecha: _fechaSel,
+        turno: _turnoSel,
       );
 
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa baseUrl o la ruta /reportes/apoyo-horas/open.\n'
-          'HTTP ${resp.statusCode}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error abriendo reporte (HTTP ${resp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final reporte = (decoded is Map && decoded['reporte'] is Map)
-          ? (decoded['reporte'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
-
-      final reporteId = (reporte['id'] as num).toInt();
-      final fecha = _parseFecha(reporte['fecha']?.toString());
-      final turno = (reporte['turno'] ?? _turnoSel).toString();
-      final planillero = (reporte['creado_por_nombre'] ?? '').toString();
+      final fecha = _parseFecha(reporte.fecha);
+      final turno = reporte.turno;
+      final planillero = reporte.creadoPorNombre;
 
       if (!mounted) return;
 
@@ -219,7 +169,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         MaterialPageRoute(
           builder: (_) => ApoyosHorasBackendPage(
             api: widget.api,
-            reporteId: reporteId,
+            reporteId: reporte.id,
             fecha: fecha,
             turno: turno,
             planillero: planillero,
@@ -553,35 +503,6 @@ class _TurnoBox extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _PendienteItem {
-  final int reportId;
-  final String fecha;
-  final String turno;
-  final String creadoPorNombre;
-  final int pendientes;
-  final String areaNombre;
-
-  const _PendienteItem({
-    required this.reportId,
-    required this.fecha,
-    required this.turno,
-    required this.creadoPorNombre,
-    required this.pendientes,
-    required this.areaNombre,
-  });
-
-  factory _PendienteItem.fromJson(Map<String, dynamic> json) {
-    return _PendienteItem(
-      reportId: (json['report_id'] as num?)?.toInt() ?? 0,
-      fecha: (json['fecha'] ?? '').toString(),
-      turno: (json['turno'] ?? '').toString(),
-      creadoPorNombre: (json['creado_por_nombre'] ?? '').toString(),
-      pendientes: (json['pendiente'] as num?)?.toInt() ?? 0,
-      areaNombre: (json['area_nombre'] ?? '').toString(),
     );
   }
 }

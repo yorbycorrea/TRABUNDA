@@ -1,8 +1,12 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
-import 'package:mobile/features/state_apoyo_horas.dart'; // <-- tu pantalla pendientes
+import 'package:mobile/features/state_apoyo_horas.dart';
+import 'package:mobile/data/auth/auth_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class ApoyosHorasEntryPage extends StatefulWidget {
   const ApoyosHorasEntryPage({
@@ -22,9 +26,15 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
   bool _loading = true;
   String? _error;
 
+  late final FetchApoyoHorasPendientes _fetchApoyoHorasPendientes;
+  late final OpenApoyoHorasReport _openApoyoHorasReport;
+
   @override
   void initState() {
     super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchApoyoHorasPendientes = FetchApoyoHorasPendientes(repository);
+    _openApoyoHorasReport = OpenApoyoHorasReport(repository);
     WidgetsBinding.instance.addPostFrameCallback((_) => _decidirRuta());
   }
 
@@ -44,29 +54,7 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
     });
 
     try {
-      // 1) Ver si hay pendientes (si hay -> mostrar pantalla de pendientes)
-      final pendResp = await widget.api.get(
-        '/reportes/apoyo-horas/pendientes?hours=24',
-      );
-
-      final pendBody = pendResp.body.trimLeft();
-      if (pendBody.startsWith('<!DOCTYPE') || pendBody.startsWith('<html')) {
-        throw Exception(
-          'Backend devolvió HTML en pendientes. Revisa baseUrl/ruta.\nHTTP ${pendResp.statusCode}',
-        );
-      }
-
-      final pendDecoded = jsonDecode(pendResp.body);
-      if (pendResp.statusCode != 200) {
-        final msg = (pendDecoded is Map && pendDecoded['error'] != null)
-            ? pendDecoded['error'].toString()
-            : 'Error cargando pendientes (HTTP ${pendResp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final items = (pendDecoded is Map && pendDecoded['items'] is List)
-          ? (pendDecoded['items'] as List)
-          : <dynamic>[];
+      final items = await _fetchApoyoHorasPendientes.call(hours: 24);
 
       if (!mounted) return;
 
@@ -82,36 +70,9 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
         return;
       }
 
-      // 2) Si NO hay pendientes, crear/obtener reporte ABIERTO y entrar directo al formulario
-      final openResp = await widget.api.get(
-        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(widget.turno)}',
-      );
+      final reporte = await _openApoyoHorasReport.call(turno: widget.turno);
 
-      final openBody = openResp.body.trimLeft();
-      if (openBody.startsWith('<!DOCTYPE') || openBody.startsWith('<html')) {
-        throw Exception(
-          'Backend devolvió HTML en open. Revisa baseUrl/ruta.\nHTTP ${openResp.statusCode}',
-        );
-      }
-
-      final openDecoded = jsonDecode(openResp.body);
-      if (openResp.statusCode < 200 || openResp.statusCode >= 300) {
-        final msg = (openDecoded is Map && openDecoded['error'] != null)
-            ? openDecoded['error'].toString()
-            : 'Error abriendo reporte (HTTP ${openResp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final reporte = (openDecoded is Map && openDecoded['reporte'] is Map)
-          ? (openDecoded['reporte'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
-
-      final reporteId = (reporte['id'] as num?)?.toInt() ?? 0;
-      final fecha = _parseFecha(reporte['fecha']?.toString());
-      final turno = (reporte['turno'] ?? widget.turno).toString();
-      final planillero = (reporte['creado_por_nombre'] ?? '').toString();
-
-      if (reporteId <= 0) {
+      if (reporte.id <= 0) {
         throw Exception('open devolvió un reporte inválido (id=0).');
       }
 
@@ -122,10 +83,10 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
         MaterialPageRoute(
           builder: (_) => ApoyosHorasBackendPage(
             api: widget.api,
-            reporteId: reporteId,
-            fecha: fecha,
-            turno: turno,
-            planillero: planillero,
+            reporteId: reporte.id,
+            fecha: _parseFecha(reporte.fecha),
+            turno: reporte.turno,
+            planillero: reporte.creadoPorNombre,
           ),
         ),
       );

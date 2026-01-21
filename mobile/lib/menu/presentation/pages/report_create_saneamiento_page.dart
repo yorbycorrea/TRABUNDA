@@ -1,10 +1,12 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
 import 'package:mobile/features/state_saneamiento.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 // import 'package:mobile/menu/presentation/pages/saneamiento_form_page.dart';
 
@@ -30,6 +32,9 @@ class _ReportCreateSaneamientoPageState
   final TextEditingController _fechaCtrl = TextEditingController();
   final TextEditingController _usuarioCtrl = TextEditingController();
 
+  late final OpenSaneamientoReport _openSaneamientoReport;
+  late final CreateSaneamientoReport _createSaneamientoReport;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -41,6 +46,14 @@ class _ReportCreateSaneamientoPageState
     _usuarioCtrl.text = (user?.nombre ?? user?.username ?? '').trim();
 
     _fechaCtrl.text = _fecha.toLocal().toString().split(' ').first;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _openSaneamientoReport = OpenSaneamientoReport(repository);
+    _createSaneamientoReport = CreateSaneamientoReport(repository);
   }
 
   @override
@@ -63,30 +76,12 @@ class _ReportCreateSaneamientoPageState
     });
 
     try {
-      final f =
-          "${_fecha.year.toString().padLeft(4, '0')}-"
-          "${_fecha.month.toString().padLeft(2, '0')}-"
-          "${_fecha.day.toString().padLeft(2, '0')}";
-
-      final resp = await widget.api.get(
-        '/reportes/saneamiento/open?turno=${Uri.encodeQueryComponent(_turno)}&fecha=$f',
+      final reporte = await _openSaneamientoReport.call(
+        fecha: _fecha,
+        turno: _turno,
       );
 
-      final decoded = jsonDecode(resp.body);
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception(
-          (decoded is Map && decoded['error'] != null)
-              ? decoded['error'].toString()
-              : 'Error HTTP ${resp.statusCode}',
-        );
-      }
-
-      final rep = decoded['reporte'];
-      final id = (rep['id'] as num).toInt();
-
-      setState(() {
-        _saneaReporteId = id;
-      });
+      setState(() => _saneaReporteId = reporte.id);
     } catch (e) {
       setState(() => _errorSanea = e.toString());
     } finally {
@@ -112,27 +107,9 @@ class _ReportCreateSaneamientoPageState
     final auth = AuthControllerScope.read(context);
     if (!auth.isAuthenticated) throw Exception('No autenticado');
 
-    final fechaStr = _fecha.toLocal().toString().split(' ').first;
-
     setState(() => _creando = true);
     try {
-      final resp = await widget.api.post('/reportes', {
-        'fecha': fechaStr,
-        'turno': _turno,
-        'tipo_reporte': 'SANEAMIENTO',
-        'area_id': null,
-        'observaciones': null,
-      });
-
-      final decoded = jsonDecode(resp.body);
-      if (resp.statusCode != 201 && resp.statusCode != 200) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error creando reporte';
-        throw Exception(msg);
-      }
-
-      return (decoded['reporte_id'] as num).toInt();
+      return await _createSaneamientoReport.call(fecha: _fecha, turno: _turno);
     } finally {
       if (mounted) setState(() => _creando = false);
     }

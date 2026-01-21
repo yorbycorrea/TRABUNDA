@@ -1,7 +1,9 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class SaneamientoBackendPage extends StatefulWidget {
   const SaneamientoBackendPage({
@@ -30,9 +32,15 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   // Puedes permitir varios trabajadores en saneamiento (igual que apoyo horas)
   final List<_SaneaFormModel> _items = [_SaneaFormModel()];
 
+  late final FetchSaneamientoLineas _fetchSaneamientoLineas;
+  late final UpsertSaneamientoLinea _upsertSaneamientoLinea;
+
   @override
   void initState() {
     super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchSaneamientoLineas = FetchSaneamientoLineas(repository);
+    _upsertSaneamientoLinea = UpsertSaneamientoLinea(repository);
     _loadLineasExistentes();
   }
 
@@ -71,9 +79,6 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  String _formatTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
   double _calcHoras(TimeOfDay inicio, TimeOfDay fin) {
     final start = Duration(hours: inicio.hour, minutes: inicio.minute);
     final end = Duration(hours: fin.hour, minutes: fin.minute);
@@ -106,17 +111,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
   Future<void> _loadLineasExistentes() async {
     try {
-      final resp = await widget.api.get('/reportes/${widget.reporteId}/lineas');
-
-      if (resp.statusCode != 200) {
-        // No bloquees pantalla si falla
-        return;
-      }
-
-      final decoded = jsonDecode(resp.body);
-      final items = (decoded is Map && decoded['items'] is List)
-          ? decoded['items'] as List
-          : <dynamic>[];
+      final items = await _fetchSaneamientoLineas.call(widget.reporteId);
 
       if (items.isEmpty) return;
 
@@ -132,25 +127,25 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       }
 
       final models = <_SaneaFormModel>[];
-      for (final it in items.whereType<Map<String, dynamic>>()) {
+      for (final it in items) {
         final m = _SaneaFormModel();
-        m.lineaId = (it['id'] as num?)?.toInt();
-        m.trabajadorId = (it['trabajador_id'] as num?)?.toInt();
+        m.lineaId = it.id;
+        m.trabajadorId = it.trabajadorId;
 
-        m.codigoCtrl.text = (it['trabajador_codigo'] ?? '').toString();
-        m.nombreCtrl.text = (it['trabajador_nombre'] ?? '').toString();
+        m.codigoCtrl.text = it.trabajadorCodigo;
+        m.nombreCtrl.text = it.trabajadorNombre;
 
-        m.inicio = parseTime(it['hora_inicio']);
-        m.fin = parseTime(it['hora_fin']);
+        m.inicio = parseTime(it.horaInicio);
+        m.fin = parseTime(it.horaFin);
 
-        final horasValue = it['horas'];
-        if (horasValue != null && horasValue is num) {
-          m.horas = horasValue.toDouble();
+        final horasValue = it.horas;
+        if (horasValue != null) {
+          m.horas = horasValue;
         } else if (m.inicio != null && m.fin != null) {
           m.horas = _calcHoras(m.inicio!, m.fin!);
         }
 
-        m.laboresCtrl.text = (it['labores'] ?? '').toString();
+        m.laboresCtrl.text = it.labores;
 
         models.add(m);
       }
@@ -185,51 +180,33 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
     try {
       for (final t in _items) {
-        final horaInicio = _formatTime(t.inicio!);
-        final horaFin = t.fin != null ? _formatTime(t.fin!) : null;
-
         final horas =
             t.horas ??
             ((t.inicio != null && t.fin != null)
                 ? _calcHoras(t.inicio!, t.fin!)
                 : null);
 
-        final payload = <String, dynamic>{
-          'trabajador_id': t.trabajadorId,
-          'hora_inicio': horaInicio,
-          'hora_fin': horaFin,
-          'horas': horas,
-          'area_id': null, // saneamiento no usa área
-          'labores': t.laboresCtrl.text.trim().isEmpty
-              ? null
-              : t.laboresCtrl.text.trim(),
-        };
-
-        late final resp;
-        if (t.lineaId != null) {
-          // Si tienes PATCH en backend
-          resp = await widget.api.patch(
-            '/reportes/lineas/${t.lineaId}',
-            payload,
-          );
-        } else {
-          resp = await widget.api.post(
-            '/reportes/${widget.reporteId}/lineas',
-            payload,
-          );
-        }
-
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
-        }
-
         // si creó línea, guarda ID
         if (t.lineaId == null) {
-          final decoded = jsonDecode(resp.body);
-          final newId = (decoded is Map && decoded['linea_id'] is num)
-              ? (decoded['linea_id'] as num).toInt()
-              : null;
-          t.lineaId = newId;
+          t.lineaId = await _upsertSaneamientoLinea.call(
+            lineaId: t.lineaId,
+            reporteId: widget.reporteId,
+            trabajadorId: t.trabajadorId!,
+            inicio: t.inicio!,
+            fin: t.fin,
+            horas: horas,
+            labores: t.laboresCtrl.text,
+          );
+        } else {
+          await _upsertSaneamientoLinea.call(
+            lineaId: t.lineaId,
+            reporteId: widget.reporteId,
+            trabajadorId: t.trabajadorId!,
+            inicio: t.inicio!,
+            fin: t.fin,
+            horas: horas,
+            labores: t.laboresCtrl.text,
+          );
         }
       }
 

@@ -1,10 +1,13 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/features/trabajo_avance/models.dart';
 import 'trabajo_avance_cuadrilla_detalle_page.dart';
 import 'package:mobile/core/ui/notifications.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 enum _TaMode { start, edit, view }
 
@@ -29,7 +32,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   TimeOfDay? _fin;
 
   // Para el Card cuando existe
-  Map<String, dynamic>? _reporteEncontrado;
+  TrabajoAvanceReporte? _reporteEncontrado;
 
   // Modo: start / edit / view
   _TaMode _mode = _TaMode.start;
@@ -42,11 +45,21 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     "APOYO_RECEPCION": 0,
   };
 
+  late final StartTrabajoAvance _startTrabajoAvance;
+  late final FetchTrabajoAvance _fetchTrabajoAvance;
+  late final UpdateTrabajoAvanceHorario _updateTrabajoAvanceHorario;
+  late final CreateTrabajoAvanceCuadrilla _createTrabajoAvanceCuadrilla;
+
   @override
   void initState() {
     super.initState();
     // Antes abrías de frente. Ahora empieza como Conteo Rápido (Start).
     _mode = _TaMode.start;
+    final repository = ReportRepositoryImpl(widget.api);
+    _startTrabajoAvance = StartTrabajoAvance(repository);
+    _fetchTrabajoAvance = FetchTrabajoAvance(repository);
+    _updateTrabajoAvanceHorario = UpdateTrabajoAvanceHorario(repository);
+    _createTrabajoAvanceCuadrilla = CreateTrabajoAvanceCuadrilla(repository);
   }
 
   void _resetAfterSave() {
@@ -59,13 +72,6 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       _cuadrillas.clear();
       _totales = {"RECEPCION": 0, "FILETEADO": 0, "APOYO_RECEPCION": 0};
     });
-  }
-
-  String _fmtFechaApi(DateTime d) {
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return "$y-$m-$day"; // YYYY-MM-DD
   }
 
   String _fmtFechaUi(DateTime d) {
@@ -112,13 +118,6 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     }
   }
 
-  double _toDouble(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    if (v is String) return double.tryParse(v) ?? 0;
-    return 0;
-  }
-
   TimeOfDay? _parseTime(String? s) {
     if (s == null || s.isEmpty) return null;
     final parts = s.split(":");
@@ -127,13 +126,6 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       hour: int.tryParse(parts[0]) ?? 0,
       minute: int.tryParse(parts[1]) ?? 0,
     );
-  }
-
-  String? _fmtTime(TimeOfDay? t) {
-    if (t == null) return null;
-    final h = t.hour.toString().padLeft(2, '0');
-    final m = t.minute.toString().padLeft(2, '0');
-    return "$h:$m:00";
   }
 
   void _limpiarResumen() {
@@ -157,34 +149,24 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     });
 
     try {
-      final resp = await widget.api.post('/reportes/trabajo-avance/start', {
-        "fecha": _fmtFechaApi(_fecha),
-        "turno": _turno,
-      });
+      final result = await _startTrabajoAvance.call(
+        fecha: _fecha,
+        turno: _turno,
+      );
 
-      final j = jsonDecode(resp.body) as Map<String, dynamic>;
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        setState(() => _error = j['error']?.toString() ?? 'No se pudo iniciar');
-        return;
-      }
-
-      final existe = j['existente'] == true;
-      final rep = (j['reporte'] as Map).cast<String, dynamic>();
-
-      if (existe) {
+      if (result.existente) {
         // ✅ MODO START + Card con botones Ver/Continuar
         setState(() {
           _mode = _TaMode.start;
-          _reporteEncontrado = rep;
-          _reporteId = (rep['id'] as num).toInt();
+          _reporteEncontrado = result.reporte;
+          _reporteId = result.reporte.id;
         });
         return;
       }
 
       // ✅ No existía: entra directo a EDIT y carga resumen
       setState(() {
-        _reporteId = (rep['id'] as num).toInt();
+        _reporteId = result.reporte.id;
         _mode = _TaMode.edit;
       });
       await _loadResumen();
@@ -249,25 +231,14 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   Future<void> _loadResumen() async {
     if (_reporteId == null) return;
 
-    final resp = await widget.api.get(
-      '/reportes/trabajo-avance/$_reporteId/resumen',
-    );
-    final j = jsonDecode(resp.body) as Map<String, dynamic>;
-
-    final rep = (j['reporte'] as Map<String, dynamic>?);
-    final tot = (j['totales'] as Map<String, dynamic>);
-    final cuad = (j['cuadrillas'] as List).cast<Map<String, dynamic>>();
+    final resumen = await _fetchTrabajoAvance.call(_reporteId!);
 
     setState(() {
-      _totales = {
-        "RECEPCION": _toDouble(tot["RECEPCION"]),
-        "FILETEADO": _toDouble(tot["FILETEADO"]),
-        "APOYO_RECEPCION": _toDouble(tot["APOYO_RECEPCION"]),
-      };
-      _cuadrillas = cuad.map(TaCuadrilla.fromJson).toList();
+      _totales = resumen.totales;
+      _cuadrillas = resumen.cuadrillas;
 
-      _inicio = _parseTime(rep?['hora_inicio']?.toString());
-      _fin = _parseTime(rep?['hora_fin']?.toString());
+      _inicio = _parseTime(resumen.reporte?.horaInicio);
+      _fin = _parseTime(resumen.reporte?.horaFin);
     });
   }
 
@@ -424,17 +395,13 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     if (_reporteId == null) return;
 
     try {
-      final resp = await widget.api.put(
-        '/reportes/trabajo-avance/$_reporteId',
-        {"hora_inicio": _fmtTime(_inicio), "hora_fin": _fmtTime(_fin)},
+      await _updateTrabajoAvanceHorario.call(
+        reporteId: _reporteId!,
+        inicio: _inicio,
+        fin: _fin,
       );
 
       if (!mounted) return;
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        showSavedToast(context, message: 'No se pudo guardar');
-        return;
-      }
 
       showSavedToast(context, message: 'Guardado correctamente');
 
@@ -540,21 +507,14 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     if (ok != true) return;
     if (_reporteId == null) return;
 
-    final body = {
-      "tipo": tipo,
-      "nombre": ctrl.text.trim(),
-      "apoyoDeCuadrillaId": apoyoDeId,
-    };
-
-    final resp = await widget.api.post(
-      '/reportes/trabajo-avance/$_reporteId/cuadrillas',
-      body,
+    await _createTrabajoAvanceCuadrilla.call(
+      reporteId: _reporteId!,
+      tipo: tipo,
+      nombre: ctrl.text.trim(),
+      apoyoDeCuadrillaId: apoyoDeId,
     );
 
-    final j = jsonDecode(resp.body);
-    if (j['ok'] == true) {
-      await _loadResumen();
-    }
+    await _loadResumen();
   }
 
   // =========================
@@ -646,7 +606,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
 
   Widget _startActions() {
     final rep = _reporteEncontrado;
-    final cerrado = (rep?['estado']?.toString() ?? '') == 'CERRADO';
+    final cerrado = (rep?.estado ?? '') == 'CERRADO';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
@@ -700,7 +660,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text("ID: ${rep['id']}  •  Estado: ${rep['estado']}"),
+                    Text("ID: ${rep.id}  •  Estado: ${rep.estado}"),
                     const SizedBox(height: 12),
                     Row(
                       children: [

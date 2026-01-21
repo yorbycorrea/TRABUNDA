@@ -1,10 +1,12 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/features/trabajo_avance/models.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/core/ui/notifications.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class TrabajoAvanceCuadrillaDetallePage extends StatefulWidget {
   const TrabajoAvanceCuadrillaDetallePage({
@@ -34,9 +36,19 @@ class _TrabajoAvanceCuadrillaDetallePageState
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
 
+  late final FetchTrabajoAvanceCuadrillaDetalle _fetchDetalle;
+  late final UpdateTrabajoAvanceCuadrilla _updateCuadrilla;
+  late final AddTrabajoAvanceTrabajador _addTrabajador;
+  late final DeleteTrabajoAvanceTrabajador _deleteTrabajadorUseCase;
+
   @override
   void initState() {
     super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchDetalle = FetchTrabajoAvanceCuadrillaDetalle(repository);
+    _updateCuadrilla = UpdateTrabajoAvanceCuadrilla(repository);
+    _addTrabajador = AddTrabajoAvanceTrabajador(repository);
+    _deleteTrabajadorUseCase = DeleteTrabajoAvanceTrabajador(repository);
     _load();
   }
 
@@ -56,13 +68,6 @@ class _TrabajoAvanceCuadrillaDetallePageState
     );
   }
 
-  String? _fmtTime(TimeOfDay? t) {
-    if (t == null) return null;
-    final h = t.hour.toString().padLeft(2, '0');
-    final m = t.minute.toString().padLeft(2, '0');
-    return "$h:$m:00";
-  }
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -70,16 +75,9 @@ class _TrabajoAvanceCuadrillaDetallePageState
     });
 
     try {
-      final resp = await widget.api.get(
-        '/reportes/trabajo-avance/cuadrillas/${widget.cuadrillaId}',
-      );
-      final j = jsonDecode(resp.body) as Map<String, dynamic>;
-
-      final c = TaCuadrilla.fromJson(j['cuadrilla']);
-      final t = (j['trabajadores'] as List)
-          .cast<Map<String, dynamic>>()
-          .map(TaTrabajador.fromJson)
-          .toList();
+      final detalle = await _fetchDetalle.call(widget.cuadrillaId);
+      final c = detalle.cuadrilla;
+      final t = detalle.trabajadores;
 
       setState(() {
         _cuadrilla = c;
@@ -115,19 +113,14 @@ class _TrabajoAvanceCuadrillaDetallePageState
     final kg = double.tryParse(_kgCtrl.text.replaceAll(",", ".")) ?? 0;
 
     try {
-      final resp = await widget.api
-          .put('/reportes/trabajo-avance/cuadrillas/${widget.cuadrillaId}', {
-            "hora_inicio": _fmtTime(_inicio),
-            "hora_fin": _fmtTime(_fin),
-            "produccion_kg": kg,
-          });
+      await _updateCuadrilla.call(
+        cuadrillaId: widget.cuadrillaId,
+        inicio: _inicio,
+        fin: _fin,
+        produccionKg: kg,
+      );
 
       if (!mounted) return;
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        showSavedToast(context, message: 'No se pudo guardar: ${resp.body}');
-        return;
-      }
 
       showSavedToast(context, message: 'Guardado correctamente');
       Navigator.pop(context, true);
@@ -169,17 +162,10 @@ class _TrabajoAvanceCuadrillaDetallePageState
     }
 
     try {
-      final resp = await widget.api.post(
-        '/reportes/trabajo-avance/cuadrillas/${widget.cuadrillaId}/trabajadores',
-        {"codigo": codigo},
+      await _addTrabajador.call(
+        cuadrillaId: widget.cuadrillaId,
+        codigo: codigo,
       );
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo agregar: ${resp.body}')),
-        );
-        return;
-      }
 
       await _load();
 
@@ -194,7 +180,7 @@ class _TrabajoAvanceCuadrillaDetallePageState
   }
 
   Future<void> _deleteTrabajador(int id) async {
-    await widget.api.delete('/reportes/trabajo-avance/trabajadores/$id');
+    await _deleteTrabajadorUseCase.call(id);
     await _load();
   }
 

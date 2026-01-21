@@ -1,7 +1,12 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/domain/reports/models/report_repository.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
+import 'package:mobile/data/auth/auth_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class SaneamientoHomePage extends StatefulWidget {
   const SaneamientoHomePage({
@@ -21,11 +26,17 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
   bool _loading = true;
   String? _error;
 
-  _PendienteItem? _pendiente;
+  ReportPendiente? _pendiente;
+
+  late final FetchSaneamientoPendientes _fetchSaneamientoPendientes;
+  late final OpenSaneamientoReport _openSaneamientoReport;
 
   @override
   void initState() {
     super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchSaneamientoPendientes = FetchSaneamientoPendientes(repository);
+    _openSaneamientoReport = OpenSaneamientoReport(repository);
     _loadPendientes();
   }
 
@@ -37,37 +48,13 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
     });
 
     try {
-      final resp = await widget.api.get(
-        '/reportes/saneamiento/pendientes?hours=24&turno=${Uri.encodeQueryComponent(widget.turno)}',
+      final items = await _fetchSaneamientoPendientes.call(
+        hours: 24,
+        turno: widget.turno,
       );
 
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa baseUrl o la ruta /reportes/saneamiento/pendientes.\n'
-          'HTTP ${resp.statusCode}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode != 200) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error cargando pendientes (HTTP ${resp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final items = (decoded is Map && decoded['items'] is List)
-          ? (decoded['items'] as List)
-          : <dynamic>[];
-
       if (items.isNotEmpty) {
-        final m = (items.first is Map)
-            ? (items.first as Map).cast<String, dynamic>()
-            : <String, dynamic>{};
-
-        _pendiente = _PendienteItem.fromJson(m);
+        _pendiente = items.first;
       }
 
       if (!mounted) return;
@@ -123,39 +110,14 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
         _error = null;
       });
 
-      final hoy = DateTime.now();
-      final fechaStr =
-          '${hoy.year.toString().padLeft(4, '0')}-${hoy.month.toString().padLeft(2, '0')}-${hoy.day.toString().padLeft(2, '0')}';
-
-      final resp = await widget.api.get(
-        '/reportes/saneamiento/open?turno=${Uri.encodeQueryComponent(widget.turno)}&fecha=$fechaStr',
+      final reporte = await _openSaneamientoReport.call(
+        fecha: DateTime.now(),
+        turno: widget.turno,
       );
 
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa baseUrl o la ruta /reportes/saneamiento/open.\n'
-          'HTTP ${resp.statusCode}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error abriendo reporte (HTTP ${resp.statusCode})';
-        throw Exception(msg);
-      }
-
-      final reporte = (decoded is Map && decoded['reporte'] is Map)
-          ? (decoded['reporte'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
-
-      final reporteId = (reporte['id'] as num).toInt();
-      final fecha = _parseFecha(reporte['fecha']?.toString());
-      final turno = (reporte['turno'] ?? widget.turno).toString();
-      final saneador = (reporte['creado_por_nombre'] ?? '').toString();
+      final fecha = _parseFecha(reporte.fecha);
+      final turno = reporte.turno;
+      final saneador = reporte.creadoPorNombre;
 
       if (!mounted) return;
       setState(() => _loading = false);
@@ -165,7 +127,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
         MaterialPageRoute(
           builder: (_) => SaneamientoBackendPage(
             api: widget.api,
-            reporteId: reporteId,
+            reporteId: reporte.id,
             fecha: fecha,
             turno: turno,
             saneador: saneador,

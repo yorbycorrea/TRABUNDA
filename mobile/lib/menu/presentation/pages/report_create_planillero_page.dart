@@ -1,4 +1,5 @@
-import 'dart:convert';
+//import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -8,6 +9,8 @@ import 'package:mobile/features/state_apoyo_horas.dart';
 import 'package:mobile/menu/presentation/pages/conteo_rapido_page.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/menu/presentation/pages/trabajo_avance_page.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({super.key, required this.api});
@@ -36,12 +39,23 @@ class _ReportCreatePlanilleroPageState
 
   final TextEditingController _planilleroCtrl = TextEditingController();
 
+  late final CreateReport _createReport;
+  late final OpenApoyoHorasReport _openApoyoHoras;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final auth = AuthControllerScope.read(context);
     final user = auth.user;
     if (user != null) _planilleroCtrl.text = user.nombre;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _createReport = CreateReport(repository);
+    _openApoyoHoras = OpenApoyoHorasReport(repository);
   }
 
   @override
@@ -69,29 +83,14 @@ class _ReportCreatePlanilleroPageState
       throw Exception('Planillero vacío');
     }
 
-    final fechaStr = _fecha.toLocal().toString().split(' ').first;
-
     setState(() => _creandoReporte = true);
 
     try {
-      final resp = await widget.api.post('/reportes', {
-        'fecha': fechaStr,
-        'turno': _turno,
-        'tipo_reporte': tipo,
-        'area_id': null,
-        'observaciones': null,
-      });
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode != 201 && resp.statusCode != 200) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error creando reporte';
-        throw Exception(msg);
-      }
-
-      final id = (decoded['reporte_id'] as num).toInt();
+      final id = await _createReport.call(
+        fecha: _fecha,
+        turno: _turno,
+        tipoReporte: tipo,
+      );
       _reporteIdBackend = id;
       return id;
     } finally {
@@ -108,31 +107,12 @@ class _ReportCreatePlanilleroPageState
     });
 
     try {
-      final f =
-          "${_fecha.year.toString().padLeft(4, '0')}-"
-          "${_fecha.month.toString().padLeft(2, '0')}-"
-          "${_fecha.day.toString().padLeft(2, '0')}";
-
-      final resp = await widget.api.get(
-        '/reportes/apoyo-horas/open?turno=${Uri.encodeQueryComponent(_turno)}&fecha=$f',
-      );
-
-      final decoded = jsonDecode(resp.body);
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception(
-          (decoded is Map && decoded['error'] != null)
-              ? decoded['error'].toString()
-              : 'Error HTTP ${resp.statusCode}',
-        );
-      }
-
-      final rep = decoded['reporte'];
-      final id = (rep['id'] as num).toInt();
+      final rep = await _openApoyoHoras.call(fecha: _fecha, turno: _turno);
 
       setState(() {
-        _apoyoReporteId = id;
+        _apoyoReporteId = rep.id;
         _tipoReporte = 'APOYO_HORAS';
-        _reporteIdBackend = id;
+        _reporteIdBackend = rep.id;
       });
     } catch (e) {
       setState(() => _errorApoyo = e.toString());

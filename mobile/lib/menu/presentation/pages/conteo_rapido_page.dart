@@ -1,7 +1,10 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/core/ui/notifications.dart';
 
@@ -55,6 +58,10 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   bool _loadingAreas = true; // solo carga catálogo
   bool _saving = false;
 
+  late final FetchConteoRapidoAreas _fetchConteoRapidoAreas;
+  late final OpenConteoRapido _openConteoRapido;
+  late final SaveConteoRapido _saveConteoRapido;
+
   List<AreaConteo> _areas = [];
   List<AreaConteo> _areasFiltradas = [];
 
@@ -63,6 +70,10 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     super.initState();
     _fecha = widget.fechaInicial ?? DateTime.now();
     _turno = widget.turnoInicial ?? 'Dia';
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchConteoRapidoAreas = FetchConteoRapidoAreas(repository);
+    _openConteoRapido = OpenConteoRapido(repository);
+    _saveConteoRapido = SaveConteoRapido(repository);
     _cargarCatalogoAreas(); // ✅ solo catálogo, no abre reporte automáticamente
   }
 
@@ -165,17 +176,10 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     setState(() => _loadingAreas = true);
 
     try {
-      final respAreas = await widget.api.get('/areas/conteo-rapido');
-      if (respAreas.statusCode != 200) {
-        throw Exception(
-          'Áreas error ${respAreas.statusCode}: ${respAreas.body}',
-        );
-      }
-      final dataAreas = jsonDecode(respAreas.body) as Map<String, dynamic>;
-      final listAreas = (dataAreas['areas'] as List)
-          .cast<Map<String, dynamic>>();
-
-      _areas = listAreas.map(AreaConteo.fromJson).toList();
+      final areas = await _fetchConteoRapidoAreas.call();
+      _areas = areas
+          .map((area) => AreaConteo(id: area.id, nombre: area.nombre))
+          .toList();
       _aplicarFiltro();
 
       setState(() => _loadingAreas = false);
@@ -202,40 +206,18 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     });
 
     try {
-      final fechaStr = _fmtFecha(_fecha);
-
-      final resp = await widget.api.get(
-        "/reportes/conteo-rapido/open?turno=${Uri.encodeQueryComponent(_turno)}&fecha=$fechaStr",
-      );
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        final msg = (decoded is Map && decoded["error"] != null)
-            ? decoded["error"].toString()
-            : "Error HTTP ${resp.statusCode}";
-        throw Exception(msg);
-      }
-
-      final existente = decoded["existente"] == true;
-      final rep = (decoded["reporte"] as Map).cast<String, dynamic>();
-      final id = (rep["id"] as num).toInt();
-
-      final items = (decoded["items"] is List)
-          ? (decoded["items"] as List)
-                .whereType<Map>()
-                .map((e) => e.cast<String, dynamic>())
-                .toList()
-          : <Map<String, dynamic>>[];
+      final result = await _openConteoRapido.call(fecha: _fecha, turno: _turno);
 
       setState(() {
         _tieneReporte = true;
-        _existente = existente;
-        _reporteId = id;
-        _itemsOpen = items;
+        _existente = result.existente;
+        _reporteId = result.reporteId;
+        _itemsOpen = result.items
+            .map((item) => {'area_id': item.areaId, 'cantidad': item.cantidad})
+            .toList();
 
         // ✅ si NO existe, ya se empieza a llenar
-        if (!existente) {
+        if (!result.existente) {
           _mostrarListado = true;
         }
       });
@@ -319,20 +301,18 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     setState(() => _saving = true);
 
     try {
-      final payload = {
-        'fecha': _fmtFecha(_fecha),
-        'turno': _turno,
-        'items': items,
-      };
-
-      final resp = await widget.api.post('/reportes/conteo-rapido', payload);
-
-      if (resp.statusCode != 200 && resp.statusCode != 201) {
-        throw Exception('Error ${resp.statusCode}: ${resp.body}');
-      }
-
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final reporteId = data['reporte_id'];
+      final reporteId = await _saveConteoRapido.call(
+        fecha: _fecha,
+        turno: _turno,
+        items: items
+            .map(
+              (item) => ConteoRapidoItem(
+                areaId: item['area_id'] as int,
+                cantidad: item['cantidad'] as int,
+              ),
+            )
+            .toList(),
+      );
 
       if (!mounted) return;
 

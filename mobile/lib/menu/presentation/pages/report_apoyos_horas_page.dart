@@ -1,7 +1,9 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
+import 'package:mobile/domain/reports/report_repository_impl.dart';
+import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -33,6 +35,10 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   final List<_ApoyoFormModel> _trabajadores = [_ApoyoFormModel()];
 
+  late final FetchApoyoAreas _fetchApoyoAreas;
+  late final FetchApoyoLineas _fetchApoyoLineas;
+  late final UpsertApoyoHorasLinea _upsertApoyoHorasLinea;
+
   // ✅ Evita duplicados en el mismo reporte
   bool _yaExisteTrabajador({
     int? trabajadorId,
@@ -59,6 +65,10 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   @override
   void initState() {
     super.initState();
+    final repository = ReportRepositoryImpl(widget.api);
+    _fetchApoyoAreas = FetchApoyoAreas(repository);
+    _fetchApoyoLineas = FetchApoyoLineas(repository);
+    _upsertApoyoHorasLinea = UpsertApoyoHorasLinea(repository);
     _loadAreas();
     _loadLineasExistentes();
   }
@@ -80,43 +90,13 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     });
 
     try {
-      final resp = await widget.api.get('/areas?tipo=APOYO_HORAS');
-
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception(
-          'El backend devolvió HTML (no JSON). Revisa baseUrl o GET /areas?tipo=APOYO_HORAS. HTTP ${resp.statusCode}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-
-      if (resp.statusCode != 200) {
-        final msg = (decoded is Map && decoded['error'] != null)
-            ? decoded['error'].toString()
-            : 'Error cargando áreas (HTTP ${resp.statusCode})';
-        throw Exception(msg);
-      }
-
-      if (decoded is! List) {
-        throw Exception('Respuesta inválida: se esperaba una lista JSON.');
-      }
-
-      final list = decoded
-          .whereType<Map<String, dynamic>>()
-          .map(
-            (e) => _AreaItem(
-              id: (e['id'] as num).toInt(),
-              nombre: (e['nombre'] ?? '').toString(),
-              activo: (e['activo'] as num?)?.toInt() ?? 1,
-            ),
-          )
-          .where((a) => a.activo == 1)
-          .toList();
+      final list = await _fetchApoyoAreas.call();
 
       if (!mounted) return;
       setState(() {
-        _areas = list;
+        _areas = list
+            .map((e) => _AreaItem(id: e.id, nombre: e.nombre, activo: e.activo))
+            .toList();
         _loadingAreas = false;
       });
     } catch (e) {
@@ -130,9 +110,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  String _formatTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   double _calcHoras(TimeOfDay inicio, TimeOfDay fin) {
     final start = Duration(hours: inicio.hour, minutes: inicio.minute);
@@ -165,23 +142,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
   Future<void> _loadLineasExistentes() async {
     try {
-      final resp = await widget.api.get('/reportes/${widget.reporteId}/lineas');
-
-      final body = resp.body.trimLeft();
-      if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-        throw Exception('Backend devolvió HTML en GET /reportes/:id/lineas');
-      }
-
-      if (resp.statusCode != 200) {
-        throw Exception(
-          'Error cargando líneas (HTTP ${resp.statusCode}): ${resp.body}',
-        );
-      }
-
-      final decoded = jsonDecode(resp.body);
-      final items = (decoded is Map && decoded['items'] is List)
-          ? decoded['items'] as List
-          : <dynamic>[];
+      final items = await _fetchApoyoLineas.call(widget.reporteId);
 
       if (items.isEmpty) return;
 
@@ -198,26 +159,24 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         );
       }
 
-      for (final it in items.whereType<Map<String, dynamic>>()) {
+      for (final it in items) {
         final m = _ApoyoFormModel();
 
-        m.lineaId = (it['id'] as num?)?.toInt();
-        m.trabajadorId = (it['trabajador_id'] as num?)?.toInt();
+        m.lineaId = it.id;
+        m.trabajadorId = it.trabajadorId;
 
-        m.codigoCtrl.text = (it['trabajador_codigo'] ?? '').toString();
-        m.nombreCtrl.text = (it['trabajador_nombre'] ?? '').toString();
+        m.codigoCtrl.text = it.trabajadorCodigo;
+        m.nombreCtrl.text = it.trabajadorNombre;
 
-        m.areaId = (it['area_id'] as num?)?.toInt();
-        m.areaNombre = (it['area_nombre'] ?? '').toString().isEmpty
-            ? null
-            : it['area_nombre'].toString();
+        m.areaId = it.areaId;
+        m.areaNombre = (it.areaNombre ?? '').isEmpty ? null : it.areaNombre;
 
-        m.inicio = parseTime(it['hora_inicio']);
-        m.fin = parseTime(it['hora_fin']);
+        m.inicio = parseTime(it.horaInicio);
+        m.fin = parseTime(it.horaFin);
 
-        final horasValue = it['horas'];
-        if (horasValue != null && horasValue is num) {
-          m.horas = horasValue.toDouble();
+        final horasValue = it.horas;
+        if (horasValue != null) {
+          m.horas = horasValue;
         }
 
         if (m.horas == null && m.inicio != null && m.fin != null) {
@@ -296,53 +255,32 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
     try {
       for (final t in _trabajadores) {
-        final horaInicio = _formatTime(t.inicio!);
-        final horaFin = t.fin != null ? _formatTime(t.fin!) : null;
-
         final double? horas =
             t.horas ??
             ((t.inicio != null && t.fin != null)
                 ? _calcHoras(t.inicio!, t.fin!)
                 : null);
 
-        final payload = <String, dynamic>{
-          'trabajador_id': t.trabajadorId,
-          'hora_inicio': horaInicio,
-          'hora_fin': horaFin,
-          'horas': horas,
-          'area_id': t.areaId,
-        };
-
-        late final resp;
-        if (t.lineaId != null) {
-          resp = await widget.api.patch(
-            '/reportes/lineas/${t.lineaId}',
-            payload,
+        if (t.lineaId == null) {
+          t.lineaId = await _upsertApoyoHorasLinea.call(
+            lineaId: t.lineaId,
+            reporteId: widget.reporteId,
+            trabajadorId: t.trabajadorId!,
+            inicio: t.inicio!,
+            fin: t.fin,
+            horas: horas,
+            areaId: t.areaId!,
           );
         } else {
-          resp = await widget.api.post(
-            '/reportes/${widget.reporteId}/lineas',
-            payload,
+          await _upsertApoyoHorasLinea.call(
+            lineaId: t.lineaId,
+            reporteId: widget.reporteId,
+            trabajadorId: t.trabajadorId!,
+            inicio: t.inicio!,
+            fin: t.fin,
+            horas: horas,
+            areaId: t.areaId!,
           );
-        }
-
-        final body = resp.body.trimLeft();
-        if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
-          throw Exception(
-            'El backend devolvió HTML en guardar. HTTP ${resp.statusCode}',
-          );
-        }
-
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
-        }
-
-        if (t.lineaId == null) {
-          final decoded = jsonDecode(resp.body);
-          final newId = (decoded is Map && decoded['linea_id'] is num)
-              ? (decoded['linea_id'] as num).toInt()
-              : null;
-          t.lineaId = newId;
         }
       }
 
