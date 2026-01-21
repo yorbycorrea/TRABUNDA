@@ -350,61 +350,61 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
 router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const turnoRaw = req.query.turno;
-    const turno = normalizarTurno(turnoRaw);
-    const { fecha } = req.query;
+    const turno = normalizarTurno(req.query.turno);
+    const { fecha, forceNew } = req.query;
 
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
-    if (!esTurnoValido(turno)) {
-      return res.status(400).json({ error: "turno no valido" });
-    }
+    if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
 
-    const fechaValue = fecha
-      ? String(fecha)
-      : new Date().toISOString().slice(0, 10);
+    const fechaValue = fecha ? String(fecha) : new Date().toISOString().slice(0, 10);
+    const force = String(forceNew || "0") === "1";
 
-    // 1) buscar si ya existe un ABIERTO vigente para ese usuario+turno+fecha
-    const [rows] = await pool.query(
+    // ✅ 1) Buscar el último reporte del mismo usuario + fecha + turno (cualquier estado)
+    const [existentes] = await pool.query(
       `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
        FROM reportes
        WHERE tipo_reporte = 'SANEAMIENTO'
          AND creado_por_user_id = ?
          AND turno = ?
          AND fecha = ?
-         AND estado = 'ABIERTO'
-         AND (vence_en IS NULL OR vence_en > NOW())
        ORDER BY id DESC
        LIMIT 1`,
       [userId, turno, fechaValue]
     );
 
-    if (rows.length) {
-      return res.json({ existente: true, reporte: rows[0] });
+    // ✅ Si existe y NO forzaron crear uno nuevo, devuelve el existente
+    if (existentes.length && !force) {
+      return res.json({
+        existente: true,
+        motivo: "YA_EXISTE_MISMA_FECHA_TURNO",
+        reporte: existentes[0],
+        opciones: ["VER", "CREAR_NUEVO"],
+      });
     }
 
-    // 2) si no existe, crear uno nuevo
+    // 2) Crear nuevo
     const [urows] = await pool.query(
       "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
       [userId]
     );
-    if (!urows.length) {
-      return res.status(401).json({ error: "Usuario invalido o desactivado" });
-    }
+    if (!urows.length) return res.status(401).json({ error: "Usuario invalido o desactivado" });
 
     const creado_por_nombre = urows[0].nombre || urows[0].username;
+
+    const areaVirtual = "SANEAMIENTO";
 
     const [result] = await pool.query(
       `INSERT INTO reportes
        (fecha, turno, tipo_reporte, area, area_id,
         creado_por_user_id, creado_por_nombre, observaciones,
         estado, vence_en)
-       VALUES (?, ?, 'SANEAMIENTO', NULL, NULL,
+       VALUES (?, ?, 'SANEAMIENTO', ?, NULL,
                ?, ?, NULL,
                'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-      [fechaValue, turno, userId, creado_por_nombre]
+      [fechaValue, turno, areaVirtual, userId, creado_por_nombre]
     );
 
-    const [nuevo] = await pool.query(
+    const [[nuevo]] = await pool.query(
       `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
        FROM reportes
        WHERE id = ?
@@ -412,12 +412,13 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
       [result.insertId]
     );
 
-    return res.status(201).json({ existente: false, reporte: nuevo[0] });
+    return res.status(201).json({ existente: false, reporte: nuevo });
   } catch (e) {
     console.error("open saneamiento error:", e);
     return res.status(500).json({ error: "Error interno open saneamiento" });
   }
 });
+
 
 
 
