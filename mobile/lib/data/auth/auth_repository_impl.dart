@@ -13,32 +13,6 @@ class AuthRepositoryImpl implements AuthRepository {
     : _authApi = authApi;
 
   @override
-  Future<ReportOpenInfo?> checkApoyoHoras({
-    DateTime? fecha,
-    required String turno,
-  }) async {
-    final fechaValue = fecha ?? DateTime.now();
-    final f = _fmtDate(fechaValue);
-
-    // ✅ create=0 para NO crear
-    final res = await api.get(
-      '/reportes/apoyo-horas/open?turno=$turno&fecha=$f&create=0',
-    );
-
-    if (res.statusCode != 200) {
-      throw Exception('checkApoyoHoras fallo: ${res.statusCode} ${res.body}');
-    }
-
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final existe = data['existente'] == true;
-
-    if (!existe) return null;
-
-    final rep = data['reporte'] as Map<String, dynamic>;
-    return ReportOpenInfo.fromJson(rep);
-  }
-
-  @override
   Future<AppUser?> getCurrentUser() async {
     final token = await api.tokens.readAccess();
     if (token == null || token.isEmpty) {

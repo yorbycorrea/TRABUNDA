@@ -1,4 +1,4 @@
-import 'dart:convert';
+//import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -39,6 +39,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
   late final FetchApoyoHorasPendientes _fetchApoyoHorasPendientes;
   late final OpenApoyoHorasReport _openApoyoHorasReport;
+  late final CheckApoyoHorasReport _checkApoyoHorasReport;
 
   @override
   void initState() {
@@ -48,34 +49,8 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     final repository = ReportRepositoryImpl(widget.api);
     _fetchApoyoHorasPendientes = FetchApoyoHorasPendientes(repository);
     _openApoyoHorasReport = OpenApoyoHorasReport(repository);
+    _checkApoyoHorasReport = CheckApoyoHorasReport(repository);
     _loadPendientes();
-  }
-
-  Future<bool> _existeReporteDelDia() async {
-    final y = _fechaSel.year.toString().padLeft(4, '0');
-    final m = _fechaSel.month.toString().padLeft(2, '0');
-    final d = _fechaSel.day.toString().padLeft(2, '0');
-    final fecha = '$y-$m-$d';
-
-    final res = await widget.api.get(
-      '/reportes/apoyo-horas/open?fecha=$fecha&turno=$_turnoSel&create=0',
-    );
-
-    // ✅ SI NO ES 200, NO INTENTES jsonDecode
-    if (res.statusCode != 200) {
-      debugPrint('❌ existeReporte error ${res.statusCode}: ${res.body}');
-      return false;
-    }
-
-    // ✅ PROTECCIÓN EXTRA
-    if (res.body.isEmpty) {
-      debugPrint('❌ existeReporte body vacío');
-      return false;
-    }
-
-    final Map<String, dynamic> data = jsonDecode(res.body);
-
-    return data['existente'] == true;
   }
 
   Future<void> _loadPendientes() async {
@@ -106,7 +81,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         _turnoSel = t2;
       }
 
-      final reporte = await _openApoyoHorasReport.call(
+      final reporte = await _checkApoyoHorasReport.call(
         fecha: _fechaSel,
         turno: _turnoSel,
       );
@@ -331,32 +306,6 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
                     ),
 
                   if (!_loading && _error == null) ...[
-                    if (pendiente != null) ...[
-                      Text(
-                        'Planillero: ${pendiente.creadoPorNombre}',
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    const Divider(),
-
-                    if (tienePendiente) ...[
-                      _WarningBanner(
-                        text:
-                            'Tienes ${pendiente!.pendientes} apoyo(s) pendiente(s). Completa la hora fin para cerrar el reporte.',
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    Text(
-                      'Reportes en espera (24h)',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
                     if (tienePendiente)
                       _PendienteCard(
                         pendientes: pendiente!.pendientes,
@@ -365,7 +314,22 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
                             : pendiente.areaNombre,
                         onTap: _openPendiente,
                       )
-                    else
+                    else ...[
+                      if (pendiente != null) ...[
+                        Text(
+                          'Planillero: ${pendiente.creadoPorNombre}',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      const Divider(),
+                      Text(
+                        'Reportes en espera (24h)',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Card(
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -448,6 +412,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ],
               ),

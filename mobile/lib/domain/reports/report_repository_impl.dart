@@ -173,12 +173,57 @@ class ReportRepositoryImpl implements ReportRepository {
     final query = <String, String>{
       'turno': turno,
       if (fecha != null) 'fecha': _fmtFecha(fecha),
+      // ✅ sin create=0 aquí, porque este es el "open-or-create"
+      // (si no existe, el backend lo crea)
+    };
+
+    final resp = await _api.get(
+      '/reportes/apoyo-horas/open?${Uri(queryParameters: query).query}',
+    );
+
+    final decoded = _api.decodeJsonOrThrow(resp);
+
+    if (decoded is! Map || decoded['reporte'] is! Map) {
+      throw Exception('Respuesta inválida openApoyoHoras');
+    }
+
+    final rep = (decoded['reporte'] as Map).cast<String, dynamic>();
+
+    return ReportOpenInfo(
+      id: (rep['id'] as num).toInt(),
+      fecha: (rep['fecha'] ?? (fecha != null ? _fmtFecha(fecha) : ''))
+          .toString(),
+      turno: (rep['turno'] ?? turno).toString(),
+      creadoPorNombre: (rep['creado_por_nombre'] ?? '').toString(),
+    );
+  }
+
+  @override
+  Future<ReportOpenInfo?> checkApoyoHoras({
+    DateTime? fecha,
+    required String turno,
+  }) async {
+    final query = <String, String>{
+      'turno': turno,
+      'create': '0',
+      if (fecha != null) 'fecha': _fmtFecha(fecha),
     };
     final resp = await _api.get(
       '/reportes/apoyo-horas/open?${Uri(queryParameters: query).query}',
     );
     final decoded = _api.decodeJsonOrThrow(resp);
-    final rep = (decoded['reporte'] as Map).cast<String, dynamic>();
+    if (decoded is! Map) {
+      throw Exception('Respuesta inválida: se esperaba mapa JSON.');
+    }
+    final existente = decoded['existente'] == true;
+    if (!existente) {
+      return null;
+    }
+    final repRaw = decoded['reporte'];
+    if (repRaw is! Map) {
+      throw Exception('Respuesta inválida: reporte no es mapa.');
+    }
+    final rep = repRaw.cast<String, dynamic>();
     return ReportOpenInfo(
       id: (rep['id'] as num).toInt(),
       fecha: (rep['fecha'] ?? (fecha != null ? _fmtFecha(fecha) : ''))
