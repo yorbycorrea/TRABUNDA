@@ -109,6 +109,18 @@ class ConteoRapidoArea {
   const ConteoRapidoArea({required this.id, required this.nombre});
 }
 
+class ConteoRapidoAreaCantidad {
+  final int id;
+  final String nombre;
+  int cantidad;
+
+  ConteoRapidoAreaCantidad({
+    required this.id,
+    required this.nombre,
+    this.cantidad = 0,
+  });
+}
+
 class ConteoRapidoItem {
   final int areaId;
   final int cantidad;

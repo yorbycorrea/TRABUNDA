@@ -1,26 +1,13 @@
 //import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+//import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/features/auth/controller/auth_controller.dart';
 import 'package:mobile/core/ui/notifications.dart';
-
-class AreaConteo {
-  final int id;
-  final String nombre;
-  int cantidad;
-
-  AreaConteo({required this.id, required this.nombre, this.cantidad = 0});
-
-  factory AreaConteo.fromJson(Map<String, dynamic> j) => AreaConteo(
-    id: (j['id'] as num).toInt(),
-    nombre: (j['nombre'] ?? '').toString(),
-    cantidad: 0,
-  );
-}
+import 'package:mobile/domain/reports/usecase/conteo_rapido_use_cases.dart';
 
 class ConteoRapidoPage extends StatefulWidget {
   const ConteoRapidoPage({
@@ -52,7 +39,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   bool _mostrarListado = false;
 
   int? _reporteId;
-  List<Map<String, dynamic>> _itemsOpen = [];
+  List<ConteoRapidoItem> _itemsOpen = [];
 
   // ✅ Estado de data
   bool _loadingAreas = true; // solo carga catálogo
@@ -62,8 +49,13 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   late final OpenConteoRapido _openConteoRapido;
   late final SaveConteoRapido _saveConteoRapido;
 
-  List<AreaConteo> _areas = [];
-  List<AreaConteo> _areasFiltradas = [];
+  List<ConteoRapidoAreaCantidad> _areas = [];
+  List<ConteoRapidoAreaCantidad> _areasFiltradas = [];
+
+  late final FormatConteoRapidoDate _formatConteoRapidoDate;
+  late final BuildConteoRapidoPayload _buildConteoRapidoPayload;
+  late final FormatConteoRapidoSummary _formatConteoRapidoSummary;
+  late final MergeConteoRapidoItems _mergeConteoRapidoItems;
 
   @override
   void initState() {
@@ -74,6 +66,10 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     _fetchConteoRapidoAreas = FetchConteoRapidoAreas(repository);
     _openConteoRapido = OpenConteoRapido(repository);
     _saveConteoRapido = SaveConteoRapido(repository);
+    _formatConteoRapidoDate = FormatConteoRapidoDate();
+    _buildConteoRapidoPayload = BuildConteoRapidoPayload();
+    _formatConteoRapidoSummary = FormatConteoRapidoSummary();
+    _mergeConteoRapidoItems = MergeConteoRapidoItems();
     _cargarCatalogoAreas(); // ✅ solo catálogo, no abre reporte automáticamente
   }
 
@@ -85,22 +81,16 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  String _fmtFecha(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
-
-  String _resumenItems() {
-    final selected = _areas.where((a) => a.cantidad > 0).toList();
-    if (selected.isEmpty) return 'No hay cantidades ingresadas.';
-    selected.sort((a, b) => a.nombre.compareTo(b.nombre));
-    return selected.map((a) => '${a.nombre}: ${a.cantidad}').join('\n');
-  }
+  String _fmtFecha(DateTime d) => _formatConteoRapidoDate.call(d);
+  String _resumenItems() => _formatConteoRapidoSummary.call(_areas);
 
   void _aplicarFiltro() {
     // ✅ Quitaste buscador => siempre todos
     _areasFiltradas = List.of(_areas);
   }
 
-  void _inc(AreaConteo a) => setState(() => a.cantidad++);
-  void _dec(AreaConteo a) => setState(() {
+  void _inc(ConteoRapidoAreaCantidad a) => setState(() => a.cantidad++);
+  void _dec(ConteoRapidoAreaCantidad a) => setState(() {
     if (a.cantidad > 0) a.cantidad--;
   });
 
@@ -178,7 +168,10 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
     try {
       final areas = await _fetchConteoRapidoAreas.call();
       _areas = areas
-          .map((area) => AreaConteo(id: area.id, nombre: area.nombre))
+          .map(
+            (area) =>
+                ConteoRapidoAreaCantidad(id: area.id, nombre: area.nombre),
+          )
           .toList();
       _aplicarFiltro();
 
@@ -212,9 +205,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
         _tieneReporte = true;
         _existente = result.existente;
         _reporteId = result.reporteId;
-        _itemsOpen = result.items
-            .map((item) => {'area_id': item.areaId, 'cantidad': item.cantidad})
-            .toList();
+        _itemsOpen = result.items;
 
         // ✅ si NO existe, ya se empieza a llenar
         if (!result.existente) {
@@ -232,19 +223,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
 
   void _continuarReporteExistente() {
     // ✅ aplicar cantidades devueltas por open/items
-    final mapCant = <int, int>{};
-    for (final it in _itemsOpen) {
-      final aid = (it['area_id'] as num).toInt();
-      final cantAny = it['cantidad'];
-      final cant = (cantAny is num)
-          ? cantAny.toInt()
-          : int.tryParse('$cantAny') ?? 0;
-      mapCant[aid] = cant;
-    }
-
-    for (final a in _areas) {
-      a.cantidad = mapCant[a.id] ?? 0;
-    }
+    _mergeConteoRapidoItems.call(areas: _areas, items: _itemsOpen);
 
     _aplicarFiltro();
 
@@ -265,10 +244,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       return;
     }
 
-    final items = _areas
-        .where((a) => a.cantidad > 0)
-        .map((a) => {'area_id': a.id, 'cantidad': a.cantidad})
-        .toList();
+    final items = _buildConteoRapidoPayload.call(_areas);
 
     if (items.isEmpty) {
       _toast('Ingresa al menos un conteo (> 0).');
@@ -304,14 +280,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
       final reporteId = await _saveConteoRapido.call(
         fecha: _fecha,
         turno: _turno,
-        items: items
-            .map(
-              (item) => ConteoRapidoItem(
-                areaId: item['area_id'] as int,
-                cantidad: item['cantidad'] as int,
-              ),
-            )
-            .toList(),
+        items: items,
       );
 
       if (!mounted) return;
