@@ -4,6 +4,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
+import 'package:mobile/domain/reports/usecase/saneamiento_use_cases.dart';
 
 class SaneamientoBackendPage extends StatefulWidget {
   const SaneamientoBackendPage({
@@ -34,6 +35,8 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
   late final FetchSaneamientoLineas _fetchSaneamientoLineas;
   late final UpsertSaneamientoLinea _upsertSaneamientoLinea;
+  late final CalculateHoras _calculateHoras;
+  late final ValidateSaneamientoLineas _validateSaneamientoLineas;
 
   @override
   void initState() {
@@ -41,6 +44,8 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     final repository = ReportRepositoryImpl(widget.api);
     _fetchSaneamientoLineas = FetchSaneamientoLineas(repository);
     _upsertSaneamientoLinea = UpsertSaneamientoLinea(repository);
+    _calculateHoras = CalculateHoras();
+    _validateSaneamientoLineas = const ValidateSaneamientoLineas();
     _loadLineasExistentes();
   }
 
@@ -54,36 +59,19 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     super.dispose();
   }
 
-  // ✅ Evitar duplicados en el mismo reporte
-  bool _yaExisteTrabajador({
-    int? trabajadorId,
-    String? codigo,
-    int? exceptIndex,
-  }) {
-    final cod = (codigo ?? '').trim();
-    for (var i = 0; i < _items.length; i++) {
-      if (exceptIndex != null && i == exceptIndex) continue;
-      final it = _items[i];
-
-      if (trabajadorId != null && it.trabajadorId == trabajadorId) return true;
-
-      if (trabajadorId == null &&
-          cod.isNotEmpty &&
-          (it.codigoCtrl.text.trim()) == cod) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  double _calcHoras(TimeOfDay inicio, TimeOfDay fin) {
-    final start = Duration(hours: inicio.hour, minutes: inicio.minute);
-    final end = Duration(hours: fin.hour, minutes: fin.minute);
-    final diff = end - start;
-    return diff.inMinutes / 60.0;
+  List<SaneamientoLineaValidation> _mapValidations() {
+    return _items
+        .map(
+          (item) => SaneamientoLineaValidation(
+            trabajadorId: item.trabajadorId,
+            codigo: item.codigoCtrl.text.trim(),
+            inicio: item.inicio,
+          ),
+        )
+        .toList();
   }
 
   Future<void> _pickHora(_SaneaFormModel m, bool inicio) async {
@@ -102,7 +90,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       }
 
       m.horas = (m.inicio != null && m.fin != null)
-          ? _calcHoras(m.inicio!, m.fin!)
+          ? _calculateHoras(m.inicio!, m.fin!)
           : null;
     });
   }
@@ -142,7 +130,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
         if (horasValue != null) {
           m.horas = horasValue;
         } else if (m.inicio != null && m.fin != null) {
-          m.horas = _calcHoras(m.inicio!, m.fin!);
+          m.horas = _calculateHoras(m.inicio!, m.fin!);
         }
 
         m.laboresCtrl.text = it.labores;
@@ -164,16 +152,14 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validación mínima
-    for (final t in _items) {
-      if (t.trabajadorId == null || t.inicio == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Escanea trabajador y selecciona Hora inicio'),
-          ),
-        );
-        return;
-      }
+    final validationMessage = _validateSaneamientoLineas.validarMinimo(
+      _mapValidations(),
+    );
+    if (validationMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationMessage)));
+      return;
     }
 
     setState(() => _saving = true);
@@ -183,7 +169,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
         final horas =
             t.horas ??
             ((t.inicio != null && t.fin != null)
-                ? _calcHoras(t.inicio!, t.fin!)
+                ? _calculateHoras(t.inicio!, t.fin!)
                 : null);
 
         // si creó línea, guarda ID
@@ -271,7 +257,8 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                           .trim();
 
                       // ✅ Validación duplicado
-                      if (_yaExisteTrabajador(
+                      if (_validateSaneamientoLineas.yaExisteTrabajador(
+                        items: _mapValidations(),
                         trabajadorId: newTrabId,
                         codigo: codigo.isNotEmpty ? codigo : dni,
                         exceptIndex: i,
