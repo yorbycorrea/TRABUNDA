@@ -1,4 +1,4 @@
-//import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -6,6 +6,7 @@ import 'package:mobile/menu/presentation/pages/report_apoyos_horas_page.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
+import 'package:mobile/menu/presentation/pages/report_view_page.dart';
 
 class ApoyosHorasHomePage extends StatefulWidget {
   const ApoyosHorasHomePage({
@@ -26,6 +27,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
   String? _error;
 
   ReportPendiente? _pendiente;
+  ReportOpenInfo? _reporteActual;
 
   // ✅ Estado local para el header seleccionable
   late DateTime _fechaSel;
@@ -49,11 +51,39 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     _loadPendientes();
   }
 
+  Future<bool> _existeReporteDelDia() async {
+    final y = _fechaSel.year.toString().padLeft(4, '0');
+    final m = _fechaSel.month.toString().padLeft(2, '0');
+    final d = _fechaSel.day.toString().padLeft(2, '0');
+    final fecha = '$y-$m-$d';
+
+    final res = await widget.api.get(
+      '/reportes/apoyo-horas/open?fecha=$fecha&turno=$_turnoSel&create=0',
+    );
+
+    // ✅ SI NO ES 200, NO INTENTES jsonDecode
+    if (res.statusCode != 200) {
+      debugPrint('❌ existeReporte error ${res.statusCode}: ${res.body}');
+      return false;
+    }
+
+    // ✅ PROTECCIÓN EXTRA
+    if (res.body.isEmpty) {
+      debugPrint('❌ existeReporte body vacío');
+      return false;
+    }
+
+    final Map<String, dynamic> data = jsonDecode(res.body);
+
+    return data['existente'] == true;
+  }
+
   Future<void> _loadPendientes() async {
     setState(() {
       _loading = true;
       _error = null;
       _pendiente = null;
+      _reporteActual = null;
     });
 
     try {
@@ -75,6 +105,12 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         _fechaSel = f2;
         _turnoSel = t2;
       }
+
+      final reporte = await _openApoyoHorasReport.call(
+        fecha: _fechaSel,
+        turno: _turnoSel,
+      );
+      _reporteActual = reporte;
 
       if (!mounted) return;
       setState(() => _loading = false);
@@ -191,10 +227,59 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     }
   }
 
+  Future<void> _continuarReporteDelDia() async {
+    try {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      final reporte = await _openApoyoHorasReport.call(
+        fecha: _fechaSel,
+        turno: _turnoSel,
+      );
+
+      if (!mounted) return;
+      setState(() => _loading = false);
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ApoyosHorasBackendPage(
+            api: widget.api,
+            reporteId: reporte.id,
+            fecha: _parseFecha(reporte.fecha),
+            turno: reporte.turno,
+            planillero: reporte.creadoPorNombre,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      _loadPendientes();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  void _irAVerReportes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ReportViewPage(api: widget.api)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pendiente = _pendiente;
     final tienePendiente = pendiente != null && pendiente.pendientes > 0;
+    final existeReporte = _reporteActual != null;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -297,27 +382,68 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
                               ),
                               const SizedBox(height: 8),
                               const Text(
-                                'Puedes iniciar un reporte nuevo. Si dejas líneas sin hora fin, aparecerán aquí por 24 horas.',
+                                'Puedes continuar con el reporte del dia /turno, o ir a ver los reportes.',
                               ),
                               const SizedBox(height: 14),
-                              SizedBox(
-                                height: 48,
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: _loading
-                                      ? null
-                                      : _crearNuevoYEntrar,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: kBluePrimary,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
+                              // Boton para continuar con el reporte
+                              if (existeReporte) ...[
+                                SizedBox(
+                                  height: 48,
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _loading
+                                        ? null
+                                        : _continuarReporteDelDia,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: kBluePrimary,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
                                     ),
+                                    icon: const Icon(Icons.play_arrow_rounded),
+                                    label: const Text('Continuar reporte'),
                                   ),
-                                  icon: const Icon(Icons.play_arrow_rounded),
-                                  label: const Text('Iniciar reporte'),
                                 ),
-                              ),
+
+                                const SizedBox(height: 10),
+                                // Boton para ver reportes
+                                SizedBox(
+                                  height: 48,
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loading
+                                        ? null
+                                        : _irAVerReportes,
+                                    style: OutlinedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.list_alt_rounded),
+                                    label: const Text('Ver reportes'),
+                                  ),
+                                ),
+                              ] else ...[
+                                SizedBox(
+                                  height: 48,
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _loading
+                                        ? null
+                                        : _crearNuevoYEntrar,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: kBluePrimary,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.play_arrow_rounded),
+                                    label: const Text('Iniciar reporte'),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

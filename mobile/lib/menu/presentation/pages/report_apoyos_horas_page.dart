@@ -4,6 +4,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
+import 'package:mobile/domain/reports/usecase/apoyos_horas_use_cases.dart';
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -39,28 +40,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   late final FetchApoyoLineas _fetchApoyoLineas;
   late final UpsertApoyoHorasLinea _upsertApoyoHorasLinea;
 
-  // ✅ Evita duplicados en el mismo reporte
-  bool _yaExisteTrabajador({
-    int? trabajadorId,
-    String? codigo,
-    int? exceptIndex,
-  }) {
-    final cod = (codigo ?? '').trim();
-
-    for (var i = 0; i < _trabajadores.length; i++) {
-      if (exceptIndex != null && i == exceptIndex) continue;
-
-      final it = _trabajadores[i];
-
-      // Comparación por ID (mejor)
-      if (trabajadorId != null && it.trabajadorId == trabajadorId) return true;
-
-      // Fallback por código (si no hay id)
-      final itCod = it.codigoCtrl.text.trim();
-      if (trabajadorId == null && cod.isNotEmpty && itCod == cod) return true;
-    }
-    return false;
-  }
+  final _calculateHoras = CalculateHoras();
+  final _validateApoyoHorasLineas = ValidateApoyoHorasLineas();
+  final _mapQrToApoyoHorasModel = MapQrToApoyoHorasModel();
 
   @override
   void initState() {
@@ -111,11 +93,17 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  double _calcHoras(TimeOfDay inicio, TimeOfDay fin) {
-    final start = Duration(hours: inicio.hour, minutes: inicio.minute);
-    final end = Duration(hours: fin.hour, minutes: fin.minute);
-    final diff = end - start;
-    return diff.inMinutes / 60.0;
+  List<ApoyoHorasLineaInput> _buildLineasInput() {
+    return _trabajadores
+        .map(
+          (t) => ApoyoHorasLineaInput(
+            trabajadorId: t.trabajadorId,
+            codigo: t.codigoCtrl.text.trim(),
+            inicio: t.inicio,
+            areaId: t.areaId,
+          ),
+        )
+        .toList();
   }
 
   Future<void> _pickHora(_ApoyoFormModel m, bool inicio) async {
@@ -133,7 +121,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         m.fin = picked;
       }
       m.horas = (m.inicio != null && m.fin != null)
-          ? _calcHoras(m.inicio!, m.fin!)
+          ? _calculateHoras(m.inicio!, m.fin!)
           : null;
     });
   }
@@ -180,7 +168,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         }
 
         if (m.horas == null && m.inicio != null && m.fin != null) {
-          m.horas = _calcHoras(m.inicio!, m.fin!);
+          m.horas = _calculateHoras(m.inicio!, m.fin!);
         }
 
         models.add(m);
@@ -205,50 +193,20 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     }
   }
 
+  String _fmt(TimeOfDay? t) {
+    if (t == null) return 'null';
+    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ✅ Validación: no duplicados en la lista (por id y por código)
-    final seenIds = <int>{};
-    final seenCods = <String>{};
-
-    for (final t in _trabajadores) {
-      final id = t.trabajadorId;
-      final cod = t.codigoCtrl.text.trim();
-
-      if (id != null) {
-        if (!seenIds.add(id)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Hay trabajadores repetidos. Elimina el duplicado.',
-              ),
-            ),
-          );
-          return;
-        }
-      } else if (cod.isNotEmpty) {
-        if (!seenCods.add(cod)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Hay códigos repetidos. Elimina el duplicado.'),
-            ),
-          );
-          return;
-        }
-      }
-    }
-
-    // Validación mínima
-    for (final t in _trabajadores) {
-      if (t.trabajadorId == null || t.inicio == null || t.areaId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Escanea trabajador, selecciona hora inicio y área'),
-          ),
-        );
-        return;
-      }
+    final validationMessage = _validateApoyoHorasLineas(_buildLineasInput());
+    if (validationMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationMessage)));
+      return;
     }
 
     setState(() => _saving = true);
@@ -258,8 +216,18 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         final double? horas =
             t.horas ??
             ((t.inicio != null && t.fin != null)
-                ? _calcHoras(t.inicio!, t.fin!)
+                ? _calculateHoras(t.inicio!, t.fin!)
                 : null);
+        // ✅ LOG: lo que vas a mandar (lo más importante para “en espera”)
+        debugPrint('🟡 UPSERT LINEA -> reporteId=${widget.reporteId}');
+        debugPrint('   lineaId=${t.lineaId}');
+        debugPrint('   trabajadorId=${t.trabajadorId}');
+        debugPrint('   areaId=${t.areaId}');
+        debugPrint('   inicio=${_fmt(t.inicio)}');
+        debugPrint(
+          '   fin=${_fmt(t.fin)}  (si es null => DEBE quedar en espera)',
+        );
+        debugPrint('   horas=$horas');
 
         if (t.lineaId == null) {
           t.lineaId = await _upsertApoyoHorasLinea.call(
@@ -358,20 +326,13 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
                     // ✅ AQUÍ: validación anti-duplicado al escanear
                     onFillFromScan: (result) {
-                      final idAny = result['id'];
-                      final idNum = (idAny is num)
-                          ? idAny
-                          : num.tryParse(idAny?.toString() ?? '');
-                      final trabajadorId = idNum?.toInt();
-
-                      final codigo = (result['codigo'] ?? '').toString().trim();
-                      final dni = (result['dni'] ?? '').toString().trim();
-                      final codigoFinal = codigo.isNotEmpty ? codigo : dni;
+                      final mapped = _mapQrToApoyoHorasModel(result);
 
                       // ✅ si ya existe en otra fila -> no permitir
-                      if (_yaExisteTrabajador(
-                        trabajadorId: trabajadorId,
-                        codigo: codigoFinal,
+                      if (_validateApoyoHorasLineas.existsDuplicate(
+                        lineas: _buildLineasInput(),
+                        trabajadorId: mapped.trabajadorId,
+                        codigo: mapped.codigo,
                         exceptIndex: i,
                       )) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -385,14 +346,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                       }
 
                       setState(() {
-                        _trabajadores[i].trabajadorId = trabajadorId;
-
-                        final nombre = (result['nombre_completo'] ?? '')
-                            .toString()
-                            .trim();
-
-                        _trabajadores[i].codigoCtrl.text = codigoFinal;
-                        _trabajadores[i].nombreCtrl.text = nombre;
+                        _trabajadores[i].trabajadorId = mapped.trabajadorId;
+                        _trabajadores[i].codigoCtrl.text = mapped.codigo;
+                        _trabajadores[i].nombreCtrl.text = mapped.nombre;
 
                         debugPrint('SCAN RESULT MAP: $result');
                         debugPrint(

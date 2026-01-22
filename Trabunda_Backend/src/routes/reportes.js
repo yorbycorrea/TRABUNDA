@@ -221,6 +221,15 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
     const turno = normalizarTurno(turnoRaw);
     const { fecha } = req.query;
 
+    // ✅ nuevo: permitir solo consultar sin crear
+    const createParam = req.query.create; // "0" | "1" | "true" | "false" | undefined
+    const allowCreate =
+      createParam === undefined ||
+      createParam === null ||
+      createParam === "" ||
+      createParam === "1" ||
+      String(createParam).toLowerCase() === "true";
+
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
     if (!esTurnoValido(turno))
       return res.status(400).json({ error: "turno no valido" });
@@ -248,6 +257,11 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
       return res.json({ existente: true, reporte: rows[0] });
     }
 
+    // ✅ si no existe y NO permites crear -> solo responde "no existe"
+    if (!allowCreate) {
+      return res.json({ existente: false, reporte: null });
+    }
+
     // 2) si no existe, crear uno nuevo
     const [urows] = await pool.query(
       "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
@@ -265,8 +279,8 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
         estado, vence_en)
        VALUES (?, ?, 'APOYO_HORAS', 'POR_TRABAJADOR', NULL,
                ?, ?, NULL,
-               'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-      [fechaValue, turno, userId, creado_por_nombre]
+               'ABIERTO', DATE_ADD(STR_TO_DATE(?, '%Y-%m-%d'), INTERVAL 1 DAY))`,
+      [fechaValue, turno, userId, creado_por_nombre, fechaValue]
     );
 
     const [nuevo] = await pool.query(
@@ -283,6 +297,7 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Error interno open apoyo-horas" });
   }
 });
+
 
 /* ========================================
    GET /reportes/apoyo-horas/pendientes
@@ -308,7 +323,7 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
       ${turno ? "AND r.turno = ?" : ""}
       ${
         fecha
-          ? "AND DATE(CONVERT_TZ(r.fecha,'+00:00','-05:00')) = ?"
+          ? "AND DATE(r.fecha) = ?"
           : "AND r.fecha >= (NOW() - INTERVAL ? HOUR)"
       }
     `;

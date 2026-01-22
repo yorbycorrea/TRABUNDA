@@ -10,6 +10,10 @@ abstract class ReportRepository {
     String? tipo,
     int? userId,
   });
+  Future<ReportOpenInfo?> checkApoyoHoras({
+    DateTime? fecha,
+    required String turno,
+  });
 
   Future<Uint8List> fetchReportePdf(int reporteId);
   Future<Uint8List> fetchConteoRapidoExcel(int reporteId);

@@ -13,6 +13,32 @@ class AuthRepositoryImpl implements AuthRepository {
     : _authApi = authApi;
 
   @override
+  Future<ReportOpenInfo?> checkApoyoHoras({
+    DateTime? fecha,
+    required String turno,
+  }) async {
+    final fechaValue = fecha ?? DateTime.now();
+    final f = _fmtDate(fechaValue);
+
+    // ✅ create=0 para NO crear
+    final res = await api.get(
+      '/reportes/apoyo-horas/open?turno=$turno&fecha=$f&create=0',
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('checkApoyoHoras fallo: ${res.statusCode} ${res.body}');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final existe = data['existente'] == true;
+
+    if (!existe) return null;
+
+    final rep = data['reporte'] as Map<String, dynamic>;
+    return ReportOpenInfo.fromJson(rep);
+  }
+
+  @override
   Future<AppUser?> getCurrentUser() async {
     final token = await api.tokens.readAccess();
     if (token == null || token.isEmpty) {
@@ -37,5 +63,12 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> logout() async {
     await api.tokens.clear();
+  }
+
+  String _fmtDate(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
   }
 }

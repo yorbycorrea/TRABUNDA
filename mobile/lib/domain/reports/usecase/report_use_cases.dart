@@ -109,6 +109,16 @@ class OpenApoyoHorasReport {
   }
 }
 
+class CheckApoyoHorasReport {
+  CheckApoyoHorasReport(this._repository);
+  final ReportRepository _repository;
+
+  Future<ReportOpenInfo?> call({DateTime? fecha, required String turno}) {
+    // 🔥 importante: esto NO debe crear
+    return _repository.checkApoyoHoras(fecha: fecha, turno: turno);
+  }
+}
+
 class FetchApoyoHorasPendientes {
   FetchApoyoHorasPendientes(this._repository);
   final ReportRepository _repository;
