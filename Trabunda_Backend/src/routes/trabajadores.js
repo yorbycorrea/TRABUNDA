@@ -2,7 +2,7 @@
 console.log("trabajadores,js cargado desde", __filename)
 const express = require("express");
 const router = express.Router();
-const { pool } = require("../db");
+const { pool, selectedDatabase } = require("../db");
 const { authMiddleware } = require("../middlewares/auth");
 
 
@@ -52,7 +52,7 @@ router.get("/lookup",  authMiddleware, async(req, res) => {
     console.log("LOOKUP q:", q);
     console.log("BD CONFIG;", {
       host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
+      database: selectedDatabase,
       user: process.env.DB_USER,
     })
 

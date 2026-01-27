@@ -5,16 +5,16 @@ let selectedDatabase;
 
 switch (process.env.NODE_ENV) {
     case 'production':
-        selectedDatabase = process.env.DB_NAME_PROD;
+          selectedDatabase = process.env.DB_NAME_PROD || process.env.DB_NAME;
         console.log("🚀 Conectado a la BD de PRODUCCIÓN");
         break;
     case 'test':
-        selectedDatabase = process.env.DB_NAME_TEST;
+        selectedDatabase = process.env.DB_NAME_TEST || process.env.DB_NAME;
         console.log("🧪 Conectado a la BD de TEST");
         break;
     case 'development':
     default:
-        selectedDatabase = process.env.DB_NAME_DEV;
+        selectedDatabase = process.env.DB_NAME_DEV || process.env.DB_NAME;
         console.log("🛠️ Conectado a la BD de DESARROLLO");
         break;
 }
@@ -23,6 +23,10 @@ switch (process.env.NODE_ENV) {
 if (process.env.NODE_ENV === "test" && !selectedDatabase.includes("test")) {
     throw new Error("❌ SEGURIDAD: Modo TEST activo pero la BD no es de test. Abortando.");
 }
+
+console.log(
+  `🔧 DB bootstrap -> NODE_ENV: ${process.env.NODE_ENV}, selectedDatabase: ${selectedDatabase}`
+);
 
 // 3. Configuración dinámica del Pool
 const pool = mysql.createPool({
@@ -45,4 +49,5 @@ pool.query("SELECT DATABASE() as db").then(([rows]) => {
   console.log("-----------------------------------------");
 });
 
-module.exports = { pool };
+
+module.exports = { pool, selectedDatabase };

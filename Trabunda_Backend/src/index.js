@@ -1,6 +1,6 @@
 const express = require("express");
 //console.log("INDEX REAL:", __filename);
-require("./config/env");
+//require("./config/env");
 const { pool } = require("./db");
 
 // 1. IMPORTAR RUTAS

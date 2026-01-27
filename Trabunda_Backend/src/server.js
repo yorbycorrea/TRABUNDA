@@ -1,3 +1,5 @@
+require("./config/env");
+require("./db");
 const app = require("./index");
 
 const PORT = process.env.PORT || 3000;
