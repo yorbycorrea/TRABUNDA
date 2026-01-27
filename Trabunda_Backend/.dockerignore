@@ -1,0 +1,23 @@
+# Ignore everything by default
+**
+
+# Allowlist required app files
+!package*.json
+!src/
+!src/**
+!Dockerfile*
+!docker-compose.yml
+
+# Explicit ignores
+node_modules
+build
+dist
+.env
+logs
+*.log
+.tmp
+.tmp/**
+tmp
+tmp/**
+*.swp
+*~

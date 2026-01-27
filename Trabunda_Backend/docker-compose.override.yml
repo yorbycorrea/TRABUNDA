@@ -1,0 +1,12 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev # Usará nodemon
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/usr/src/app # Sincroniza tu código en tiempo real
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db

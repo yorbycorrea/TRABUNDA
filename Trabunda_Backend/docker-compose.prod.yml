@@ -1,0 +1,10 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod # Imagen ligera y segura sin nodemon
+    ports:
+      - "80:3000" # Típico de producción
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db

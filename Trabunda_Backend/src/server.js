@@ -3,6 +3,31 @@ require("./db");
 const app = require("./index");
 
 const PORT = process.env.PORT || 3000;
+
+let server;
+
+const shutdown = (error) => {
+  if (error) {
+    console.error("❌ Error no controlado:", error);
+  }
+
+  if (server && server.listening) {
+    server.close(() => {
+      console.log("🛑 Servidor cerrado de forma controlada.");
+      process.exit(1);
+    });
+  } else {
+    process.exit(1);
+  }
+};
+
+process.on("unhandledRejection", (reason) => {
+  shutdown(reason);
+});
+
+process.on("uncaughtException", (error) => {
+  shutdown(error);
+});
 if (process.env.NODE_ENV === 'development') {
     console.log("🛠️  MODO: Desarrollo (Conectado a la DB de PRUEBAS)");
 } else if (process.env.NODE_ENV === 'production') {

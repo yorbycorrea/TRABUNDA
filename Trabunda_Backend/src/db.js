@@ -21,7 +21,7 @@ switch (process.env.NODE_ENV) {
 
 // 2. Validación de seguridad para Test (basada en tu imagen)
 if (process.env.NODE_ENV === "test" && !selectedDatabase.includes("test")) {
-    throw new Error("❌ SEGURIDAD: Modo TEST activo pero la BD no es de test. Abortando.");
+    throw new Error("SEGURIDAD: Modo TEST activo pero la BD no es de test. Abortando.");
 }
 
 console.log(
@@ -41,13 +41,42 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForDb = async (maxAttempts = 7, initialDelayMs = 500) => {
+  let delayMs = initialDelayMs;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await pool.query("SELECT 1");
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      console.warn(
+        `⚠️  Intento ${attempt}/${maxAttempts} de conexión a la BD falló. Reintentando en ${delayMs}ms...`
+      );
+      await sleep(delayMs);
+      delayMs *= 2;
+    }
+  }
+};
+
 // Agrega esto justo después de crear el pool
-pool.query("SELECT DATABASE() as db").then(([rows]) => {
-  console.log("-----------------------------------------");
-  console.log(`📡 SERVIDOR ACTIVO EN MODO: ${process.env.NODE_ENV}`);
-  console.log(`🗄️  CONECTADO A LA BASE DE DATOS: ${rows[0].db}`);
-  console.log("-----------------------------------------");
-});
+(async () => {
+  try {
+    await waitForDb();
+    const [rows] = await pool.query("SELECT DATABASE() as db");
+    console.log("-----------------------------------------");
+    console.log(`📡 SERVIDOR ACTIVO EN MODO: ${process.env.NODE_ENV}`);
+    console.log(`🗄️  CONECTADO A LA BASE DE DATOS: ${rows[0].db}`);
+    console.log("-----------------------------------------");
+  } catch (error) {
+    console.error("❌ No se pudo conectar a la BD durante el arranque.", error);
+  }
+})();
 
 
-module.exports = { pool, selectedDatabase };
+module.exports = { pool, selectedDatabase, waitForDb };
