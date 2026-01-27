@@ -1,0 +1,11 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # PLAYWRIGHT_BROWSERS_PATH: "0" # Descomentar para empaquetar navegadores en la imagen.
+    restart: unless-stopped

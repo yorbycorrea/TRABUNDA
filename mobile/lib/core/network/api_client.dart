@@ -2,17 +2,14 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'token_storage.dart';
+import 'package:mobile/env.dart';
 
 class ApiClient {
-  final String baseUrl;
   final TokenStorage tokens;
   final http.Client _http;
 
-  ApiClient({
-    required this.baseUrl,
-    required this.tokens,
-    http.Client? httpClient,
-  }) : _http = httpClient ?? http.Client();
+  ApiClient({required this.tokens, http.Client? httpClient})
+    : _http = httpClient ?? http.Client();
 
   Future<Map<String, String>> _headers() async {
     final access = await tokens.readAccess();
@@ -26,13 +23,13 @@ class ApiClient {
     return h;
   }
 
-  Uri _uri(String path) => Uri.parse('$baseUrl$path');
+  Uri _uri(String path) => Uri.parse('$Env.baseUrl$path');
 
   // -----------------------
   // HTTP verbs
   // -----------------------
   Future<http.Response> get(String path) async {
-    final uri = Uri.parse('$baseUrl$path');
+    final uri = Uri.parse('$Env.baseUrl$path');
     final heders = await _headers();
     debugPrint('GET $uri');
     debugPrint('headers: $heders');
@@ -47,7 +44,7 @@ class ApiClient {
   }
 
   Future<http.Response> post(String path, Object body) async {
-    final uri = Uri.parse('$baseUrl$path');
+    final uri = Uri.parse('$Env.baseUrl$path');
     final headers = await _headers();
     debugPrint('➡️ POST $uri');
     debugPrint('➡️ headers: $headers');
@@ -90,7 +87,7 @@ class ApiClient {
   }
 
   Future<http.Response> getRaw(String path) async {
-    final uri = Uri.parse('$baseUrl$path');
+    final uri = Uri.parse('$Env.baseUrl$path');
     // No forzamos content-type aquí
     final access = await tokens.readAccess();
     final h = <String, String>{};

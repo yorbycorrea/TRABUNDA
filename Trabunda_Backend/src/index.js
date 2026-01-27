@@ -1,9 +1,6 @@
 const express = require("express");
 //console.log("INDEX REAL:", __filename);
-if (process.env.NODE_ENV !== "test") {
-  require("dotenv").config();
-}
-
+require("./config/env");
 const { pool } = require("./db");
 
 // 1. IMPORTAR RUTAS

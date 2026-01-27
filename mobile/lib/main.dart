@@ -26,7 +26,13 @@ import 'package:mobile/core/theme/app_colors.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: ".env");
+  try {
+    // Esto carga el archivo físico .env en la memoria de la app
+    await dotenv.load(fileName: ".env");
+    print("✅ Variables de entorno cargadas: ${dotenv.env['API_URL']}");
+  } catch (e) {
+    print("❌ Error cargando .env: $e");
+  }
 
   final theme = ThemeData(
     scaffoldBackgroundColor: AppColors.lightCyan,
@@ -52,7 +58,7 @@ Future<void> main() async {
 
   // Inyección de dependencias
   final tokenStorage = TokenStorage(const FlutterSecureStorage());
-  final apiClient = ApiClient(baseUrl: Env.baseUrl, tokens: tokenStorage);
+  final apiClient = ApiClient(tokens: tokenStorage);
   final authRepository = AuthRepositoryImpl(
     remote: AuthRemoteDataSource(apiClient),
   );
