@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV === 'development') {
     console.log("🛠️  MODO: Desarrollo (Conectado a la DB de PRUEBAS)");
 } else if (process.env.NODE_ENV === 'production') {
+
     console.log("🚀 MODO: Producción (Conectado a la DB REAL)");
 }
 

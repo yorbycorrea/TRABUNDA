@@ -23,13 +23,17 @@ class ApiClient {
     return h;
   }
 
-  Uri _uri(String path) => Uri.parse('$Env.baseUrl$path');
+  void debugPrint(String message) {
+    print("Mi URL es: ${Env.baseUrl}");
+  }
+
+  Uri _uri(String path) => Uri.parse('${Env.baseUrl}$path');
 
   // -----------------------
   // HTTP verbs
   // -----------------------
   Future<http.Response> get(String path) async {
-    final uri = Uri.parse('$Env.baseUrl$path');
+    final uri = Uri.parse('${Env.baseUrl}$path');
     final heders = await _headers();
     debugPrint('GET $uri');
     debugPrint('headers: $heders');
@@ -44,7 +48,7 @@ class ApiClient {
   }
 
   Future<http.Response> post(String path, Object body) async {
-    final uri = Uri.parse('$Env.baseUrl$path');
+    final uri = Uri.parse('${Env.baseUrl}$path');
     final headers = await _headers();
     debugPrint('➡️ POST $uri');
     debugPrint('➡️ headers: $headers');
@@ -87,7 +91,7 @@ class ApiClient {
   }
 
   Future<http.Response> getRaw(String path) async {
-    final uri = Uri.parse('$Env.baseUrl$path');
+    final uri = Uri.parse('${Env.baseUrl}$path');
     // No forzamos content-type aquí
     final access = await tokens.readAccess();
     final h = <String, String>{};
