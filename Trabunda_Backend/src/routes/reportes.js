@@ -2507,6 +2507,7 @@ router.patch("/:id/activar", authMiddleware, async (req, res) => {
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const {
+      fecha,
       desde,
       hasta,
       tipo,
@@ -2534,6 +2535,30 @@ router.get("/", authMiddleware, async (req, res) => {
 
     const where = [];
     const params = [];
+
+    const role =
+      Array.isArray(req.user.roles) && req.user.roles.length
+        ? req.user.roles[0]
+        : undefined;
+
+    if (role !== "ADMINISTRADOR") {
+      where.push("r.creado_por_user_id = ?");
+      params.push(req.user.id);
+    }
+
+    if (fecha) {
+      where.push("DATE(r.fecha) = ?");
+      params.push(String(fecha));
+    } else {
+      // si no mandan fecha, usa desde/hasta como antes
+      if (desde) { where.push("r.fecha >= ?"); params.push(desde); }
+      if (hasta) { where.push("r.fecha <= ?"); params.push(hasta); }
+    }
+
+    if (tipo) { where.push("r.tipo_reporte = ?"); params.push(tipo); }
+    if (area_id) { where.push("r.area_id = ?"); params.push(area_id); }
+    if (turno) { where.push("r.turno = ?"); params.push(normalizarTurno(turno)); }
+    if (creador_id) { where.push("r.creado_por_user_id = ?"); params.push(creador_id); }
 
     if (desde) {
       where.push("r.fecha >= ?");

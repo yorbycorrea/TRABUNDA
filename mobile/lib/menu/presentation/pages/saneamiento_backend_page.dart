@@ -62,6 +62,11 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  TimeOfDay _nowTime() {
+    final now = DateTime.now();
+    return TimeOfDay(hour: now.hour, minute: now.minute);
+  }
+
   List<SaneamientoLineaValidation> _mapValidations() {
     return _items
         .map(
@@ -271,11 +276,21 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                         return;
                       }
 
-                      _items[i].trabajadorId = newTrabId;
-                      _items[i].codigoCtrl.text = codigo.isNotEmpty
-                          ? codigo
-                          : dni;
-                      _items[i].nombreCtrl.text = nombre;
+                      final m = _items[i];
+
+                      m.trabajadorId = newTrabId;
+                      m.codigoCtrl.text = codigo.isNotEmpty ? codigo : dni;
+                      m.nombreCtrl.text = nombre;
+
+                      // ✅ NUEVO: poner hora inicio automática si está vacía
+                      if (m.inicio == null) {
+                        m.inicio = _nowTime();
+                      }
+
+                      // ✅ opcional: recalcular horas si ya hay fin
+                      m.horas = (m.inicio != null && m.fin != null)
+                          ? _calculateHoras(m.inicio!, m.fin!)
+                          : null;
                     });
                   },
                 ),
@@ -312,6 +327,7 @@ class _SaneaFormModel {
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();
   final laboresCtrl = TextEditingController();
+  final _horaInicioCtrl = TextEditingController();
 
   TimeOfDay? inicio;
   TimeOfDay? fin;
