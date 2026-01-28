@@ -1070,10 +1070,16 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       updates.push("cuadrilla_id = ?");
       params.push(cuadrilla_id ?? null);
     }
+    // 🔒 hora_inicio: NO permitir borrar con null
     if (hora_inicio !== undefined) {
-      updates.push("hora_inicio = ?");
-      params.push(hora_inicio ?? null);
+      if (hora_inicio === null || String(hora_inicio).trim() === "") {
+    // si intentan mandarlo vacío, lo ignoramos (no lo borra)
+      } else {
+        updates.push("hora_inicio = ?");
+        params.push(hora_inicio);
+      }
     }
+
     if (hora_fin !== undefined) {
       updates.push("hora_fin = ?");
       params.push(hora_fin ?? null);
@@ -2113,11 +2119,11 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
     const tipo = repRows[0].tipo_reporte;
 
-    // ✅ valores finales que se usarán en UPDATE/INSERT
+    // valores finales que se usarán en UPDATE/INSERT
     let areaNombre = null;
     let areaIdFinal = area_id ?? null;
 
-    // ✅ reglas por tipo
+    // reglas por tipo
     if (tipo === "SANEAMIENTO") {
       // saneamiento: NO área, PERO labores obligatorio
       if (!labores || !String(labores).trim()) {
@@ -2140,7 +2146,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
     const trabajador = tRows[0];
 
-    // ✅ área solo para APOYO_HORAS
+    // área solo para APOYO_HORAS
     if (tipo === "APOYO_HORAS") {
       if (!area_id) {
         return res
@@ -2209,7 +2215,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       }
     }
 
-    // ✅ evitar duplicados por trabajador con pendiente (SANEAMIENTO)
+    // evitar duplicados por trabajador con pendiente (SANEAMIENTO)
     if (tipo === "SANEAMIENTO") {
       const [pendiente] = await pool.query(
         `SELECT id
@@ -2222,32 +2228,60 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         [reporteId, trabajador_id]
       );
 
-      if (pendiente.length) {
-        await pool.query(
-          `UPDATE lineas_reporte
-           SET hora_inicio = ?,
-               hora_fin = ?,
-               horas = ?,
-               labores = ?
-           WHERE id = ?`,
-          [
-            hora_inicio ?? null,
-            horaFinValue ?? null,
-            horasValue ?? null,
-            labores ?? null,
-            pendiente[0].id,
-          ]
-        );
+     if (pendiente.length) {
+  const sets = [];
+  const params = [];
 
-        const info = await recalcularEstadoReporte(reporteId);
+  // 🔒 hora_inicio solo si viene (y no permitir setear null)
+ if (hora_inicio !== undefined && hora_inicio !== null && String(hora_inicio).trim() !== "") {
+  sets.push("hora_inicio = CASE WHEN hora_inicio IS NULL THEN ? ELSE hora_inicio END");
+  params.push(hora_inicio);
+}
 
-        return res.json({
-          message: "Linea actualizada (pendiente existente)",
-          linea_id: pendiente[0].id,
-          pendientes: info.pendientes,
-          estado_reporte: info.estado,
-        });
-      }
+
+  // hora_fin puede ir o quedar null (para cerrar o mantener pendiente)
+  if (hora_fin !== undefined) {
+    sets.push("hora_fin = ?");
+    params.push(horaFinValue ?? null);
+  }
+
+  // horas
+  if (horas !== undefined) {
+    sets.push("horas = ?");
+    params.push(horasValue ?? null);
+  } else if (hora_fin !== undefined) {
+    // si llegó hora_fin y calculaste horas, actualízalas
+    sets.push("horas = ?");
+    params.push(horasValue ?? null);
+  }
+
+  // labores (para saneamiento sí importa)
+  if (labores !== undefined) {
+    sets.push("labores = ?");
+    params.push(labores ?? null);
+  }
+
+  if (!sets.length) {
+    return res.status(400).json({ error: "No hay campos para actualizar" });
+  }
+
+  params.push(pendiente[0].id);
+
+  await pool.query(
+    `UPDATE lineas_reporte SET ${sets.join(", ")} WHERE id = ?`,
+    params
+  );
+
+  const info = await recalcularEstadoReporte(reporteId);
+
+  return res.json({
+    message: "Linea actualizada (pendiente existente)",
+    linea_id: pendiente[0].id,
+    pendientes: info.pendientes,
+    estado_reporte: info.estado,
+  });
+}
+
     }
 
     // ✅ evitar duplicados por trabajador con pendiente (APOYO_HORAS)

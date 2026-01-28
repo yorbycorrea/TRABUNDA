@@ -284,7 +284,7 @@ class ReportRemoteDataSource {
     int? lineaId,
     required int reporteId,
     required int trabajadorId,
-    required String horaInicio,
+    String? horaInicio,
     String? horaFin,
     double? horas,
     String? labores,
