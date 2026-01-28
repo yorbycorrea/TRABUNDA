@@ -10,3 +10,4 @@ services:
     environment:
       - NODE_ENV=development
       - DB_HOST=db
+      - DB_NAME=${DB_NAME_DEV}

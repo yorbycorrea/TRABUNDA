@@ -23,15 +23,15 @@ import 'package:mobile/menu/presentation/pages/report_create_saneamiento_page.da
 
 import 'package:mobile/core/theme/app_colors.dart';
 
-Future<void> main() async {
+Future<void> bootstrapApp({required String envFile}) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
     // Esto carga el archivo físico .env en la memoria de la app
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: envFile);
     print("✅ Variables de entorno cargadas: ${dotenv.env['API_URL']}");
   } catch (e) {
-    print("❌ Error cargando .env: $e");
+    print("❌ Error cargando $envFile: $e");
   }
 
   final theme = ThemeData(
@@ -75,6 +75,10 @@ Future<void> main() async {
       child: TrabundaApp(api: apiClient, theme: theme),
     ),
   );
+}
+
+Future<void> main() async {
+  await bootstrapApp(envFile: ".env");
 }
 
 class TrabundaApp extends StatelessWidget {

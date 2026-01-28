@@ -29,3 +29,11 @@ PLAYWRIGHT_BROWSERS_PATH=0
 ```
 
 Puedes definirla en el Dockerfile o en `docker-compose.yml` según tu flujo.
+
+
+## Entornos
+
+- Desarrollo:
+  - `flutter run -t lib/main_dev.dart`
+- Producción:
+  - `flutter build -t lib/main_prod.dart`
