@@ -13,10 +13,12 @@ class SaneamientoHomePage extends StatefulWidget {
     super.key,
     required this.api,
     required this.turno,
+    required this.selectedFecha,
   });
 
   final ApiClient api;
   final String turno;
+  final DateTime selectedFecha;
 
   @override
   State<SaneamientoHomePage> createState() => _SaneamientoHomePageState();
@@ -27,6 +29,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
   String? _error;
 
   ReportPendiente? _pendiente;
+  ReportOpenInfo? _openInfo;
 
   late final FetchSaneamientoPendientes _fetchSaneamientoPendientes;
   late final OpenSaneamientoReport _openSaneamientoReport;
@@ -37,14 +40,15 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
     final repository = ReportRepositoryImpl(widget.api);
     _fetchSaneamientoPendientes = FetchSaneamientoPendientes(repository);
     _openSaneamientoReport = OpenSaneamientoReport(repository);
-    _loadPendientes();
+    _loadData();
   }
 
-  Future<void> _loadPendientes() async {
+  Future<void> _loadData() async {
     setState(() {
       _loading = true;
       _error = null;
       _pendiente = null;
+      _openInfo = null;
     });
 
     try {
@@ -56,6 +60,12 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
       if (items.isNotEmpty) {
         _pendiente = items.first;
       }
+
+      final openInfo = await _openSaneamientoReport.call(
+        fecha: DateTime.now(),
+        turno: widget.turno,
+      );
+      _openInfo = openInfo;
 
       if (!mounted) return;
       setState(() => _loading = false);
@@ -100,7 +110,26 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
     );
 
     if (!mounted) return;
-    _loadPendientes();
+    _loadData();
+  }
+
+  Future<void> _openReporte(ReportOpenInfo info) async {
+    final fecha = _parseFecha(info.fecha);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SaneamientoBackendPage(
+          api: widget.api,
+          reporteId: info.id,
+          fecha: fecha,
+          turno: info.turno.isEmpty ? widget.turno : info.turno,
+          saneador: info.creadoPorNombre,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    _loadData();
   }
 
   Future<void> _crearNuevoYEntrar() async {
@@ -111,7 +140,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
       });
 
       final reporte = await _openSaneamientoReport.call(
-        fecha: DateTime.now(),
+        fecha: widget.selectedFecha,
         turno: widget.turno,
       );
 
@@ -136,7 +165,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
       );
 
       if (!mounted) return;
-      _loadPendientes();
+      _loadData();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -153,13 +182,23 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
   Widget build(BuildContext context) {
     final pendiente = _pendiente;
     final tienePendiente = pendiente != null && pendiente.pendientes > 0;
+    final openInfo = _openInfo;
+    final estado = openInfo?.estado ?? '';
+    final allowCreate = openInfo?.allowCreate ?? false;
+    final actionLabel = estado == 'CERRADO'
+        ? 'Ver reporte'
+        : estado == 'ABIERTO'
+        ? 'Continuar'
+        : allowCreate
+        ? 'Crear'
+        : null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saneamiento'),
         actions: [
           IconButton(
-            onPressed: _loading ? null : _loadPendientes,
+            onPressed: _loading ? null : _loadData,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -181,7 +220,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
                   subtitle: Text(_error!),
                   trailing: IconButton(
                     icon: const Icon(Icons.refresh),
-                    onPressed: _loadPendientes,
+                    onPressed: _loadData,
                   ),
                 ),
               ),
@@ -199,6 +238,72 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
 
               const SizedBox(height: 12),
               const Divider(),
+
+              Card(
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Estado del reporte',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        estado == 'CERRADO'
+                            ? 'Completado'
+                            : estado == 'ABIERTO'
+                            ? 'En progreso'
+                            : allowCreate
+                            ? 'Sin reporte creado'
+                            : 'No disponible',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      const SizedBox(height: 14),
+                      if (actionLabel != null)
+                        SizedBox(
+                          height: 48,
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _loading
+                                ? null
+                                : () {
+                                    if (actionLabel == 'Crear') {
+                                      _crearNuevoYEntrar();
+                                      return;
+                                    }
+                                    if (openInfo != null) {
+                                      _openReporte(openInfo);
+                                    }
+                                  },
+                            icon: Icon(
+                              actionLabel == 'Ver reporte'
+                                  ? Icons.visibility_outlined
+                                  : actionLabel == 'Continuar'
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.add_circle_outline,
+                            ),
+                            label: Text(actionLabel),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 48,
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: null,
+                            icon: const Icon(Icons.block_outlined),
+                            label: const Text('No disponible'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
 
               // ✅ Banner amarillo
               if (tienePendiente) ...[
@@ -224,30 +329,20 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
                   onTap: _openPendiente,
                 )
               else
-                Card(
+                const Card(
                   elevation: 0,
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'No tienes saneamientos pendientes (24h)',
                           style: TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
+                        SizedBox(height: 8),
+                        Text(
                           'Puedes iniciar un reporte nuevo. Si dejas líneas sin hora fin o sin labores, aparecerán aquí por 24 horas.',
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          height: 48,
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _loading ? null : _crearNuevoYEntrar,
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Iniciar reporte'),
-                          ),
                         ),
                       ],
                     ),

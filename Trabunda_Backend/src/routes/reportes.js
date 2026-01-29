@@ -366,13 +366,17 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const turno = normalizarTurno(req.query.turno);
-    const { fecha, forceNew } = req.query;
+    const { fecha } = req.query;
 
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
     if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
 
+      if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+      return res.status(400).json({ error: "fecha debe tener formato YYYY-MM-DD" });
+    }
+
     const fechaValue = fecha ? String(fecha) : new Date().toISOString().slice(0, 10);
-    const force = String(forceNew || "0") === "1";
+    
 
     // ✅ 1) Buscar el último reporte del mismo usuario + fecha + turno (cualquier estado)
     const [existentes] = await pool.query(
@@ -387,13 +391,18 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
       [userId, turno, fechaValue]
     );
 
-    // ✅ Si existe y NO forzaron crear uno nuevo, devuelve el existente
-    if (existentes.length && !force) {
+     // ✅ Si existe, devuelve el existente con bandera allowCreate según estado
+    if (existentes.length) {
+      const reporte = {
+        id: existentes[0].id,
+        fecha: existentes[0].fecha,
+        turno: existentes[0].turno,
+        estado: existentes[0].estado,
+      };
       return res.json({
         existente: true,
-        motivo: "YA_EXISTE_MISMA_FECHA_TURNO",
-        reporte: existentes[0],
-        opciones: ["VER", "CREAR_NUEVO"],
+         allowCreate: existentes[0].estado === "ABIERTO",
+        reporte,
       });
     }
 
@@ -427,7 +436,16 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
       [result.insertId]
     );
 
-    return res.status(201).json({ existente: false, reporte: nuevo });
+    return res.status(201).json({
+      existente: false,
+      allowCreate: true,
+      reporte: {
+        id: nuevo.id,
+        fecha: nuevo.fecha,
+        turno: nuevo.turno,
+        estado: nuevo.estado,
+      },
+    });
   } catch (e) {
     console.error("open saneamiento error:", e);
     return res.status(500).json({ error: "Error interno open saneamiento" });

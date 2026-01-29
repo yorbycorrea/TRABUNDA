@@ -17,12 +17,16 @@ class ReportOpenInfo {
   final String fecha;
   final String turno;
   final String creadoPorNombre;
+  final bool allowCreate;
+  final String estado;
 
   const ReportOpenInfo({
     required this.id,
     required this.fecha,
     required this.turno,
     required this.creadoPorNombre,
+    this.allowCreate = true,
+    this.estado = '',
   });
 }
 

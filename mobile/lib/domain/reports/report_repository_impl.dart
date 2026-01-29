@@ -99,12 +99,20 @@ class ReportRepositoryImpl implements ReportRepository {
   }) async {
     final decoded = await _remote.openSaneamiento(fecha: fecha, turno: turno);
 
-    final rep = (decoded['reporte'] as Map).cast<String, dynamic>();
+    final repRaw = decoded['reporte'];
+    if (repRaw is! Map) {
+      throw Exception('Respuesta inválida: reporte no es mapa.');
+    }
+    final rep = repRaw.cast<String, dynamic>();
+    final allowCreate = decoded['allowCreate'];
+    final allowCreateValue = allowCreate is bool ? allowCreate : true;
     return ReportOpenInfo(
       id: (rep['id'] as num).toInt(),
       fecha: (rep['fecha'] ?? _fmtFecha(fecha)).toString(),
       turno: (rep['turno'] ?? turno).toString(),
       creadoPorNombre: (rep['creado_por_nombre'] ?? '').toString(),
+      allowCreate: allowCreateValue,
+      estado: (rep['estado'] ?? '').toString(),
     );
   }
 
@@ -116,6 +124,8 @@ class ReportRepositoryImpl implements ReportRepository {
     final decoded = await _remote.openApoyoHoras(fecha: fecha, turno: turno);
 
     final rep = (decoded['reporte'] as Map).cast<String, dynamic>();
+    final allowCreate = decoded['allowCreate'];
+    final allowCreateValue = allowCreate is bool ? allowCreate : true;
 
     return ReportOpenInfo(
       id: (rep['id'] as num).toInt(),
@@ -123,6 +133,8 @@ class ReportRepositoryImpl implements ReportRepository {
           .toString(),
       turno: (rep['turno'] ?? turno).toString(),
       creadoPorNombre: (rep['creado_por_nombre'] ?? '').toString(),
+      allowCreate: allowCreateValue,
+      estado: (rep['estado'] ?? '').toString(),
     );
   }
 
@@ -142,12 +154,16 @@ class ReportRepositoryImpl implements ReportRepository {
       throw Exception('Respuesta inválida: reporte no es mapa.');
     }
     final rep = repRaw.cast<String, dynamic>();
+    final allowCreate = decoded['allowCreate'];
+    final allowCreateValue = allowCreate is bool ? allowCreate : true;
     return ReportOpenInfo(
       id: (rep['id'] as num).toInt(),
       fecha: (rep['fecha'] ?? (fecha != null ? _fmtFecha(fecha) : ''))
           .toString(),
       turno: (rep['turno'] ?? turno).toString(),
       creadoPorNombre: (rep['creado_por_nombre'] ?? '').toString(),
+      allowCreate: allowCreateValue,
+      estado: (rep['estado'] ?? '').toString(),
     );
   }
 

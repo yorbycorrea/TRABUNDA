@@ -7,6 +7,7 @@ import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
 import 'package:mobile/features/state_saneamiento.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
+import 'package:mobile/domain/reports/models/report_models.dart';
 
 // import 'package:mobile/menu/presentation/pages/saneamiento_form_page.dart';
 
@@ -24,7 +25,7 @@ class _ReportCreateSaneamientoPageState
     extends State<ReportCreateSaneamientoPage> {
   bool _loadingSanea = false;
   String? _errorSanea;
-  int? _saneaReporteId;
+  ReportOpenInfo? _saneaInfo;
   DateTime _fecha = DateTime.now();
   String _turno = 'Dia';
   bool _creando = false;
@@ -54,6 +55,7 @@ class _ReportCreateSaneamientoPageState
     final repository = ReportRepositoryImpl(widget.api);
     _openSaneamientoReport = OpenSaneamientoReport(repository);
     _createSaneamientoReport = CreateSaneamientoReport(repository);
+    _openOrGetSaneamiento();
   }
 
   @override
@@ -71,7 +73,7 @@ class _ReportCreateSaneamientoPageState
     setState(() {
       _loadingSanea = true;
       _errorSanea = null;
-      _saneaReporteId = null;
+      _saneaInfo = null;
       _errorSanea = null;
     });
 
@@ -81,7 +83,7 @@ class _ReportCreateSaneamientoPageState
         turno: _turno,
       );
 
-      setState(() => _saneaReporteId = reporte.id);
+      setState(() => _saneaInfo = reporte);
     } catch (e) {
       setState(() => _errorSanea = e.toString());
     } finally {
@@ -100,6 +102,8 @@ class _ReportCreateSaneamientoPageState
     setState(() {
       _fecha = picked;
       _fechaCtrl.text = _fecha.toLocal().toString().split(' ').first;
+
+      _errorSanea = null;
     });
   }
 
@@ -121,7 +125,8 @@ class _ReportCreateSaneamientoPageState
       await _openOrGetSaneamiento();
       if (!mounted) return;
 
-      if (_saneaReporteId == null) {
+      final reporte = _saneaInfo;
+      if (reporte == null) {
         _toast('No se pudo obtener el reporte de saneamiento');
         return;
       }
@@ -132,7 +137,7 @@ class _ReportCreateSaneamientoPageState
         MaterialPageRoute(
           builder: (_) => SaneamientoBackendPage(
             api: widget.api,
-            reporteId: _saneaReporteId!,
+            reporteId: reporte.id,
             fecha: _fecha,
             turno: _turno,
             saneador: _usuarioCtrl.text.trim(),
@@ -152,7 +157,18 @@ class _ReportCreateSaneamientoPageState
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final saneaExiste = _saneaReporteId != null;
+    final saneaInfo = _saneaInfo;
+    final saneaExiste = saneaInfo != null;
+    final estado = saneaInfo?.estado ?? '';
+    final allowCreate = saneaInfo?.allowCreate ?? false;
+    final reporteId = saneaInfo?.id;
+    final actionLabel = estado == 'CERRADO'
+        ? 'Ver reporte'
+        : estado == 'ABIERTO'
+        ? 'Continuar'
+        : allowCreate
+        ? 'Crear'
+        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Crear reporte (Saneamiento)')),
@@ -203,7 +219,7 @@ class _ReportCreateSaneamientoPageState
                               : (v) {
                                   setState(() {
                                     _turno = v ?? 'Dia';
-                                    _saneaReporteId = null;
+                                    _saneaInfo = null;
                                     _errorSanea = null;
                                   });
                                 },
@@ -234,70 +250,103 @@ class _ReportCreateSaneamientoPageState
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: (_creando || _loadingSanea)
-                  ? null
-                  : () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SaneamientoHomePage(
-                            api: widget.api,
-                            turno: _turno,
-                          ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: cs.primary.withOpacity(.10),
+                        child: Icon(
+                          Icons.cleaning_services_outlined,
+                          color: cs.primary,
                         ),
-                      );
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Saneamiento',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _loadingSanea
+                                  ? 'Verificando...'
+                                  : _errorSanea != null
+                                  ? 'Error: $_errorSanea'
+                                  : estado == 'CERRADO'
+                                  ? 'Completado • Reporte ID: $reporteId'
+                                  : estado == 'ABIERTO'
+                                  ? 'Continuar • Reporte ID: $reporteId'
+                                  : saneaExiste
+                                  ? 'Crear y registrar saneamiento'
+                                  : 'Crear y registrar saneamiento',
+                              style: const TextStyle(color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (actionLabel != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: (_creando || _loadingSanea)
+                            ? null
+                            : () async {
+                                if (actionLabel == 'Ver reporte' ||
+                                    actionLabel == 'Continuar') {
+                                  await _abrirSaneamiento();
+                                  return;
+                                }
 
-                      // al volver, refresca el estado "EN ESPERA"
-                      if (!mounted) return;
-                      await _openOrGetSaneamiento();
-                    },
-
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: cs.primary.withOpacity(.10),
-                      child: Icon(
-                        Icons.cleaning_services_outlined,
-                        color: cs.primary,
+                                if (actionLabel == 'Crear') {
+                                  final id = await _crearReporteSaneamiento();
+                                  if (!mounted) return;
+                                  setState(
+                                    () => _saneaInfo = ReportOpenInfo(
+                                      id: id,
+                                      fecha: _fecha
+                                          .toLocal()
+                                          .toString()
+                                          .split(' ')
+                                          .first,
+                                      turno: _turno,
+                                      creadoPorNombre: _usuarioCtrl.text.trim(),
+                                      allowCreate: true,
+                                      estado: 'ABIERTO',
+                                    ),
+                                  );
+                                  await _abrirSaneamiento();
+                                }
+                              },
+                        child: Text(actionLabel),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Saneamiento',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _loadingSanea
-                                ? 'Verificando...'
-                                : _errorSanea != null
-                                ? 'Error: $_errorSanea'
-                                : saneaExiste
-                                ? 'EN ESPERA • Reporte ID: $_saneaReporteId'
-                                : 'Crear y registrar saneamiento',
-                            style: const TextStyle(color: Colors.black54),
-                          ),
-                        ],
+                  if (actionLabel == null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: null,
+                        child: const Text('No disponible'),
                       ),
                     ),
-
-                    (_creando || _loadingSanea)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.chevron_right),
-                  ],
-                ),
+                  if (_creando || _loadingSanea)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
