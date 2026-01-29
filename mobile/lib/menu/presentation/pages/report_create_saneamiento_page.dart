@@ -8,6 +8,7 @@ import 'package:mobile/features/state_saneamiento.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
+import 'package:mobile/menu/presentation/pages/report_view_page.dart';
 
 // import 'package:mobile/menu/presentation/pages/saneamiento_form_page.dart';
 
@@ -159,7 +160,7 @@ class _ReportCreateSaneamientoPageState
     }
   }
 
-  Future<void> _abrirSaneamiento() async {
+  Future<void> _abrirSaneamiento({bool readOnly = false}) async {
     try {
       // 1) obtiene/crea el reporte abierto (igual que apoyo horas)
       await _openOrGetSaneamiento();
@@ -181,6 +182,7 @@ class _ReportCreateSaneamientoPageState
             fecha: _fecha,
             turno: _turno,
             saneador: _usuarioCtrl.text.trim(),
+            readOnly: readOnly,
           ),
         ),
       );
@@ -341,9 +343,26 @@ class _ReportCreateSaneamientoPageState
                         onPressed: (_creando || _loadingSanea)
                             ? null
                             : () async {
-                                if (actionLabel == 'Ver reporte' ||
-                                    actionLabel == 'Continuar') {
-                                  await _abrirSaneamiento();
+                                if (actionLabel == 'Ver reporte') {
+                                  final reporteId = _saneaInfo?.id;
+                                  if (reporteId == null || reporteId <= 0) {
+                                    _toast('No se pudo abrir el reporte');
+                                    return;
+                                  }
+
+                                  // ✅ Ir a la pantalla "Ver reportes"
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ReportViewPage(api: widget.api),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (actionLabel == 'Continuar') {
+                                  await _abrirSaneamiento(readOnly: false);
                                   return;
                                 }
 

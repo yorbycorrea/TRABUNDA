@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+
 import 'package:mobile/core/network/api_client.dart';
 
 class AuthRemoteDataSource {

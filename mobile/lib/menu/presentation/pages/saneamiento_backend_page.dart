@@ -14,6 +14,7 @@ class SaneamientoBackendPage extends StatefulWidget {
     required this.fecha,
     required this.turno,
     required this.saneador,
+    this.readOnly = false,
   });
 
   final ApiClient api;
@@ -21,6 +22,7 @@ class SaneamientoBackendPage extends StatefulWidget {
   final DateTime fecha;
   final String turno;
   final String saneador;
+  final bool readOnly;
 
   @override
   State<SaneamientoBackendPage> createState() => _SaneamientoBackendPageState();
@@ -155,6 +157,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   }
 
   Future<void> _guardar() async {
+    if (widget.readOnly) return;
     if (!_formKey.currentState!.validate()) return;
 
     final validationMessage = _validateSaneamientoLineas.validarMinimo(
@@ -220,12 +223,14 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Saneamiento · Detalle'),
-        actions: [
-          IconButton(
-            onPressed: _saving ? null : _guardar,
-            icon: const Icon(Icons.save_outlined),
-          ),
-        ],
+        actions: widget.readOnly
+            ? null
+            : [
+                IconButton(
+                  onPressed: _saving ? null : _guardar,
+                  icon: const Icon(Icons.save_outlined),
+                ),
+              ],
       ),
       body: SafeArea(
         child: Form(
@@ -245,6 +250,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   index: i,
                   model: _items[i],
                   api: widget.api,
+                  readOnly: widget.readOnly,
                   onPickInicio: () => _pickHora(_items[i], true),
                   onPickFin: () => _pickHora(_items[i], false),
                   onFillFromScan: (result) {
@@ -298,20 +304,21 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
               const SizedBox(height: 8),
               Center(
                 child: TextButton.icon(
-                  onPressed: _addTrabajador,
+                  onPressed: widget.readOnly ? null : _addTrabajador,
                   icon: const Icon(Icons.person_add_outlined),
                   label: const Text('Agregar trabajador'),
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 50,
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : _guardar,
-                  icon: const Icon(Icons.save_outlined),
-                  label: Text(_saving ? 'Guardando...' : 'Guardar y volver'),
+              if (!widget.readOnly)
+                SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _guardar,
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(_saving ? 'Guardando...' : 'Guardar y volver'),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -342,11 +349,13 @@ class _SaneamientoCard extends StatelessWidget {
     required this.onPickInicio,
     required this.onPickFin,
     required this.onFillFromScan,
+    required this.readOnly,
   });
 
   final int index;
   final _SaneaFormModel model;
   final ApiClient api;
+  final bool readOnly;
   final VoidCallback onPickInicio;
   final VoidCallback onPickFin;
   final void Function(Map<String, dynamic> result) onFillFromScan;
@@ -382,7 +391,9 @@ class _SaneamientoCard extends StatelessWidget {
                   child: _HoraBox(
                     label: 'Hora inicio',
                     value: _horaText(model.inicio),
-                    onTap: (model.inicio == null)
+                    onTap: readOnly
+                        ? null
+                        : (model.inicio == null)
                         ? onPickInicio
                         : () {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -393,7 +404,7 @@ class _SaneamientoCard extends StatelessWidget {
                               ),
                             );
                           },
-                    locked: model.inicio != null,
+                    locked: readOnly || model.inicio != null,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -401,7 +412,8 @@ class _SaneamientoCard extends StatelessWidget {
                   child: _HoraBox(
                     label: 'Hora fin',
                     value: _horaText(model.fin),
-                    onTap: onPickFin,
+                    onTap: readOnly ? null : onPickFin,
+                    locked: readOnly,
                   ),
                 ),
               ],
@@ -412,22 +424,26 @@ class _SaneamientoCard extends StatelessWidget {
             TextFormField(
               controller: model.codigoCtrl,
               keyboardType: TextInputType.number,
+              readOnly: readOnly,
               decoration: InputDecoration(
                 labelText: 'Código del trabajador',
                 prefixIcon: const Icon(Icons.badge_outlined),
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () async {
-                    final result = await Navigator.push<Map<String, dynamic>?>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => QrScannerPage(api: api),
-                      ),
-                    );
-                    if (result == null) return;
-                    onFillFromScan(result);
-                  },
+                  onPressed: readOnly
+                      ? null
+                      : () async {
+                          final result =
+                              await Navigator.push<Map<String, dynamic>?>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => QrScannerPage(api: api),
+                                ),
+                              );
+                          if (result == null) return;
+                          onFillFromScan(result);
+                        },
                 ),
               ),
               validator: (v) =>
@@ -452,6 +468,7 @@ class _SaneamientoCard extends StatelessWidget {
             TextFormField(
               controller: model.laboresCtrl,
               maxLines: 3,
+              readOnly: readOnly,
               decoration: const InputDecoration(
                 labelText: 'Labores realizadas',
                 prefixIcon: Icon(Icons.work_outline),
