@@ -244,6 +244,18 @@ class ReportRemoteDataSource {
     double? horas,
     required int areaId,
   }) async {
+    if (lineaId != null) {
+      final payload = <String, dynamic>{
+        'trabajador_id': trabajadorId,
+        'hora_inicio': horaInicio,
+        'hora_fin': horaFin,
+        'horas': horas,
+        'area_id': areaId,
+      }..removeWhere((key, value) => value == null);
+      final resp = await _api.patch('/reportes/lineas/$lineaId', payload);
+      _ensureSuccess(resp, hint: 'Actualizar línea apoyo');
+      return lineaId;
+    }
     final payload = <String, dynamic>{
       'trabajador_id': trabajadorId,
       'hora_inicio': horaInicio,
@@ -251,12 +263,6 @@ class ReportRemoteDataSource {
       'horas': horas,
       'area_id': areaId,
     };
-
-    if (lineaId != null) {
-      final resp = await _api.patch('/reportes/lineas/$lineaId', payload);
-      _ensureSuccess(resp, hint: 'Actualizar línea apoyo');
-      return lineaId;
-    }
 
     final resp = await _api.post('/reportes/$reporteId/lineas', payload);
     final decoded = _api.decodeJsonOrThrow(resp);
@@ -289,6 +295,22 @@ class ReportRemoteDataSource {
     double? horas,
     String? labores,
   }) async {
+    if (lineaId != null) {
+      final payload = <String, dynamic>{
+        'trabajador_id': trabajadorId,
+        'hora_inicio': horaInicio,
+        'hora_fin': horaFin,
+        'horas': horas,
+        'area_id': null,
+        'labores': (labores == null || labores.trim().isEmpty)
+            ? null
+            : labores.trim(),
+      }..removeWhere((key, value) => value == null);
+      final resp = await _api.patch('/reportes/lineas/$lineaId', payload);
+      _ensureSuccess(resp, hint: 'Actualizar línea saneamiento');
+      return lineaId;
+    }
+
     final payload = <String, dynamic>{
       'trabajador_id': trabajadorId,
       'hora_inicio': horaInicio,
@@ -299,12 +321,6 @@ class ReportRemoteDataSource {
           ? null
           : labores.trim(),
     };
-
-    if (lineaId != null) {
-      final resp = await _api.patch('/reportes/lineas/$lineaId', payload);
-      _ensureSuccess(resp, hint: 'Actualizar línea saneamiento');
-      return lineaId;
-    }
 
     final resp = await _api.post('/reportes/$reporteId/lineas', payload);
     final decoded = _api.decodeJsonOrThrow(resp);

@@ -1042,20 +1042,22 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "lineaId inválido" });
     }
 
-    const {
-      cuadrilla_id,
-      horas,
-      hora_inicio,
-      hora_fin,
-      kilos,
-      labores,
-      area_id,
-    } = req.body;
+    const body = req.body || {};
+    const clear = req.query.clear === "true" || req.body?.clear === true;
+
+    const hasField = (field) =>
+      Object.prototype.hasOwnProperty.call(body, field);
 
    
 
     const [lineaRows] = await pool.query(
-      "SELECT reporte_id, hora_inicio FROM lineas_reporte WHERE id = ? LIMIT 1",
+      `SELECT lineas_reporte.reporte_id,
+              lineas_reporte.hora_inicio,
+              reportes.tipo_reporte
+       FROM lineas_reporte
+       INNER JOIN reportes ON reportes.id = lineas_reporte.reporte_id
+       WHERE lineas_reporte.id = ?
+       LIMIT 1`,
       [lineaId]
     );
     if (!lineaRows.length) {
@@ -1064,70 +1066,110 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
 
     const existingLinea = lineaRows[0];
     const reporteId = existingLinea.reporte_id;
+     const tipoReporte = existingLinea.tipo_reporte;
 
     const updates = [];
     const params = [];
 
-    if (cuadrilla_id !== undefined) {
-      updates.push("cuadrilla_id = ?");
-      params.push(cuadrilla_id ?? null);
+    if (hasField("cuadrilla_id")) {
+      const value = body.cuadrilla_id;
+      if (value === null) {
+        if (clear) {
+          updates.push("cuadrilla_id = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("cuadrilla_id = ?");
+        params.push(value);
+      }
     }
-    // 🔒 hora_inicio: NO permitir borrar con null
-    if (hora_inicio !== undefined) {
-      if (hora_inicio === null || String(hora_inicio).trim() === "") {
-    // si intentan mandarlo vacío, lo ignoramos (no lo borra)
-     console.warn(
-          "[debug][PATCH /reportes/lineas/:lineaId] hora_inicio null/empty; se omite update",
-          { hora_inicio, body: req.body, lineaId }
-        );
+    if (hasField("hora_inicio")) {
+      const value = body.hora_inicio;
+      if (value === null) {
+        if (clear) {
+          updates.push("hora_inicio = ?");
+          params.push(null);
+        }
       } else {
         updates.push("hora_inicio = ?");
-        params.push(hora_inicio);
+         params.push(value);
       }
-       } else if (Object.prototype.hasOwnProperty.call(req.body || {}, "hora_inicio")) {
-      console.warn(
-        "[debug][PATCH /reportes/lineas/:lineaId] hora_inicio undefined en payload",
-        { body: req.body, lineaId }
-      )
+      
     }
 
-    if (hora_fin !== undefined) {
-      updates.push("hora_fin = ?");
-      params.push(hora_fin ?? null);
+    if (hasField("hora_fin")) {
+      const value = body.hora_fin;
+      if (value === null) {
+        if (clear) {
+          updates.push("hora_fin = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("hora_fin = ?");
+        params.push(value);
+      }
     }
-    if (kilos !== undefined) {
-      updates.push("kilos = ?");
-      params.push(kilos ?? null);
+    if (hasField("kilos")) {
+      const value = body.kilos;
+      if (value === null) {
+        if (clear) {
+          updates.push("kilos = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("kilos = ?");
+        params.push(value);
+      }
     }
-    if (labores !== undefined) {
-      updates.push("labores = ?");
-      params.push(labores ?? null);
+    if (hasField("labores")) {
+      const value = body.labores;
+      if (value === null) {
+        if (clear) {
+          updates.push("labores = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("labores = ?");
+        params.push(value);
+      }
     }
 
     // area (opcional)
-    if (area_id !== undefined) {
-      updates.push("area_id = ?");
-      params.push(area_id ?? null);
+    if (hasField("area_id")) {
+      const value = body.area_id;
+      if (value === null) {
+        if (clear) {
+          updates.push("area_id = ?");
+          params.push(null);
+          updates.push("area_nombre = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("area_id = ?");
+        params.push(value);
 
-      const [aRows] = await pool.query(
-        "SELECT nombre FROM areas WHERE id = ? LIMIT 1",
-        [area_id]
-      );
-      const areaNombre = aRows[0]?.nombre ?? null;
-      updates.push("area_nombre = ?");
-      params.push(areaNombre);
+       const [aRows] = await pool.query(
+          "SELECT nombre FROM areas WHERE id = ? LIMIT 1",
+          [value]
+        );
+        const areaNombre = aRows[0]?.nombre ?? null;
+        updates.push("area_nombre = ?");
+        params.push(areaNombre);
+      }
     }
 
     // recalcular horas si llega hora_fin y no mandan horas
-    const horaFinLlego = hora_fin !== undefined;
-    const horaFinValue = hora_fin ?? null;
+    const horaFinLlego = hasField("hora_fin");
+    const horaFinValue = horaFinLlego ? body.hora_fin : undefined;
+    const horaFinReal = horaFinLlego && horaFinValue !== null;
+    const permiteCalculoHoras = horaFinReal || clear;
     const horaInicioParaCalculo =
-      hora_inicio !== undefined
-        ? hora_inicio ?? null
+      hasField("hora_inicio")
+        ? body.hora_inicio ?? null
         : existingLinea.hora_inicio;
 
     let horasCalculadas;
-    if (horaFinLlego && horaFinValue && horaInicioParaCalculo) {
+    if (permiteCalculoHoras && horaFinValue && horaInicioParaCalculo) {
       const toMin = (s) => {
         const [h, m] = String(s).split(":");
         return Number(h) * 60 + Number(m);
@@ -1141,14 +1183,18 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       horasCalculadas = diff / 60;
     }
 
-    if (horas !== undefined) {
-      const horasValue =
-        horas === null && horaFinLlego
-          ? horasCalculadas ?? null
-          : horas ?? horasCalculadas ?? null;
-      updates.push("horas = ?");
-      params.push(horasValue);
-    } else if (horaFinLlego && horasCalculadas !== undefined) {
+   if (hasField("horas")) {
+      const value = body.horas;
+      if (value === null) {
+        if (clear) {
+          updates.push("horas = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("horas = ?");
+        params.push(value);
+      }
+    } else if (horaFinReal && horasCalculadas !== undefined) {
       updates.push("horas = ?");
       params.push(horasCalculadas);
     }
@@ -1159,21 +1205,21 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     
     }
 
-    params.push(lineaId);
+
 
     console.log("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
       sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
       params,
     });
 
-    if (hora_inicio === null || hora_inicio === "" || hora_inicio === undefined) {
+     if (hasField("hora_inicio") && body.hora_inicio === null) {
       console.warn("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
         sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
         params,
       });
     }
 
-    params.push(lineaId);
+   
 
     const [result] = await pool.query(
       `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
