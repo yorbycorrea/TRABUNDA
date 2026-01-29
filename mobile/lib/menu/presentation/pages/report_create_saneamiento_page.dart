@@ -29,6 +29,8 @@ class _ReportCreateSaneamientoPageState
   DateTime _fecha = DateTime.now();
   String _turno = 'Dia';
   bool _creando = false;
+  int _openRequestId = 0;
+  String? _openQueryKey;
 
   final TextEditingController _fechaCtrl = TextEditingController();
   final TextEditingController _usuarioCtrl = TextEditingController();
@@ -69,12 +71,30 @@ class _ReportCreateSaneamientoPageState
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  void _resetSaneamientoState() {
+    _loadingSanea = false;
+    _errorSanea = null;
+    _saneaInfo = null;
+    _creando = false;
+  }
+
+  String _buildQueryKey() {
+    final fechaKey = _fecha.toLocal().toString().split(' ').first;
+    return '$fechaKey|$_turno';
+  }
+
+  bool _isLatestRequest(int requestId, String queryKey) {
+    return requestId == _openRequestId && queryKey == _openQueryKey;
+  }
+
   Future<void> _openOrGetSaneamiento() async {
+    final requestId = ++_openRequestId;
+    final queryKey = _buildQueryKey();
+    _openQueryKey = queryKey;
     setState(() {
       _loadingSanea = true;
       _errorSanea = null;
       _saneaInfo = null;
-      _errorSanea = null;
     });
 
     try {
@@ -83,13 +103,28 @@ class _ReportCreateSaneamientoPageState
         fecha: _fecha,
         turno: _turno,
       );
+      if (!_isLatestRequest(requestId, queryKey)) {
+        debugPrint(
+          '[TEMP] Ignorando respuesta saneamiento desfasada '
+          '(requestId=$requestId, queryKey=$queryKey)',
+        );
+        return;
+      }
+      debugPrint(
+        '[TEMP] Respuesta saneamiento: existente=${reporte.id != 0}, '
+        'estado=${reporte.estado}, id=${reporte.id}',
+      );
 
       setState(() => _saneaInfo = reporte);
     } catch (e) {
       debugPrint('Saneamiento error -> $e');
-      setState(() => _errorSanea = e.toString());
+      if (_isLatestRequest(requestId, queryKey)) {
+        setState(() => _errorSanea = e.toString());
+      }
     } finally {
-      setState(() => _loadingSanea = false);
+      if (_isLatestRequest(requestId, queryKey)) {
+        setState(() => _loadingSanea = false);
+      }
     }
   }
 
@@ -105,14 +140,10 @@ class _ReportCreateSaneamientoPageState
       _fecha = picked;
       _fechaCtrl.text = _fecha.toLocal().toString().split(' ').first;
 
-      _errorSanea = null;
+      _resetSaneamientoState();
     });
     if (!mounted) return;
-    setState(() {
-      _loadingSanea = false;
-      _errorSanea = null;
-      _saneaInfo = null;
-    });
+
     await _openOrGetSaneamiento();
   }
 
@@ -228,9 +259,7 @@ class _ReportCreateSaneamientoPageState
                               : (v) {
                                   setState(() {
                                     _turno = v ?? 'Dia';
-                                    _loadingSanea = false;
-                                    _saneaInfo = null;
-                                    _errorSanea = null;
+                                    _resetSaneamientoState();
                                   });
                                   if (!mounted) return;
                                   _openOrGetSaneamiento();
@@ -291,7 +320,7 @@ class _ReportCreateSaneamientoPageState
                                   : _errorSanea != null
                                   ? 'Error: $_errorSanea'
                                   : estado == 'CERRADO'
-                                  ? 'Completado • Reporte ID: $reporteId'
+                                  ? 'Reporte completado • Reporte ID: $reporteId'
                                   : estado == 'ABIERTO'
                                   ? 'Continuar • Reporte ID: $reporteId'
                                   : saneaExiste

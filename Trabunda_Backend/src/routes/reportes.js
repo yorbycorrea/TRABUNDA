@@ -24,7 +24,8 @@ function esTipoReporteValido(tipo) {
 function normalizarTurno(turno) {
   if (!turno) return turno;
   const t = String(turno).trim().toLowerCase();
-  if (t === "dia" || t === "dia") return "Dia";
+  const tSinTilde = t.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  if (tSinTilde === "dia") return "Dia";
   if (t === "noche") return "Noche";
   return String(turno).trim();
 }
@@ -370,13 +371,7 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
 router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-     const turnoNormalizado = (() => {
-      if (!req.query.turno) return req.query.turno;
-      const t = String(req.query.turno).trim().toLowerCase();
-      if (t === "dia" || t === "dia") return "Dia";
-      if (t === "noche") return "Noche";
-      return String(req.query.turno).trim();
-    })();
+    const turnoNormalizado = normalizarTurno(req.query.turno);
     const { fecha } = req.query;
 
     if (!turnoNormalizado) return res.status(400).json({ error: "turno es requerido" });
@@ -2106,12 +2101,17 @@ router.post("/", authMiddleware, async (req, res) => {
         areaNombre = "POR_TRABAJADOR";
         areaIdFinal = null;
       } else if (tipo_reporte === "SANEAMIENTO") {
-        areaNombre = null;
+        areaNombre = "SANEAMIENTO";
         areaIdFinal = null;
       } else {
         areaNombre = null;
         areaIdFinal = null;
       }
+    }
+     if (areaNombre === null && esTipoReporteValido(tipo_reporte)) {
+      return res.status(400).json({
+        error: "No se pudo determinar el área para el tipo de reporte",
+      });
     }
 
     // ✅ estado/vence_en (24h) para módulos con “espera”

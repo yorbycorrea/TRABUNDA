@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:mobile/core/network/api_client.dart';
 
 class ReportRemoteDataSource {
@@ -131,6 +131,15 @@ class ReportRemoteDataSource {
     if (decoded is! Map) {
       throw Exception('Respuesta inválida openSaneamiento');
     }
+    final existente = decoded['existente'] == true;
+    final reporte = decoded['reporte'];
+    final reporteMap = reporte is Map ? reporte.cast<String, dynamic>() : null;
+    final estado = reporteMap?['estado'];
+    final id = reporteMap?['id'];
+    debugPrint(
+      '[TEMP] openSaneamiento response: existente=$existente, '
+      'estado=$estado, id=$id',
+    );
     return decoded.cast<String, dynamic>();
   }
 
