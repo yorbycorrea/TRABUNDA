@@ -1052,6 +1052,8 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
       area_id,
     } = req.body;
 
+   
+
     const [lineaRows] = await pool.query(
       "SELECT reporte_id, hora_inicio FROM lineas_reporte WHERE id = ? LIMIT 1",
       [lineaId]
@@ -1074,10 +1076,19 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     if (hora_inicio !== undefined) {
       if (hora_inicio === null || String(hora_inicio).trim() === "") {
     // si intentan mandarlo vacío, lo ignoramos (no lo borra)
+     console.warn(
+          "[debug][PATCH /reportes/lineas/:lineaId] hora_inicio null/empty; se omite update",
+          { hora_inicio, body: req.body, lineaId }
+        );
       } else {
         updates.push("hora_inicio = ?");
         params.push(hora_inicio);
       }
+       } else if (Object.prototype.hasOwnProperty.call(req.body || {}, "hora_inicio")) {
+      console.warn(
+        "[debug][PATCH /reportes/lineas/:lineaId] hora_inicio undefined en payload",
+        { body: req.body, lineaId }
+      )
     }
 
     if (hora_fin !== undefined) {
@@ -1144,6 +1155,22 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
 
     if (!updates.length) {
       return res.status(400).json({ error: "No hay campos para actualizar" });
+
+    
+    }
+
+    params.push(lineaId);
+
+    console.log("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
+      sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
+      params,
+    });
+
+    if (hora_inicio === null || hora_inicio === "" || hora_inicio === undefined) {
+      console.warn("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
+        sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
+        params,
+      });
     }
 
     params.push(lineaId);
