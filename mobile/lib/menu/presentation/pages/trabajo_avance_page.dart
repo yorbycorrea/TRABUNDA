@@ -26,7 +26,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   String? _error;
 
   // ✅ Cabecera (UI)
-  String _turno = "Día";
+  String _turno = "Dia";
   DateTime _fecha = DateTime.now();
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
@@ -352,7 +352,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                                 isExpanded: true,
                                 items: const [
                                   DropdownMenuItem(
-                                    value: "Día",
+                                    value: "Dia",
                                     child: Text("Dia"),
                                   ),
                                   DropdownMenuItem(

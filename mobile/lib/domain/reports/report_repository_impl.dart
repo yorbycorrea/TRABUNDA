@@ -98,14 +98,26 @@ class ReportRepositoryImpl implements ReportRepository {
     required String turno,
   }) async {
     final decoded = await _remote.openSaneamiento(fecha: fecha, turno: turno);
-
+    final existente = decoded['existente'] == true;
+    final allowCreate = decoded['allowCreate'];
+    final allowCreateValue = allowCreate is bool ? allowCreate : true;
+    if (!existente) {
+      return ReportOpenInfo(
+        id: 0,
+        fecha: _fmtFecha(fecha),
+        turno: turno,
+        creadoPorNombre: '',
+        allowCreate: allowCreateValue,
+        estado: '',
+      );
+    }
     final repRaw = decoded['reporte'];
     if (repRaw is! Map) {
       throw Exception('Respuesta inválida: reporte no es mapa.');
     }
+
     final rep = repRaw.cast<String, dynamic>();
-    final allowCreate = decoded['allowCreate'];
-    final allowCreateValue = allowCreate is bool ? allowCreate : true;
+
     return ReportOpenInfo(
       id: (rep['id'] as num).toInt(),
       fecha: (rep['fecha'] ?? _fmtFecha(fecha)).toString(),

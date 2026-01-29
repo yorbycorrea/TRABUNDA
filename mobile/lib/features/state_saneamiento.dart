@@ -4,7 +4,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/domain/reports/models/report_repository.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
-import 'package:mobile/data/auth/auth_repository_impl.dart';
+
 import 'package:mobile/domain/reports/models/report_models.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
@@ -33,6 +33,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
 
   late final FetchSaneamientoPendientes _fetchSaneamientoPendientes;
   late final OpenSaneamientoReport _openSaneamientoReport;
+  late final CreateSaneamientoReport _createSaneamientoReport;
 
   @override
   void initState() {
@@ -40,6 +41,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
     final repository = ReportRepositoryImpl(widget.api);
     _fetchSaneamientoPendientes = FetchSaneamientoPendientes(repository);
     _openSaneamientoReport = OpenSaneamientoReport(repository);
+    _createSaneamientoReport = CreateSaneamientoReport(repository);
     _loadData();
   }
 
@@ -138,6 +140,10 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
         _loading = true;
         _error = null;
       });
+      await _createSaneamientoReport.call(
+        fecha: widget.selectedFecha,
+        turno: widget.turno,
+      );
 
       final reporte = await _openSaneamientoReport.call(
         fecha: widget.selectedFecha,
@@ -190,7 +196,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
         : estado == 'ABIERTO'
         ? 'Continuar'
         : allowCreate
-        ? 'Crear'
+        ? 'Crear reporte'
         : null;
 
     return Scaffold(
@@ -270,7 +276,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
                             onPressed: _loading
                                 ? null
                                 : () {
-                                    if (actionLabel == 'Crear') {
+                                    if (actionLabel == 'Crear reporte') {
                                       _crearNuevoYEntrar();
                                       return;
                                     }

@@ -78,6 +78,7 @@ class _ReportCreateSaneamientoPageState
     });
 
     try {
+      debugPrint('[TEMP] Abriendo saneamiento: fecha=$_fecha, turno=$_turno');
       final reporte = await _openSaneamientoReport.call(
         fecha: _fecha,
         turno: _turno,
@@ -85,6 +86,7 @@ class _ReportCreateSaneamientoPageState
 
       setState(() => _saneaInfo = reporte);
     } catch (e) {
+      debugPrint('Saneamiento error -> $e');
       setState(() => _errorSanea = e.toString());
     } finally {
       setState(() => _loadingSanea = false);
@@ -105,6 +107,13 @@ class _ReportCreateSaneamientoPageState
 
       _errorSanea = null;
     });
+    if (!mounted) return;
+    setState(() {
+      _loadingSanea = false;
+      _errorSanea = null;
+      _saneaInfo = null;
+    });
+    await _openOrGetSaneamiento();
   }
 
   Future<int> _crearReporteSaneamiento() async {
@@ -167,7 +176,7 @@ class _ReportCreateSaneamientoPageState
         : estado == 'ABIERTO'
         ? 'Continuar'
         : allowCreate
-        ? 'Crear'
+        ? 'Crear reporte'
         : null;
 
     return Scaffold(
@@ -219,9 +228,12 @@ class _ReportCreateSaneamientoPageState
                               : (v) {
                                   setState(() {
                                     _turno = v ?? 'Dia';
+                                    _loadingSanea = false;
                                     _saneaInfo = null;
                                     _errorSanea = null;
                                   });
+                                  if (!mounted) return;
+                                  _openOrGetSaneamiento();
                                 },
                         ),
                       ),
@@ -306,7 +318,7 @@ class _ReportCreateSaneamientoPageState
                                   return;
                                 }
 
-                                if (actionLabel == 'Crear') {
+                                if (actionLabel == 'Crear reporte') {
                                   final id = await _crearReporteSaneamiento();
                                   if (!mounted) return;
                                   setState(

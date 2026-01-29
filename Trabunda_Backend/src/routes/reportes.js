@@ -23,14 +23,15 @@ function esTipoReporteValido(tipo) {
 
 function normalizarTurno(turno) {
   if (!turno) return turno;
-  const t = String(turno).trim();
-  if (t === "Dia" || t === "DIA") return "Día";
-  return t;
+  const t = String(turno).trim().toLowerCase();
+  if (t === "dia" || t === "dia") return "Dia";
+  if (t === "noche") return "Noche";
+  return String(turno).trim();
 }
 
 function esTurnoValido(turno) {
   const t = normalizarTurno(turno);
-  return ["Noche", "Día", "Dia"].includes(t);
+  return ["Dia", "Noche"].includes(t);
 }
 
 function nombreTipoReporte(tipo) {
@@ -311,7 +312,11 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
     const horasFiltro = Number.isFinite(horas) && horas > 0 ? horas : 24;
 
     const fecha = req.query.fecha ? String(req.query.fecha) : null; // "YYYY-MM-DD"
-    const turno = req.query.turno ? String(req.query.turno) : null; // "Dia" | "Noche"
+     const turno = req.query.turno ? normalizarTurno(req.query.turno) : null; // "Dia" | "Noche"
+
+    if (turno && !esTurnoValido(turno)) {
+      return res.status(400).json({ error: "turno no válido" });
+    }
 
     // ✅ WHERE dinámico
     const where = `
@@ -365,11 +370,19 @@ router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
 router.get("/saneamiento/open", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const turno = normalizarTurno(req.query.turno);
+     const turnoNormalizado = (() => {
+      if (!req.query.turno) return req.query.turno;
+      const t = String(req.query.turno).trim().toLowerCase();
+      if (t === "dia" || t === "dia") return "Dia";
+      if (t === "noche") return "Noche";
+      return String(req.query.turno).trim();
+    })();
     const { fecha } = req.query;
 
-    if (!turno) return res.status(400).json({ error: "turno es requerido" });
-    if (!esTurnoValido(turno)) return res.status(400).json({ error: "turno no valido" });
+    if (!turnoNormalizado) return res.status(400).json({ error: "turno es requerido" });
+    if (!esTurnoValido(turnoNormalizado)) {
+      return res.status(400).json({ error: "turno no valido" });
+    }
 
       if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
       return res.status(400).json({ error: "fecha debe tener formato YYYY-MM-DD" });
@@ -388,7 +401,7 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
          AND fecha = ?
        ORDER BY id DESC
        LIMIT 1`,
-      [userId, turno, fechaValue]
+      [userId, turnoNormalizado, fechaValue]
     );
 
      // ✅ Si existe, devuelve el existente con bandera allowCreate según estado
@@ -401,51 +414,12 @@ router.get("/saneamiento/open", authMiddleware, async (req, res) => {
       };
       return res.json({
         existente: true,
-         allowCreate: existentes[0].estado === "ABIERTO",
+         modo: existentes[0].estado === "ABIERTO" ? "CONTINUAR" : "VER",
         reporte,
       });
     }
 
-    // 2) Crear nuevo
-    const [urows] = await pool.query(
-      "SELECT nombre, username FROM users WHERE id = ? AND activo = 1 LIMIT 1",
-      [userId]
-    );
-    if (!urows.length) return res.status(401).json({ error: "Usuario invalido o desactivado" });
-
-    const creado_por_nombre = urows[0].nombre || urows[0].username;
-
-    const areaVirtual = "SANEAMIENTO";
-
-    const [result] = await pool.query(
-      `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id,
-        creado_por_user_id, creado_por_nombre, observaciones,
-        estado, vence_en)
-       VALUES (?, ?, 'SANEAMIENTO', ?, NULL,
-               ?, ?, NULL,
-               'ABIERTO', DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-      [fechaValue, turno, areaVirtual, userId, creado_por_nombre]
-    );
-
-    const [[nuevo]] = await pool.query(
-      `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
-       FROM reportes
-       WHERE id = ?
-       LIMIT 1`,
-      [result.insertId]
-    );
-
-    return res.status(201).json({
-      existente: false,
-      allowCreate: true,
-      reporte: {
-        id: nuevo.id,
-        fecha: nuevo.fecha,
-        turno: nuevo.turno,
-        estado: nuevo.estado,
-      },
-    });
+     return res.json({ existente: false });
   } catch (e) {
     console.error("open saneamiento error:", e);
     return res.status(500).json({ error: "Error interno open saneamiento" });
@@ -1429,7 +1403,7 @@ router.get('/conteo-rapido/:id/excel', authMiddleware, async (req, res) => {
     /* =============================
        CABECERA
     ============================= */
-    sheet.addRow(['DÍA:', reporte.fecha.toISOString().slice(0, 10)]);
+    sheet.addRow(['DiA:', reporte.fecha.toISOString().slice(0, 10)]);
     sheet.addRow(['TURNO:', reporte.turno]);
     sheet.addRow(['PLANILLERO:', reporte.planillero]);
 

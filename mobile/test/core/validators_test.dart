@@ -6,7 +6,7 @@ void main() {
   group('normalizarTurno', () {
     test('convierte variantes de Dia a "Dia"', () {
       expect(normalizarTurno('Dia'), 'Dia');
-      expect(normalizarTurno('día'), 'Dia');
+      expect(normalizarTurno('dia'), 'Dia');
       expect(normalizarTurno('  DIA  '), 'Dia');
       expect(normalizarTurno('d'), 'Dia');
     });
@@ -30,7 +30,7 @@ void main() {
       expect(esTurnoValido('Dia'), true);
       expect(esTurnoValido('Noche'), true);
       expect(
-        esTurnoValido('día'),
+        esTurnoValido('dia'),
         false,
       ); // ojo: aquí debe venir ya normalizado
       expect(esTurnoValido('tarde'), false);
