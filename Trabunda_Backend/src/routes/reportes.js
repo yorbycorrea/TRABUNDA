@@ -1205,26 +1205,26 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     
     }
 
+    const sql = `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`;
+    const paramsFinal = [...params, lineaId];
+
 
 
     console.log("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
-      sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
-      params,
+       sql,
+      params: paramsFinal,
     });
 
      if (hasField("hora_inicio") && body.hora_inicio === null) {
       console.warn("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
-        sql: `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
-        params,
+        sql,
+        params: paramsFinal,
       });
     }
 
    
 
-    const [result] = await pool.query(
-      `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`,
-      params
-    );
+    const [result] = await pool.query(sql, paramsFinal);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Linea no encontrada" });
     }
