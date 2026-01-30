@@ -93,6 +93,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  TimeOfDay _nowTime() {
+    final now = DateTime.now();
+    return TimeOfDay(hour: now.hour, minute: now.minute);
+  }
+
   List<ApoyoHorasLineaInput> _buildLineasInput() {
     return _trabajadores
         .map(
@@ -341,6 +346,15 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
                         _trabajadores[i].codigoCtrl.text = mapped.codigo;
                         _trabajadores[i].nombreCtrl.text = mapped.nombre;
+                        if (_trabajadores[i].inicio == null) {
+                          _trabajadores[i].inicio = _nowTime();
+                        }
+                        if (_trabajadores[i].fin != null) {
+                          _trabajadores[i].horas = _calculateHoras(
+                            _trabajadores[i].inicio!,
+                            _trabajadores[i].fin!,
+                          );
+                        }
 
                         debugPrint('SCAN RESULT MAP: $result');
                         debugPrint(
