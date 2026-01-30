@@ -472,7 +472,16 @@ class _TrabajadorCard extends StatelessWidget {
                   child: _HoraBox(
                     label: 'Hora inicio',
                     value: _horaText(model.inicio),
-                    onTap: onPickInicio,
+                    onTap: model.inicio == null
+                        ? onPickInicio
+                        : () {
+                            AppNotify.warning(
+                              context,
+                              'Atención',
+                              'La hora inicio ya fue registrada y no se puede cambiar.',
+                            );
+                          },
+                    locked: model.inicio != null,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -573,12 +582,15 @@ class _HoraBox extends StatelessWidget {
   const _HoraBox({
     required this.label,
     required this.value,
-    required this.onTap,
+    this.onTap,
+    this.locked = false,
   });
 
   final String label;
   final String value;
   final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
@@ -586,34 +598,37 @@ class _HoraBox extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+      child: Opacity(
+        opacity: locked ? 0.65 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                const Icon(Icons.access_time, size: 18),
-              ],
-            ),
-          ],
+                  const Spacer(),
+                  const Icon(Icons.access_time, size: 18),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
