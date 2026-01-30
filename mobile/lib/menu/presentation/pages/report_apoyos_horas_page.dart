@@ -588,7 +588,7 @@ class _HoraBox extends StatelessWidget {
 
   final String label;
   final String value;
-  final VoidCallback onTap;
+
   final VoidCallback? onTap;
   final bool locked;
 
