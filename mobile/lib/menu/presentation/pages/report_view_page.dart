@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
-
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:mobile/features/reports/data/models/report_resumen.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
@@ -147,9 +147,7 @@ class _ReportViewPageState extends State<ReportViewPage> {
       setState(() => _reportes = list);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error cargando reportes: $e')));
+      AppNotify.error(context, 'Error', 'Error cargando reportes: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -168,9 +166,7 @@ class _ReportViewPageState extends State<ReportViewPage> {
       await OpenFilex.open(file.path);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error descargando PDF: $e')));
+      AppNotify.error(context, 'Error', 'Error descargando PDF: $e');
     }
   }
 
@@ -183,9 +179,7 @@ class _ReportViewPageState extends State<ReportViewPage> {
       await OpenFilex.open(file.path);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo descargar el Excel')),
-      );
+      AppNotify.warning(context, 'Atención', 'No se pudo descargar el Excel');
     }
   }
 
@@ -305,14 +299,12 @@ class _ReportViewPageState extends State<ReportViewPage> {
         if (_selectedUserRole == rolePlanillero) {
           _tipoReporte ??= tiposPlanillero.first;
         } else if (_selectedUserRole == roleSaneamiento) {
-          _tipoReporte = null; // no aplica
+          _tipoReporte = null;
         }
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error cargando usuarios: $e')));
+      AppNotify.error(context, 'Error', 'Error cargando usuarios: $e');
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:mobile/core/ui/app_notifications.dart';
 
 class QrScannerPage extends StatefulWidget {
   const QrScannerPage({super.key, required this.api, this.pickOnly = true});
@@ -106,9 +107,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error escaneando/lookup: $e')));
+      AppNotify.error(context, 'Error', 'Error escaneando/lookup: $e');
     } finally {
       // ✅ Si NO salimos de la pantalla, desbloquea overlay
       if (!popped && mounted) {

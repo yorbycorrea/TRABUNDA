@@ -1,4 +1,4 @@
-//import 'dart:convert';
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
@@ -164,9 +164,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       _mapValidations(),
     );
     if (validationMessage != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(validationMessage)));
+      AppNotify.warning(context, 'Validación', validationMessage);
       return;
     }
 
@@ -208,9 +206,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error guardando: $e')));
+      AppNotify.error(context, 'Error', 'Error guardando: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -274,10 +270,10 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                         codigo: codigo.isNotEmpty ? codigo : dni,
                         exceptIndex: i,
                       )) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Ese trabajador ya está agregado.'),
-                          ),
+                        AppNotify.warning(
+                          context,
+                          'Duplicado',
+                          'Ese trabajador ya está agregado.',
                         );
                         return;
                       }
@@ -396,12 +392,10 @@ class _SaneamientoCard extends StatelessWidget {
                         : (model.inicio == null)
                         ? onPickInicio
                         : () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'La hora inicio se registra al escanear y no se puede cambiar.',
-                                ),
-                              ),
+                            AppNotify.warning(
+                              context,
+                              'Atención',
+                              'La hora inicio se registra al escanear y no se puede cambiar.',
                             );
                           },
                     locked: readOnly || model.inicio != null,

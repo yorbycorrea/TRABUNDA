@@ -1,5 +1,5 @@
 //import 'dart:convert';
-
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -65,7 +65,7 @@ class _ReportCreatePlanilleroPageState
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppNotify.info(context, 'Aviso', msg);
   }
 
   Future<int> _ensureReporteCreado({required String tipo}) async {
@@ -126,13 +126,13 @@ class _ReportCreatePlanilleroPageState
 
     final auth = AuthControllerScope.read(context);
     if (!auth.isAuthenticated) {
-      _toast('No autenticado');
+      AppNotify.error(context, 'Error', 'No autenticado');
       return;
     }
 
     final plan = _planilleroCtrl.text.trim();
     if (plan.isEmpty) {
-      _toast('Planillero vacío');
+      AppNotify.warning(context, 'Validación', 'Planillero vacío');
       return;
     }
 

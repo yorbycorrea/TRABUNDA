@@ -1,4 +1,4 @@
-//import 'dart:convert';
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/theme/app_colors.dart';
@@ -145,9 +145,7 @@ class _TrabajoAvanceCuadrillaDetallePageState
     if (!mounted || res == null) return;
 
     if (res is! Map<String, dynamic>) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Resultado inválido del scanner')),
-      );
+      AppNotify.warning(context, 'Atención', 'Resultado inválido del scanner');
       return;
     }
 
@@ -155,8 +153,10 @@ class _TrabajoAvanceCuadrillaDetallePageState
     final nombre = (res['nombre_completo'] ?? '').toString().trim();
 
     if (codigo.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El trabajador no tiene código válido')),
+      AppNotify.warning(
+        context,
+        'Atención',
+        'El trabajador no tiene código válido',
       );
       return;
     }
@@ -169,13 +169,9 @@ class _TrabajoAvanceCuadrillaDetallePageState
 
       await _load();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Agregado: $codigo - $nombre')));
+      AppNotify.success(context, 'Agregado', 'Agregado: $codigo - $nombre');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error agregando trabajador: $e')));
+      AppNotify.error(context, 'Error', 'Error agregando trabajador: $e');
     }
   }
 

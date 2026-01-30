@@ -1,4 +1,4 @@
-//import 'dart:convert';
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
@@ -187,9 +187,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudieron cargar líneas: $e')),
-      );
+      AppNotify.error(context, 'Error', 'No se pudieron cargar líneas: $e');
     }
   }
 
@@ -203,9 +201,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
     final validationMessage = _validateApoyoHorasLineas(_buildLineasInput());
     if (validationMessage != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(validationMessage)));
+      AppNotify.warning(context, 'Validación', validationMessage);
       return;
     }
 
@@ -256,9 +252,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error guardando: $e')));
+      AppNotify.error(context, 'Error', 'Error guardando: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -335,12 +329,10 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         codigo: mapped.codigo,
                         exceptIndex: i,
                       )) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Ese trabajador ya fue agregado en este reporte.',
-                            ),
-                          ),
+                        AppNotify.warning(
+                          context,
+                          'Duplicado',
+                          'Ese trabajador ya fue agregado en este reporte.',
                         );
                         return;
                       }

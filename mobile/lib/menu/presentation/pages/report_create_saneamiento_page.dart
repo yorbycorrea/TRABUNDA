@@ -1,4 +1,4 @@
-//import 'dart:convert';
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -68,8 +68,12 @@ class _ReportCreateSaneamientoPageState
     super.dispose();
   }
 
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _toast(String msg, {bool isError = false}) {
+    if (isError) {
+      AppNotify.error(context, 'Error', msg);
+    } else {
+      AppNotify.warning(context, 'Aviso', msg);
+    }
   }
 
   void _resetSaneamientoState() {
@@ -191,7 +195,7 @@ class _ReportCreateSaneamientoPageState
       if (!mounted) return;
       await _openOrGetSaneamiento();
     } catch (e) {
-      _toast('Error: $e');
+      _toast('Error: $e', isError: true);
     }
   }
 

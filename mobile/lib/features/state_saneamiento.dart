@@ -4,7 +4,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/domain/reports/models/report_repository.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/menu/presentation/pages/saneamiento_backend_page.dart';
-
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 
@@ -178,9 +178,7 @@ class _SaneamientoHomePageState extends State<SaneamientoHomePage> {
         _loading = false;
         _error = e.toString();
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      AppNotify.error(context, 'Error', 'Error: $e');
     }
   }
 

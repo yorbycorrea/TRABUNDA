@@ -1,6 +1,6 @@
 //import 'dart:convert';
 import 'package:flutter/material.dart';
-//import 'package:intl/intl.dart';
+import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
@@ -78,7 +78,7 @@ class _ConteoRapidoPageState extends State<ConteoRapidoPage> {
   // ----------------------------
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppNotify.info(context, 'Aviso', msg);
   }
 
   String _fmtFecha(DateTime d) => _formatConteoRapidoDate.call(d);

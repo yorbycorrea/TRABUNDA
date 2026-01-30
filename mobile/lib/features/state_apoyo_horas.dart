@@ -7,6 +7,7 @@ import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/models/report_models.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/menu/presentation/pages/report_view_page.dart';
+import 'package:mobile/core/ui/app_notifications.dart';
 
 class ApoyosHorasHomePage extends StatefulWidget {
   const ApoyosHorasHomePage({
@@ -237,9 +238,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         _loading = false;
         _error = e.toString();
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      AppNotify.error(context, 'Error', 'Error: $e');
     }
   }
 
