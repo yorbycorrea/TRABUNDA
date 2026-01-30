@@ -55,6 +55,108 @@ function textoSeguro(valor) {
   return String(valor);
 }
 
+const TRABAJADORES_GRAPHQL_URL =
+  process.env.TRABAJADORES_GRAPHQL_URL ||
+  process.env.TRABAJADORES_GRAPHQL_ENDPOINT ||
+  process.env.GRAPHQL_URL;
+
+async function getTrabajadorPorCodigo(codigo) {
+  const codigoTrim = String(codigo ?? "").trim();
+  if (!codigoTrim) {
+    const error = new Error("TRABAJADOR_NO_ENCONTRADO");
+    error.code = "TRABAJADOR_NO_ENCONTRADO";
+    throw error;
+  }
+
+  if (!TRABAJADORES_GRAPHQL_URL) {
+    const error = new Error("TRABAJADORES_GRAPHQL_URL no configurada");
+    error.code = "TRABAJADOR_GQL_NO_CONFIG";
+    throw error;
+  }
+
+  const response = await fetch(TRABAJADORES_GRAPHQL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        query TrabajadorPorCodigo($codigo: String!) {
+          trabajadorPorCodigo(codigo: $codigo) {
+            codigo
+            nombre
+          }
+        }
+      `,
+      variables: { codigo: codigoTrim },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Error consultando trabajadores (${response.status})`);
+    error.code = "TRABAJADOR_GQL_ERROR";
+    throw error;
+  }
+
+  const payload = await response.json();
+  if (Array.isArray(payload.errors) && payload.errors.length) {
+    const gqlError = payload.errors[0];
+    const error = new Error(gqlError.message || "Error consultando trabajadores");
+    error.code = gqlError.extensions?.code || "TRABAJADOR_GQL_ERROR";
+    throw error;
+  }
+
+  const trabajador =
+    payload.data?.trabajadorPorCodigo ||
+    payload.data?.getTrabajadorPorCodigo ||
+    payload.data?.trabajador;
+
+  if (!trabajador) {
+    const error = new Error("TRABAJADOR_NO_ENCONTRADO");
+    error.code = "TRABAJADOR_NO_ENCONTRADO";
+    throw error;
+  }
+
+  const nombre =
+    trabajador.nombre ??
+    trabajador.nombre_completo ??
+    trabajador.nombreCompleto ??
+    "";
+
+  return {
+    codigo: trabajador.codigo ?? codigoTrim,
+    nombre,
+  };
+}
+
+async function hidratarTrabajadoresPorCodigo(trabajadores) {
+  const codigos = [
+    ...new Set(
+      trabajadores
+        .map((t) => String(t.trabajador_codigo ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  const mapa = new Map();
+  await Promise.all(
+    codigos.map(async (codigo) => {
+      const data = await getTrabajadorPorCodigo(codigo);
+      mapa.set(codigo, data);
+    })
+  );
+
+  return trabajadores.map((trabajador) => {
+    const codigo = String(trabajador.trabajador_codigo ?? "").trim();
+    const data = mapa.get(codigo);
+    return {
+      ...trabajador,
+      trabajador_codigo: codigo,
+      trabajador_nombre: data?.nombre ?? "",
+    };
+  });
+}
+
+
+
 function agregarFilaTabla(doc, y, columnas) {
   const alturaFila = 18;
   const margenInferior = doc.page.height - doc.page.margins.bottom;
@@ -735,26 +837,27 @@ router.get(
       }
 
       // ✅ Traer nombre desde tabla "trabajadores" (JOIN) usando TRIM por los espacios
-      const [trabajadores] = await pool.query(
+      const [trabajadoresRaw] = await pool.query(
         `SELECT
            tav.id,
            tav.cuadrilla_id,
            TRIM(tav.trabajador_codigo) AS trabajador_codigo,
-           COALESCE(
-             NULLIF(TRIM(tav.trabajador_nombre), ''),
-             TRIM(t.nombre_completo)
-           ) AS trabajador_nombre,
+           tav.trabajador_nombre,
            tav.kg
          FROM trabajo_avance_trabajadores tav
-         LEFT JOIN trabajadores t
-           ON TRIM(t.codigo) = TRIM(tav.trabajador_codigo)
+        
          WHERE tav.cuadrilla_id = ?
          ORDER BY tav.id DESC`,
         [cuadrillaId]
       );
 
+      const trabajadores = await hidratarTrabajadoresPorCodigo(trabajadoresRaw);
+
       return res.json({ cuadrilla, trabajadores });
     } catch (e) {
+       if (e?.code === "TRABAJADOR_NO_ENCONTRADO") {
+        return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+      }
       console.error("detalle cuadrilla trabajo-avance error:", e);
       return res
         .status(500)
@@ -1659,26 +1762,22 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
     [id]
   );
 
-  // 2) trabajadores de esas cuadrillas (+ nombre desde tabla trabajadores)
-  const [trabajadores] = await pool.query(
+  const [trabajadoresRaw] = await pool.query(
     `SELECT
        tav.id,
        tav.cuadrilla_id,
        TRIM(tav.trabajador_codigo) AS trabajador_codigo,
-       COALESCE(
-         NULLIF(TRIM(tav.trabajador_nombre), ''),
-         TRIM(t.nombre_completo)
-       ) AS trabajador_nombre,
+        tav.trabajador_nombre,
        tav.kg
      FROM trabajo_avance_trabajadores tav
-     LEFT JOIN trabajadores t
-       ON TRIM(t.codigo) = TRIM(tav.trabajador_codigo)
+     
      WHERE tav.cuadrilla_id IN (
        SELECT id FROM trabajo_avance_cuadrillas WHERE reporte_id = ?
      )
      ORDER BY tav.cuadrilla_id ASC, tav.id ASC`,
     [id]
   );
+  const trabajadores = await hidratarTrabajadoresPorCodigo(trabajadoresRaw);
 
   // agrupar trabajadores por cuadrilla
   const workersByCuadrilla = new Map();
@@ -1957,6 +2056,9 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
     return res.send(pdfBuffer);
   } catch (err) {
     console.error("Error PDF:", err);
+    if (err?.code === "TRABAJADOR_NO_ENCONTRADO") {
+      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+    }
     return res.status(500).json({ error: "Error generando PDF" });
   }
 });
@@ -2200,16 +2302,17 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       areaIdFinal = null;
       areaNombre = null;
     }
-
-    // trabajador
-    const [tRows] = await pool.query(
-      "SELECT id, codigo, nombre_completo FROM trabajadores WHERE id = ? AND activo = 1",
-      [trabajador_id]
-    );
-    if (!tRows.length) {
-      return res.status(400).json({ error: "Trabajador no válido o inactivo" });
+const trabajadorCodigo = req.body?.trabajador_codigo ?? trabajador_id;
+    let trabajador = null;
+    try {
+      trabajador = await getTrabajadorPorCodigo(trabajadorCodigo);
+    } catch (error) {
+      if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
+        return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+      }
+      throw error;
     }
-    const trabajador = tRows[0];
+    
 
     // área solo para APOYO_HORAS
     if (tipo === "APOYO_HORAS") {
@@ -2400,12 +2503,12 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
-        trabajador.id,
+        trabajador_id,
         cuadrilla_id ?? null,
         areaIdFinal, // ✅
         areaNombre, // ✅
         (trabajador.codigo ?? "").toString().trim(),
-        trabajador.nombre_completo,
+        trabajador.nombre,
         horasValue,
         hora_inicio ?? null,
         horaFinValue,
