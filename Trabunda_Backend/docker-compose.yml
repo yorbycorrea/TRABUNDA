@@ -5,6 +5,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      WORKERS_API_URL: ${WORKERS_API_URL}
     networks:
       - trabunda_net
     depends_on:
@@ -19,7 +20,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME_DEV}
       #MYSQL_USER: ${DB_USER}
       #MYSQL_PASSWORD: ${DB_PASS}
-      WORKERS_API_URL: "http://172.16.1.207:4806/graphql"
+      #WORKERS_API_URL: "http://172.16.1.207:4806/graphql"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql

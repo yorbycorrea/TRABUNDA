@@ -2,13 +2,14 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.prod # Imagen ligera y segura sin nodemon
+      dockerfile: Dockerfile.prod 
     ports:
-      - "80:3000" # Típico de producción
+      - "80:3000" 
     environment:
       - NODE_ENV=production
-       - DB_HOST=db
+      - DB_HOST=db
       - DB_NAME=${DB_NAME_PROD}
+      - WORKERS_API_URL=${WORKERS_API_URL}
 
   db:
     environment:

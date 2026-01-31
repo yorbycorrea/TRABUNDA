@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 const ExcelJS = require('exceljs');
+const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 
 //const { width } = require("pdfkit/js/page");
 
@@ -55,77 +56,6 @@ function textoSeguro(valor) {
   return String(valor);
 }
 
-const TRABAJADORES_GRAPHQL_URL =
-  process.env.TRABAJADORES_GRAPHQL_URL ||
-  process.env.TRABAJADORES_GRAPHQL_ENDPOINT ||
-  process.env.GRAPHQL_URL;
-
-async function getTrabajadorPorCodigo(codigo) {
-  const codigoTrim = String(codigo ?? "").trim();
-  if (!codigoTrim) {
-    const error = new Error("TRABAJADOR_NO_ENCONTRADO");
-    error.code = "TRABAJADOR_NO_ENCONTRADO";
-    throw error;
-  }
-
-  if (!TRABAJADORES_GRAPHQL_URL) {
-    const error = new Error("TRABAJADORES_GRAPHQL_URL no configurada");
-    error.code = "TRABAJADOR_GQL_NO_CONFIG";
-    throw error;
-  }
-
-  const response = await fetch(TRABAJADORES_GRAPHQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: `
-        query TrabajadorPorCodigo($codigo: String!) {
-          trabajadorPorCodigo(codigo: $codigo) {
-            codigo
-            nombre
-          }
-        }
-      `,
-      variables: { codigo: codigoTrim },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = new Error(`Error consultando trabajadores (${response.status})`);
-    error.code = "TRABAJADOR_GQL_ERROR";
-    throw error;
-  }
-
-  const payload = await response.json();
-  if (Array.isArray(payload.errors) && payload.errors.length) {
-    const gqlError = payload.errors[0];
-    const error = new Error(gqlError.message || "Error consultando trabajadores");
-    error.code = gqlError.extensions?.code || "TRABAJADOR_GQL_ERROR";
-    throw error;
-  }
-
-  const trabajador =
-    payload.data?.trabajadorPorCodigo ||
-    payload.data?.getTrabajadorPorCodigo ||
-    payload.data?.trabajador;
-
-  if (!trabajador) {
-    const error = new Error("TRABAJADOR_NO_ENCONTRADO");
-    error.code = "TRABAJADOR_NO_ENCONTRADO";
-    throw error;
-  }
-
-  const nombre =
-    trabajador.nombre ??
-    trabajador.nombre_completo ??
-    trabajador.nombreCompleto ??
-    "";
-
-  return {
-    codigo: trabajador.codigo ?? codigoTrim,
-    nombre,
-  };
-}
 
 async function hidratarTrabajadoresPorCodigo(trabajadores) {
   const codigos = [
@@ -150,7 +80,7 @@ async function hidratarTrabajadoresPorCodigo(trabajadores) {
     return {
       ...trabajador,
       trabajador_codigo: codigo,
-      trabajador_nombre: data?.nombre ?? "",
+      trabajador_nombre: data?.nombre ?? data?.nombre_completo ?? "",
     };
   });
 }

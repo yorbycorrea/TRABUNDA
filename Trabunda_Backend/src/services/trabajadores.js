@@ -1,81 +1,42 @@
-const normalizeTrabajador = (payload) => {
+const { getTrabajadorPorCodigo: getTrabajadorGraphql } = require("./trabajadorApi");
+
+  const normalizeTrabajador = (payload, codigoFallback) => {
   if (!payload) return null;
 
-  const record = Array.isArray(payload) ? payload[0] : payload;
-  if (!record) return null;
-
   return {
-    id: record.id ?? record.trabajador_id ?? null,
-    codigo: (record.codigo ?? record.trabajador_codigo ?? "").toString().trim(),
-    dni: (record.dni ?? record.documento ?? "").toString(),
-    nombre_completo: (
-      record.nombre_completo ??
-      record.nombre ??
-      record.trabajador_nombre ??
-      ""
-    ).toString(),
+     id: payload.id ?? null,
+    codigo: (payload.codigo ?? codigoFallback ?? "").toString().trim(),
+    dni: payload.dni ?? null,
+    nombre_completo: (payload.nombre_completo ?? payload.nombre ?? "").toString(),
   };
 };
 
-const buildLookupUrl = (codigo) => {
-  const baseUrl = process.env.TRABAJADORES_API_URL;
-  if (!baseUrl) return null;
 
-  const lookupPath =
-    process.env.TRABAJADORES_API_LOOKUP_PATH || "/trabajadores/lookup";
-  const url = new URL(lookupPath, baseUrl);
-  url.searchParams.set("q", codigo);
-  url.searchParams.set("codigo", codigo);
-  return url.toString();
-};
 
 const getTrabajadorPorCodigo = async (codigo) => {
   const codigoLimpio = String(codigo ?? "").trim();
   if (!codigoLimpio) return null;
 
-  const url = buildLookupUrl(codigoLimpio);
-  if (!url) {
-    return {
-      error: "Servicio de trabajadores no configurado",
-      status: 501,
-    };
-  }
+  
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
-    const rawText = await response.text();
-
-    let data = null;
-    if (rawText) {
-      try {
-        data = JSON.parse(rawText);
-      } catch (error) {
-        return {
-          error: "Respuesta inválida del servicio de trabajadores",
-          status: 502,
-        };
-      }
+    const trabajador = await getTrabajadorGraphql(codigoLimpio);
+    return normalizeTrabajador(trabajador, codigoLimpio);
+  } catch (error) {
+    if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
+      return null;
     }
 
-    if (!response.ok) {
-      const message =
-        data && typeof data === "object" && data.error
-          ? data.error
-          : `Error servicio trabajadores (HTTP ${response.status})`;
+    if (error?.code === "TRABAJADOR_GQL_NO_CONFIG") {
       return {
-        error: message,
-        status: response.status === 404 ? 404 : 502,
+        error: error.message,
+        status: 501,
       };
     }
 
-    return normalizeTrabajador(data);
-  } catch (error) {
+   
     return {
-      error: "No se pudo conectar al servicio de trabajadores",
+      error: error?.message || "No se pudo conectar al servicio de trabajadores",
       status: 502,
     };
   }
