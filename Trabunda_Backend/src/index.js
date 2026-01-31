@@ -22,8 +22,17 @@ app.use(express.json());
 // 4. LOG DE PETICIONES (Muévelo aquí abajo)
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== "test") {
+
+
+    
   console.log(`Petición recibida: ${req.method} ${req.url}`);
 }
+app.get("/debug/workers-url", (req, res) => {
+  res.json({
+    WORKERS_API_URL: process.env.WORKERS_API_URL || "NO DEFINIDA",
+  });
+});
+
 
   next();
 });

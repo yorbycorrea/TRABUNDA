@@ -5,7 +5,8 @@ const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 const router = express.Router();
 
 router.get("/workers", async (req, res) => {
-  const codigo = process.env.WORKERS_HEALTHCHECK_CODIGO || "000000";
+  const fallbackCodigo = "000000";
+  const codigo = process.env.WORKERS_HEALTHCHECK_CODIGO ?? fallbackCodigo;
 
   try {
     await getTrabajadorPorCodigo(codigo);

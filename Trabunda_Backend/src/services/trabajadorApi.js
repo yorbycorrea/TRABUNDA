@@ -4,15 +4,9 @@ if (!fetch) {
   throw new Error("FETCH_NO_DISPONIBLE");
 }
 
-const WORKERS_API_URL = process.env.WORKERS_API_URL || process.env.TRABAJADOR_API_URL ||
-  'http://trabajadorapi:4806/graphql';
-const GET_WORKER_QUERY = `query GetWorker($codigo: String!) {
-  getWorker(codigo: $codigo) {
-    id
-    nombres
-    apellidos
-  }
-}`;
+const WORKERS_API_URL =
+  process.env.WORKERS_API_URL || "http://172.16.1.207:4806/graphql";
+const GET_WORKER_QUERY = `mutation GetWorker($codigo:String!){ getWorker(codigo:$codigo){ ok worker{ id nombres apellidos dni } errors } }`;
 
 const buildNombreCompleto = (worker) =>
   `${worker.nombres || ""} ${worker.apellidos || ""}`.trim();
@@ -38,6 +32,7 @@ const getTrabajadorPorCodigo = async (codigo) => {
     headers: {
       "Content-Type": "application/json",
     },
+    cache: "no-store",
     body: JSON.stringify({
       query: GET_WORKER_QUERY,
       variables: { codigo: codigoTrim },
@@ -45,30 +40,26 @@ const getTrabajadorPorCodigo = async (codigo) => {
   });
 
   if (!response.ok) {
-     throw buildError(
+    throw buildError(
       `Error consultando trabajadores (${response.status})`,
       "TRABAJADOR_GQL_ERROR"
     );
   }
 
   const payload = await response.json();
-  if (Array.isArray(payload.errors) && payload.errors.length) {
-    const gqlError = payload.errors[0];
-    throw buildError(
-      gqlError.message || "Error consultando trabajadores",
-      gqlError.extensions?.code || "TRABAJADOR_GQL_ERROR"
-    );
-  }
-  const worker = payload?.data?.getWorker;
+  const getWorkerResponse = payload?.data?.getWorker;
+  const worker = getWorkerResponse?.worker;
+  const ok = getWorkerResponse?.ok;
+  const errors = getWorkerResponse?.errors;
 
-  if (!worker) {
+  if (!ok || (Array.isArray(errors) && errors.length) || !worker) {
     throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
   }
-   const nombreCompleto = buildNombreCompleto(worker);
+  const nombreCompleto = buildNombreCompleto(worker);
 
   return {
     id: worker.id ?? null,
-    codigo: codigoTrim,
+    codigo: worker.id ?? codigoTrim,
     nombres: worker.nombres ?? "",
     apellidos: worker.apellidos ?? "",
     nombre_completo: nombreCompleto,

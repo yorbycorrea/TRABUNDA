@@ -17,25 +17,33 @@ const respondWriteDisabled = (res) =>
 router.get("/lookup",  authMiddleware, async(req, res) => {
   try {
     const qRaw = String(req.query.q ?? "").trim();
-    if(!qRaw) return res.status(400).json({error: "q es requerido"});
-        // quita espacios y saltos de linea
-    const q = qRaw.replace(/\s+/g, "");
+    const digits = qRaw.replace(/\D+/g, "");
+    const codigo =
+      digits.length === 8 ? digits : digits.length > 0 ? digits : qRaw;
+    if (!codigo) return res.status(400).json({error: "q es requerido"});
 
-    
-    const result = await getTrabajadorPorCodigo(q);
+    const result = await getTrabajadorPorCodigo(codigo);
 
- 
-
-    if (!result) {
+    if (
+      !result
+      || result.ok === false
+      || result === "no encontrado"
+      || result?.message === "no encontrado"
+    ) {
       return res.status(404).json({error: "Trabajador no encontrado"});
     }
 
+    const worker = result.worker ?? result;
+    const nombres = worker.nombres ?? "";
+    const apellidos = worker.apellidos ?? "";
+
     
     return res.json({
-      id: result.codigo ?? null,
-      codigo: result.codigo ?? "",
-      dni: "",
-      nombre_completo: result.nombre ?? "",
+      ok: true,
+      worker: {
+        codigo: worker.id,
+        nombre: `${nombres} ${apellidos}`.trim(),
+      },
     });
 
 
