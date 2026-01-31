@@ -80,6 +80,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             .map((e) => _AreaItem(id: e.id, nombre: e.nombre, activo: e.activo))
             .toList();
         _loadingAreas = false;
+        _syncAreaIdsWithNombre(updateState: false);
       });
     } catch (e) {
       if (!mounted) return;
@@ -87,6 +88,36 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         _loadingAreas = false;
         _errorAreas = e.toString();
       });
+    }
+  }
+
+  _AreaItem? _findAreaByNombre(String nombre) {
+    final normalized = nombre.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    for (final area in _areas) {
+      if (area.nombre.trim().toLowerCase() == normalized) {
+        return area;
+      }
+    }
+    return null;
+  }
+
+  void _syncAreaIdsWithNombre({required bool updateState}) {
+    if (_areas.isEmpty) return;
+    var updated = false;
+    for (final t in _trabajadores) {
+      final nombre = t.areaNombre;
+      if (t.areaId == null && nombre != null && nombre.trim().isNotEmpty) {
+        final matched = _findAreaByNombre(nombre);
+        if (matched != null) {
+          t.areaId = matched.id;
+          t.areaNombre = matched.nombre;
+          updated = true;
+        }
+      }
+    }
+    if (updated && updateState && mounted) {
+      setState(() {});
     }
   }
 
@@ -163,6 +194,13 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
         m.areaId = it.areaId;
         m.areaNombre = (it.areaNombre ?? '').isEmpty ? null : it.areaNombre;
+        if (m.areaId == null && m.areaNombre != null && _areas.isNotEmpty) {
+          final matched = _findAreaByNombre(m.areaNombre!);
+          if (matched != null) {
+            m.areaId = matched.id;
+            m.areaNombre = matched.nombre;
+          }
+        }
 
         m.inicio = parseTime(it.horaInicio);
         m.fin = parseTime(it.horaFin);
@@ -189,6 +227,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         _trabajadores
           ..clear()
           ..addAll(models);
+        _syncAreaIdsWithNombre(updateState: false);
       });
     } catch (e) {
       if (!mounted) return;

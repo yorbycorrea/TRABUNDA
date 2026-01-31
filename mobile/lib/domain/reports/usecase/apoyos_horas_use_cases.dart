@@ -88,7 +88,8 @@ class ValidateApoyoHorasLineas {
     }
 
     for (final linea in lineas) {
-      if (linea.trabajadorId == null ||
+      final codigo = linea.codigo.trim();
+      if ((codigo.isEmpty && linea.trabajadorId == null) ||
           linea.inicio == null ||
           linea.areaId == null) {
         return 'Escanea trabajador, selecciona hora inicio y área';
