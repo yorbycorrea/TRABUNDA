@@ -9,6 +9,7 @@ const reportesRoutes = require("./routes/reportes");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
+const healthRoutes = require("./routes/health");
 const reportesConteoRapidoRoutes = require("./routes/reportes");
 //const trabajoAvanceRoutes = require("./routes/trabajo_avance");
 
@@ -32,6 +33,7 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, message: "TRABUNDA backend online ✅" });
 });
 
+app.use("/health", healthRoutes);
 app.use("/trabajadores", trabajadoresRoutes);
 app.use("/reportes", reportesRoutes);
 app.use("/areas", areasRutas);

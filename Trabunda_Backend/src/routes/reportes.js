@@ -888,20 +888,22 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
 router.post("/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores", authMiddleware, async (req, res) => {
   try {
     const cuadrillaId = Number(req.params.cuadrillaId);
-    const { codigo, nombre } = req.body || {};
+    const { codigo } = req.body || {};
 
     if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
       return res.status(400).json({ error: "cuadrillaId inválido" });
     }
     if (!codigo || !String(codigo).trim()) return res.status(400).json({ error: "codigo requerido" });
+    const codigoTrim = String(codigo).trim();
+    const trabajador = await getTrabajadorPorCodigo(codigoTrim);
 
     await pool.query(
       `INSERT INTO trabajo_avance_trabajadores (cuadrilla_id, trabajador_codigo, trabajador_nombre)
        VALUES (?, ?, ?)`,
-      [cuadrillaId, String(codigo).trim(), nombre ?? null]
+       [cuadrillaId, codigoTrim, trabajador.nombre ?? null]
     );
 
-    const [trabajadores] = await pool.query(
+    const [trabajadoresRaw] = await pool.query(
       `SELECT id, cuadrilla_id, trabajador_codigo, trabajador_nombre, kg
        FROM trabajo_avance_trabajadores
        WHERE cuadrilla_id = ?
@@ -909,8 +911,13 @@ router.post("/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores", authMiddlewa
       [cuadrillaId]
     );
 
+    const trabajadores = await hidratarTrabajadoresPorCodigo(trabajadoresRaw);
+
     return res.status(201).json({ ok: true, trabajadores });
   } catch (e) {
+    if (String(e?.code) === "TRABAJADOR_NO_ENCONTRADO") {
+      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+    }
     if (String(e?.code) === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "El trabajador ya está en esta cuadrilla" });
     }
@@ -1341,8 +1348,13 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
       [reporteId]
     );
 
-    return res.json({ items: rows });
+    const items = await hidratarTrabajadoresPorCodigo(rows);
+
+    return res.json({ items });
   } catch (err) {
+    if (err?.code === "TRABAJADOR_NO_ENCONTRADO") {
+      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+    }
     console.error("Error listando lineas:", err);
     return res.status(500).json({ error: "Error interno al listar lineas" });
   }
@@ -1585,7 +1597,7 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
     }
 
     // LÍNEAS
-    const [lineas] = await pool.query(
+    const [lineasRaw] = await pool.query(
       `
       SELECT
         lr.trabajador_codigo,
@@ -1602,6 +1614,8 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
       `,
       [id]
     );
+
+     const lineas = await hidratarTrabajadoresPorCodigo(lineasRaw);
 
     // Plantilla por tipo
     const templateNameByTipo = {
