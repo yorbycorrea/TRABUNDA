@@ -284,6 +284,13 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                       m.codigoCtrl.text = codigo.isNotEmpty ? codigo : dni;
                       m.nombreCtrl.text = nombre;
 
+                      debugPrint(
+                        'TEMP LOG (remover luego) index=$i lineaId=${m.lineaId} codigo=${m.codigoCtrl.text}',
+                      );
+                      debugPrint(
+                        'TEMP LOG (remover luego) index=$i lineaId=${m.lineaId} nombre=${m.nombreCtrl.text}',
+                      );
+
                       // ✅ NUEVO: poner hora inicio automática si está vacía
                       if (m.inicio == null) {
                         m.inicio = _nowTime();

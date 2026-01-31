@@ -89,9 +89,21 @@ class _QrScannerPageState extends State<QrScannerPage> {
       final idAny = data['id'];
       final idNum = (idAny is num) ? idAny : num.tryParse(idAny.toString());
 
-      final codigo = (data['codigo'] ?? '').toString();
-      final dni = (data['dni'] ?? '').toString();
-      final nombre = (data['nombre_completo'] ?? '').toString();
+      final workerRaw = data['worker'];
+      final worker = workerRaw is Map
+          ? Map<String, dynamic>.from(workerRaw)
+          : null;
+
+      debugPrint('QR worker: $worker');
+
+      final codigo = (worker?['codigo'] ?? data['codigo'] ?? '').toString();
+      final dni = (worker?['dni'] ?? data['dni'] ?? '').toString();
+      final nombre = (worker?['nombre'] ?? data['nombre_completo'] ?? '')
+          .toString();
+
+      debugPrint(
+        'QR parsed values -> codigo=$codigo, dni=$dni, nombre_completo=$nombre',
+      );
 
       popped = true;
 

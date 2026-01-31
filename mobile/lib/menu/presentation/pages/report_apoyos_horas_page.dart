@@ -346,6 +346,12 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
                         _trabajadores[i].codigoCtrl.text = mapped.codigo;
                         _trabajadores[i].nombreCtrl.text = mapped.nombre;
+                        debugPrint(
+                          'TEMP LOG (remover luego) index=$i lineaId=${_trabajadores[i].lineaId} codigo=${_trabajadores[i].codigoCtrl.text}',
+                        );
+                        debugPrint(
+                          'TEMP LOG (remover luego) index=$i lineaId=${_trabajadores[i].lineaId} nombre=${_trabajadores[i].nombreCtrl.text}',
+                        );
                         if (_trabajadores[i].inicio == null) {
                           _trabajadores[i].inicio = _nowTime();
                         }

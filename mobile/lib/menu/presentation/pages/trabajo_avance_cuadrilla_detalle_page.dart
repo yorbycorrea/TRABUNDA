@@ -149,8 +149,22 @@ class _TrabajoAvanceCuadrillaDetallePageState
       return;
     }
 
-    final codigo = (res['codigo'] ?? '').toString().trim();
-    final nombre = (res['nombre_completo'] ?? '').toString().trim();
+    final worker = res['worker'];
+    final workerIdAny = res['id'] ?? (worker is Map ? worker['id'] : null);
+    final workerIdNum = (workerIdAny is num)
+        ? workerIdAny
+        : num.tryParse(workerIdAny?.toString() ?? '');
+    final workerId = workerIdNum?.toInt();
+
+    var codigo = (res['codigo'] ?? '').toString().trim();
+    if (codigo.isEmpty && worker is Map) {
+      codigo = (worker['codigo'] ?? '').toString().trim();
+    }
+    final nombre = (res['nombre_completo'] ?? res['nombre'] ?? '')
+        .toString()
+        .trim();
+
+    debugPrint('QR values -> codigo=$codigo nombre=$nombre workerId=$workerId');
 
     if (codigo.isEmpty) {
       AppNotify.warning(

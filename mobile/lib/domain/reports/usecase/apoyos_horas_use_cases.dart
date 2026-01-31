@@ -37,17 +37,27 @@ class CalculateHoras {
 
 class MapQrToApoyoHorasModel {
   ApoyoHorasScanResult call(Map<String, dynamic> result) {
-    final idAny = result['id'];
+    final worker = result['worker'];
+    final idAny = result['id'] ?? (worker is Map ? worker['id'] : null);
     final idNum = (idAny is num)
         ? idAny
         : num.tryParse(idAny?.toString() ?? '');
     final trabajadorId = idNum?.toInt();
 
-    final codigo = (result['codigo'] ?? '').toString().trim();
+    var codigo = (result['codigo'] ?? '').toString().trim();
+    if (codigo.isEmpty && worker is Map) {
+      codigo = (worker['codigo'] ?? '').toString().trim();
+    }
     final dni = (result['dni'] ?? '').toString().trim();
     final codigoFinal = codigo.isNotEmpty ? codigo : dni;
 
-    final nombre = (result['nombre_completo'] ?? '').toString().trim();
+    final nombre = (result['nombre_completo'] ?? result['nombre'] ?? '')
+        .toString()
+        .trim();
+
+    debugPrint(
+      'MapQrToApoyoHorasModel -> codigo=$codigoFinal nombre=$nombre trabajadorId=$trabajadorId',
+    );
 
     return ApoyoHorasScanResult(
       trabajadorId: trabajadorId,
