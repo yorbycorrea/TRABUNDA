@@ -6,6 +6,7 @@ const { pool } = require("./db");
 // 1. IMPORTAR RUTAS
 const trabajadoresRoutes = require("./routes/trabajadores");
 const reportesRoutes = require("./routes/reportes");
+const { getTrabajadorPorCodigo } = require("./services/trabajadorApi");
 const areasRutas = require("./routes/areas");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
@@ -24,7 +25,7 @@ app.use((req, res, next) => {
   if (process.env.NODE_ENV !== "test") {
 
 
-    
+
   console.log(`Petición recibida: ${req.method} ${req.url}`);
 }
 app.get("/debug/workers-url", (req, res) => {
@@ -40,6 +41,30 @@ app.get("/debug/workers-url", (req, res) => {
 // 5. DEFINIR RUTAS
 app.get("/health", (req, res) => {
   res.json({ ok: true, message: "TRABUNDA backend online ✅" });
+});
+
+app.get("/debug/test-worker", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Ruta no disponible" });
+  }
+
+  const q = String(req.query.q ?? "").trim();
+  if (!q) {
+    return res.status(400).json({ error: "q es requerido" });
+  }
+
+  try {
+    const result = await getTrabajadorPorCodigo(q);
+    return res.json(result);
+  } catch (err) {
+    const status = err?.message === "TRABAJADOR_NO_ENCONTRADO" ? 404 : 502;
+    const errorMessage =
+      err?.message === "TRABAJADOR_NO_ENCONTRADO"
+        ? "Trabajador no encontrado"
+        : "Error al consultar trabajador";
+    console.error("debug test-worker error: ", err);
+    return res.status(status).json({ error: errorMessage });
+  }
 });
 
 app.use("/health", healthRoutes);

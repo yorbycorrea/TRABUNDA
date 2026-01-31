@@ -33,16 +33,15 @@ router.get("/lookup",  authMiddleware, async(req, res) => {
       return res.status(404).json({error: "Trabajador no encontrado"});
     }
 
-    const worker = result.worker ?? result;
-    const nombres = worker.nombres ?? "";
-    const apellidos = worker.apellidos ?? "";
+
+
 
     
     return res.json({
       ok: true,
       worker: {
-        codigo: worker.id,
-        nombre: `${nombres} ${apellidos}`.trim(),
+        codigo: result.codigo,
+        nombre: result.nombre,
       },
     });
 

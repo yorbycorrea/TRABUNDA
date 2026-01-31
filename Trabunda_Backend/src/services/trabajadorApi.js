@@ -6,10 +6,16 @@ if (!fetch) {
 
 const WORKERS_API_URL =
   process.env.WORKERS_API_URL || "http://172.16.1.207:4806/graphql";
-const GET_WORKER_QUERY = `mutation GetWorker($codigo:String!){ getWorker(codigo:$codigo){ ok worker{ id nombres apellidos dni } errors } }`;
 
-const buildNombreCompleto = (worker) =>
-  `${worker.nombres || ""} ${worker.apellidos || ""}`.trim();
+const GET_WORKER_QUERY = `
+mutation GetWorker($codigo:String!){
+  getWorker(codigo:$codigo){
+    ok
+    worker{ id nombres apellidos dni }
+    errors { message }
+  }
+}
+`;
 
 const buildError = (message, code) => {
   const error = new Error(message);
@@ -18,20 +24,14 @@ const buildError = (message, code) => {
 };
 
 const getTrabajadorPorCodigo = async (codigo) => {
-   const codigoTrim = String(codigo ?? "").trim();
+  const codigoTrim = String(codigo ?? "").trim();
   if (!codigoTrim) {
     throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
   }
 
-  if (!WORKERS_API_URL) {
-    throw buildError("WORKERS_API_URL no configurada", "TRABAJADOR_GQL_NO_CONFIG");
-  }
-
   const response = await fetch(WORKERS_API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     cache: "no-store",
     body: JSON.stringify({
       query: GET_WORKER_QUERY,
@@ -39,34 +39,57 @@ const getTrabajadorPorCodigo = async (codigo) => {
     }),
   });
 
-  if (!response.ok) {
-    throw buildError(
-      `Error consultando trabajadores (${response.status})`,
-      "TRABAJADOR_GQL_ERROR"
-    );
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    console.error("Error parseando JSON de trabajadores", {
+      status: response.status,
+      url: response.url || WORKERS_API_URL,
+      error: error?.message,
+    });
+    throw buildError("TRABAJADOR_GQL_ERROR", "TRABAJADOR_GQL_ERROR");
   }
 
-  const payload = await response.json();
+  const status = response.status;
+  const url = response.url || WORKERS_API_URL;
+  const payloadErrors = Array.isArray(payload?.errors) ? payload.errors : [];
+
+  if (payloadErrors.length) {
+    console.error("Errores GraphQL (nivel raíz)", {
+      status,
+      url,
+      errors: payloadErrors.map((e) => e?.message),
+    });
+  }
+
+  if (!response.ok) {
+    console.error("Respuesta no OK desde trabajadores", {
+      status,
+      url,
+      payload,
+    });
+    throw buildError("TRABAJADOR_GQL_ERROR", "TRABAJADOR_GQL_ERROR");
+  }
+
   const getWorkerResponse = payload?.data?.getWorker;
   const worker = getWorkerResponse?.worker;
   const ok = getWorkerResponse?.ok;
   const errors = getWorkerResponse?.errors;
 
-  if (!ok || (Array.isArray(errors) && errors.length) || !worker) {
+  if (!ok || !worker) {
+    const msg = Array.isArray(errors) && errors.length
+      ? errors.map((e) => e?.message).filter(Boolean).join(", ")
+      : null;
+    if (msg) console.error("getWorker errors:", msg);
+
     throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
   }
-  const nombreCompleto = buildNombreCompleto(worker);
 
   return {
-    id: worker.id ?? null,
-    codigo: worker.id ?? codigoTrim,
-    nombres: worker.nombres ?? "",
-    apellidos: worker.apellidos ?? "",
-    nombre_completo: nombreCompleto,
-    nombre: nombreCompleto,
+    codigo: worker.id,
+    nombre: `${worker.nombres} ${worker.apellidos}`.trim(),
   };
 };
 
-module.exports = {
-  getTrabajadorPorCodigo,
-};
+module.exports = { getTrabajadorPorCodigo };
