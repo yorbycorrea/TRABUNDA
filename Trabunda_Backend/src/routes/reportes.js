@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 const ExcelJS = require('exceljs');
-const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
+//const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 
 //const { width } = require("pdfkit/js/page");
 
@@ -57,40 +57,6 @@ function textoSeguro(valor) {
 }
 
 
-async function hidratarTrabajadoresPorCodigo(trabajadores) {
-  const trabajadoresConCodigo = trabajadores.map((trabajador) => ({
-    ...trabajador,
-    trabajador_codigo: String(trabajador.trabajador_codigo ?? "").trim(),
-  }));
-  const codigos = [
-    ...new Set(
-       trabajadoresConCodigo
-        .filter((t) => !String(t.trabajador_nombre ?? "").trim())
-        .map((t) => t.trabajador_codigo)
-        .filter(Boolean)
-    ),
-  ];
-
-  const mapa = new Map();
-  await Promise.all(
-    codigos.map(async (codigo) => {
-      const data = await getTrabajadorPorCodigo(codigo);
-      mapa.set(codigo, data);
-    })
-  );
-
-  return trabajadoresConCodigo.map((trabajador) => {
-    if (String(trabajador.trabajador_nombre ?? "").trim()) {
-      return trabajador;
-    }
-    const data = mapa.get(trabajador.trabajador_codigo);
-    return {
-      ...trabajador,
-      
-      trabajador_nombre: data?.nombre ?? data?.nombre_completo ?? "",
-    };
-  });
-}
 
 
 
@@ -788,9 +754,7 @@ router.get(
         [cuadrillaId]
       );
 
-      const trabajadores = await hidratarTrabajadoresPorCodigo(trabajadoresRaw);
-
-      return res.json({ cuadrilla, trabajadores });
+     return res.json({ items: rows });
     } catch (e) {
        if (e?.code === "TRABAJADOR_NO_ENCONTRADO") {
         return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
@@ -1357,12 +1321,11 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
     );
 
     const items = await hidratarTrabajadoresPorCodigo(rows);
+     console.log("No se consulta API trabajadores al listar lineas");
 
     return res.json({ items });
   } catch (err) {
-    if (err?.code === "TRABAJADOR_NO_ENCONTRADO") {
-      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
-    }
+    
     console.error("Error listando lineas:", err);
     return res.status(500).json({ error: "Error interno al listar lineas" });
   }
