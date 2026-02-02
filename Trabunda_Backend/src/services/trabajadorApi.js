@@ -9,11 +9,11 @@ const WORKERS_API_URL =
 const isDni = (q) => /^\d{8}$/.test(String(q).trim());
 
 const GET_WORKER_QUERY = `
-mutation GetWorker($codigo:String!, $porDni:Boolean!){
-  getWorker(codigo:$codigo, porDni:$porDni){
+mutation GetWorker($codigo:String!){
+  getWorker(codigo:$codigo){
     ok
     worker{ id nombres apellidos dni }
-    errors { message code }
+    errors { message }
   }
 }`;
 

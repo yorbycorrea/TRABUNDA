@@ -2171,6 +2171,12 @@ router.post("/", authMiddleware, async (req, res) => {
 ===================================== */
 router.post("/:id/lineas", authMiddleware, async (req, res) => {
   try {
+    console.log("[DEBUG][POST /reportes/:id/lineas] Content-Type:", req.headers["content-type"]);
+    console.log("[DEBUG][POST /reportes/:id/lineas] Body recibido:", req.body);
+    console.log("[DEBUG][POST /reportes/:id/lineas] trabajador_codigo:", req.body?.trabajador_codigo);
+    console.log("[DEBUG][POST /reportes/:id/lineas] trabajador_nombre:", req.body?.trabajador_nombre);
+    console.log("[DEBUG][POST /reportes/:id/lineas] trabajador_documento:", req.body?.trabajador_documento);
+    console.log("[DEBUG][POST /reportes/:id/lineas] trabajador_id:", req.body?.trabajador_id);
     const reporteId = Number(req.params.id);
     if (!Number.isInteger(reporteId) || reporteId <= 0) {
       return res.status(400).json({ error: "id de reporte inválido" });
@@ -2225,6 +2231,14 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       Boolean(trabajadorCodigoInput) || Boolean(trabajadorDocumentoInput);
 
      if (!tieneCodigoNombre && !tieneReferencia) {
+       console.log(
+        "[DEBUG][POST /reportes/:id/lineas] TRABAJADOR_NO_ENCONTRADO: !tieneCodigoNombre && !tieneReferencia",
+        {
+          trabajadorCodigoInput,
+          trabajadorNombreInput,
+          trabajadorDocumentoInput,
+        }
+      );
       return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
     }
 
@@ -2235,10 +2249,18 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
    if (!trabajadorCodigoFinal || !trabajadorNombreFinal) {
       const codigoBusqueda = trabajadorCodigoFinal || trabajadorDocumentoFinal;
+      console.log("[DEBUG][POST /reportes/:id/lineas] Lookup trabajador:", {
+        codigoBusqueda,
+        tipoBusqueda: trabajadorCodigoFinal ? "codigo_interno" : "documento",
+      });
       let trabajador = null;
       try {
         trabajador = await getTrabajadorPorCodigo(codigoBusqueda);
       } catch (error) {
+          console.error("[DEBUG][POST /reportes/:id/lineas] Error lookup trabajador:", {
+          code: error?.code,
+          message: error?.message,
+        });
         if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
           return res
             .status(400)
