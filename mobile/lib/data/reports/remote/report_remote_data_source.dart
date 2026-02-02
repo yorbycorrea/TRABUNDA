@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
 
 class ReportRemoteDataSource {
@@ -147,6 +148,10 @@ class ReportRemoteDataSource {
     DateTime? fecha,
     required String turno,
   }) async {
+    final fechaLog = fecha == null
+        ? 'null'
+        : DateFormat('yyyy-MM-dd').format(fecha);
+    debugPrint('[ApoyoHoras] openApoyoHoras fecha=$fechaLog turno=$turno');
     final query = <String, String>{
       'turno': turno,
       if (fecha != null) 'fecha': _fmtFecha(fecha),
@@ -169,6 +174,10 @@ class ReportRemoteDataSource {
     DateTime? fecha,
     required String turno,
   }) async {
+    final fechaLog = fecha == null
+        ? 'null'
+        : DateFormat('yyyy-MM-dd').format(fecha);
+    debugPrint('[ApoyoHoras] checkApoyoHoras fecha=$fechaLog turno=$turno');
     final query = <String, String>{
       'turno': turno,
       'create': '0',
@@ -189,6 +198,12 @@ class ReportRemoteDataSource {
     DateTime? fecha,
     String? turno,
   }) async {
+    final fechaLog = fecha == null
+        ? 'null'
+        : DateFormat('yyyy-MM-dd').format(fecha);
+    debugPrint(
+      '[ApoyoHoras] fetchApoyoHorasPendientes fecha=$fechaLog turno=${turno ?? ''} hours=$hours',
+    );
     final params = <String, String>{'hours': hours.toString()};
     if (fecha != null) params['fecha'] = _fmtFecha(fecha);
     if (turno != null && turno.isNotEmpty) params['turno'] = turno;

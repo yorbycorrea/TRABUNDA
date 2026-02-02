@@ -25,6 +25,7 @@ class ApoyosHorasEntryPage extends StatefulWidget {
 class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
   bool _loading = true;
   String? _error;
+  DateTime? _fechaSel;
 
   late final FetchApoyoHorasPendientes _fetchApoyoHorasPendientes;
   late final OpenApoyoHorasReport _openApoyoHorasReport;
@@ -39,12 +40,28 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
   }
 
   DateTime _parseFecha(String? s) {
-    if (s == null || s.trim().isEmpty) return DateTime.now();
+    if (s == null || s.trim().isEmpty) {
+      return _fechaSel ?? DateTime.now();
+    }
     try {
       return DateTime.parse(s);
     } catch (_) {
-      return DateTime.now();
+      return _fechaSel ?? DateTime.now();
     }
+  }
+
+  Future<DateTime?> _pickFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaSel ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      setState(() => _fechaSel = picked);
+    }
+    return picked;
   }
 
   Future<void> _decidirRuta() async {
@@ -70,7 +87,21 @@ class _ApoyosHorasEntryPageState extends State<ApoyosHorasEntryPage> {
         return;
       }
 
-      final reporte = await _openApoyoHorasReport.call(turno: widget.turno);
+      final fechaSeleccionada = _fechaSel ?? await _pickFecha();
+
+      if (fechaSeleccionada == null) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Debes seleccionar una fecha para continuar.';
+        });
+        return;
+      }
+
+      final reporte = await _openApoyoHorasReport.call(
+        turno: widget.turno,
+        fecha: fechaSeleccionada,
+      );
 
       if (reporte.id <= 0) {
         throw Exception('open devolvió un reporte inválido (id=0).');

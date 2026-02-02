@@ -33,6 +33,8 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
   // ✅ Estado local para el header seleccionable
   late DateTime _fechaSel;
   late String _turnoSel;
+  String? _lastKey;
+  bool _isFetchingPendientes = false;
 
   static const Color kBluePrimary = Color(0xFF0A7CFF);
   static const Color kBlueSecondary = Color(0xFF4FC3F7);
@@ -54,7 +56,35 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     _loadPendientes();
   }
 
-  Future<void> _loadPendientes() async {
+  String _buildKey(DateTime fecha, String turno) => '$fecha|$turno';
+
+  Future<void> _requestPendientes({
+    required DateTime fecha,
+    required String turno,
+  }) async {
+    final nextKey = _buildKey(fecha, turno);
+    if (nextKey == _lastKey || _isFetchingPendientes) {
+      setState(() {
+        _fechaSel = fecha;
+        _turnoSel = turno;
+      });
+      return;
+    }
+
+    setState(() {
+      _fechaSel = fecha;
+      _turnoSel = turno;
+    });
+
+    await _loadPendientes();
+  }
+
+  Future<void> _loadPendientes({bool force = false}) async {
+    final key = _buildKey(_fechaSel, _turnoSel);
+    if (_isFetchingPendientes) return;
+    if (!force && key == _lastKey) return;
+    _isFetchingPendientes = true;
+    _lastKey = key;
     setState(() {
       _loading = true;
       _error = null;
@@ -80,6 +110,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
         _fechaSel = f2;
         _turnoSel = t2;
+        _lastKey = _buildKey(_fechaSel, _turnoSel);
       }
 
       final reporte = await _checkApoyoHorasReport.call(
@@ -96,15 +127,17 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         _loading = false;
         _error = e.toString();
       });
+    } finally {
+      _isFetchingPendientes = false;
     }
   }
 
   DateTime _parseFecha(String? s) {
-    if (s == null || s.trim().isEmpty) return DateTime.now();
+    if (s == null || s.trim().isEmpty) return _fechaSel;
     try {
       return DateTime.parse(s);
     } catch (_) {
-      return DateTime.now();
+      return _fechaSel;
     }
   }
 
@@ -121,16 +154,13 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
 
     if (picked == null) return;
 
-    setState(() => _fechaSel = picked);
-
     // ✅ Solo recargar (misma lógica). Si luego quieres filtrar por fecha,
     // ahí sí habría que cambiar el endpoint.
-    _loadPendientes();
+    await _requestPendientes(fecha: picked, turno: _turnoSel);
   }
 
   void _setTurno(String v) {
-    setState(() => _turnoSel = v);
-    _loadPendientes();
+    _requestPendientes(fecha: _fechaSel, turno: v);
   }
 
   Future<void> _openPendiente() async {
@@ -153,7 +183,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
     );
 
     if (!mounted) return;
-    _loadPendientes();
+    _loadPendientes(force: true);
   }
 
   Future<void> _crearNuevoYEntrar() async {
@@ -190,7 +220,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
       );
 
       if (!mounted) return;
-      _loadPendientes();
+      _loadPendientes(force: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -264,7 +294,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            onPressed: _loading ? null : _loadPendientes,
+            onPressed: _loading ? null : () => _loadPendientes(force: true),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -299,7 +329,7 @@ class _ApoyosHorasHomePageState extends State<ApoyosHorasHomePage> {
                         subtitle: Text(_error!),
                         trailing: IconButton(
                           icon: const Icon(Icons.refresh),
-                          onPressed: _loadPendientes,
+                          onPressed: () => _loadPendientes(force: true),
                         ),
                       ),
                     ),
