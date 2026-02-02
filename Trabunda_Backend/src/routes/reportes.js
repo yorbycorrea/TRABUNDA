@@ -310,7 +310,11 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
    GET /reportes/apoyo-horas/pendientes
 ======================================== */
 router.get("/apoyo-horas/pendientes", authMiddleware, async (req, res) => {
+  console.log("[DEBUG pendientes] query", req.query);
+
   try {
+    console.log("[DEBUG pendientes] query", req.query);
+
     const userId = req.user.id;
 
     const horasParam = req.query.horas ?? req.query.hours ?? 24;
