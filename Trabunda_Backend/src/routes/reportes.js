@@ -240,10 +240,11 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
     if (!turno) return res.status(400).json({ error: "turno es requerido" });
     if (!esTurnoValido(turno))
       return res.status(400).json({ error: "turno no valido" });
+    if (!fecha) return res.status(400).json({ error: "fecha es requerida" });
 
     const fechaValue = fecha
       ? String(fecha)
-      : new Date().toISOString().slice(0, 10);
+       : new Date().toLocaleDateString("en-CA");
 
     // 1) buscar si ya existe un ABIERTO vigente para ese usuario+turno+fecha
     const [rows] = await pool.query(
@@ -253,8 +254,7 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
          AND creado_por_user_id = ?
          AND turno = ?
          AND fecha = ?
-         AND estado = 'ABIERTO'
-         AND (vence_en IS NULL OR vence_en > NOW())
+         
        ORDER BY id DESC
        LIMIT 1`,
       [userId, turno, fechaValue]
@@ -279,16 +279,38 @@ router.get("/apoyo-horas/open", authMiddleware, async (req, res) => {
 
     const creado_por_nombre = urows[0].nombre || urows[0].username;
 
-    const [result] = await pool.query(
-      `INSERT INTO reportes
-       (fecha, turno, tipo_reporte, area, area_id,
-        creado_por_user_id, creado_por_nombre, observaciones,
-        estado, vence_en)
-       VALUES (?, ?, 'APOYO_HORAS', 'POR_TRABAJADOR', NULL,
-               ?, ?, NULL,
-               'ABIERTO', DATE_ADD(STR_TO_DATE(?, '%Y-%m-%d'), INTERVAL 1 DAY))`,
-      [fechaValue, turno, userId, creado_por_nombre, fechaValue]
-    );
+     let result;
+    try {
+      [result] = await pool.query(
+        `INSERT INTO reportes
+         (fecha, turno, tipo_reporte, area, area_id,
+          creado_por_user_id, creado_por_nombre, observaciones,
+          estado, vence_en)
+         VALUES (?, ?, 'APOYO_HORAS', 'POR_TRABAJADOR', NULL,
+                 ?, ?, NULL,
+                 'ABIERTO', DATE_ADD(STR_TO_DATE(?, '%Y-%m-%d'), INTERVAL 1 DAY))`,
+        [fechaValue, turno, userId, creado_por_nombre, fechaValue]
+      );
+    } catch (err) {
+      if (err && err.code === "ER_DUP_ENTRY") {
+        const [duplicado] = await pool.query(
+          `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
+           FROM reportes
+           WHERE tipo_reporte = 'APOYO_HORAS'
+             AND creado_por_user_id = ?
+             AND turno = ?
+             AND fecha = ?
+           ORDER BY id DESC
+           LIMIT 1`,
+          [userId, turno, fechaValue]
+        );
+
+        if (duplicado.length) {
+          return res.json({ existente: true, reporte: duplicado[0] });
+        }
+      }
+      throw err;
+    }
 
     const [nuevo] = await pool.query(
       `SELECT id, fecha, turno, estado, vence_en, creado_por_nombre
