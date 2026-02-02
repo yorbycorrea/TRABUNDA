@@ -248,6 +248,8 @@ class ReportRemoteDataSource {
     int? lineaId,
     required int reporteId,
     required int trabajadorId,
+    String? trabajadorCodigo,
+    String? trabajadorNombre,
     required String horaInicio,
     String? horaFin,
     double? horas,
@@ -256,6 +258,9 @@ class ReportRemoteDataSource {
     if (lineaId != null) {
       final payload = <String, dynamic>{
         'trabajador_id': trabajadorId,
+        'trabajador_codigo': trabajadorCodigo,
+        'trabajador_documento': trabajadorCodigo,
+        'trabajador_nombre': trabajadorNombre,
         'hora_inicio': horaInicio,
         'hora_fin': horaFin,
         'horas': horas,
@@ -267,6 +272,9 @@ class ReportRemoteDataSource {
     }
     final payload = <String, dynamic>{
       'trabajador_id': trabajadorId,
+      'trabajador_codigo': trabajadorCodigo,
+      'trabajador_documento': trabajadorCodigo,
+      'trabajador_nombre': trabajadorNombre,
       'hora_inicio': horaInicio,
       'hora_fin': horaFin,
       'horas': horas,

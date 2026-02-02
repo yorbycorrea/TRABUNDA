@@ -55,6 +55,8 @@ abstract class ReportRepository {
     int? lineaId,
     required int reporteId,
     required int trabajadorId,
+    String? trabajadorCodigo,
+    String? trabajadorNombre,
     required String horaInicio,
     String? horaFin,
     double? horas,

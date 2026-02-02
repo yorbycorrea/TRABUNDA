@@ -2208,6 +2208,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     const {
       trabajador_id,
+      trabajador_nombre,
+      trabajador_codigo,
+      trabajador_documento,
       cuadrilla_id,
       horas,
       hora_inicio,
@@ -2217,10 +2220,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       area_id,
     } = req.body;
 
-    if (!trabajador_id) {
-      return res.status(400).json({ error: "trabajador_id es obligatorio" });
-    }
-
+    
     const [repRows] = await pool.query(
       "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
       [reporteId]
@@ -2246,15 +2246,39 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       areaIdFinal = null;
       areaNombre = null;
     }
-const trabajadorCodigo = req.body?.trabajador_codigo ?? trabajador_id;
-    let trabajador = null;
-    try {
-      trabajador = await getTrabajadorPorCodigo(trabajadorCodigo);
-    } catch (error) {
-      if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
-        return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+    const trabajadorDocumento = String(
+      trabajador_codigo ?? trabajador_documento ?? ""
+    ).trim();
+    const tieneTrabajadorSeleccionado =
+      Boolean(trabajador_id) && Boolean(trabajador_nombre);
+    const tieneDocumento = Boolean(trabajadorDocumento);
+
+    if (!tieneTrabajadorSeleccionado && !tieneDocumento) {
+      return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+    }
+
+    let trabajadorIdFinal = trabajador_id ?? null;
+    let trabajadorCodigoFinal = null;
+    let trabajadorNombreFinal = null;
+
+    if (tieneTrabajadorSeleccionado) {
+      trabajadorCodigoFinal = String(trabajador_id ?? "").trim();
+      trabajadorNombreFinal = trabajador_nombre;
+    } else {
+      let trabajador = null;
+      try {
+        trabajador = await getTrabajadorPorCodigo(trabajadorDocumento);
+      } catch (error) {
+        if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
+          return res
+            .status(400)
+            .json({ error: "TRABAJADOR_DOCUMENTO_INVALIDO" });
+        }
+        throw error;
       }
-      throw error;
+      trabajadorIdFinal = trabajador?.codigo ?? null;
+      trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
+      trabajadorNombreFinal = trabajador?.nombre ?? "";
     }
     
 
@@ -2337,7 +2361,7 @@ const trabajadorCodigo = req.body?.trabajador_codigo ?? trabajador_id;
            AND hora_fin IS NULL
          ORDER BY id DESC
          LIMIT 1`,
-        [reporteId, trabajador_id]
+         [reporteId, trabajadorIdFinal]
       );
 
      if (pendiente.length) {
@@ -2406,7 +2430,7 @@ const trabajadorCodigo = req.body?.trabajador_codigo ?? trabajador_id;
            AND hora_fin IS NULL
          ORDER BY id DESC
          LIMIT 1`,
-        [reporteId, trabajador_id]
+         [reporteId, trabajadorIdFinal]
       );
 
       if (pendiente.length) {
@@ -2447,12 +2471,12 @@ const trabajadorCodigo = req.body?.trabajador_codigo ?? trabajador_id;
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
-        trabajador_id,
+        trabajadorIdFinal,
         cuadrilla_id ?? null,
         areaIdFinal, // ✅
         areaNombre, // ✅
-        (trabajador.codigo ?? "").toString().trim(),
-        trabajador.nombre,
+        trabajadorCodigoFinal,
+        trabajadorNombreFinal,
         horasValue,
         hora_inicio ?? null,
         horaFinValue,
