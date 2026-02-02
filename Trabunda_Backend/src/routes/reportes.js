@@ -1320,10 +1320,9 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
       [reporteId]
     );
 
-    const items = await hidratarTrabajadoresPorCodigo(rows);
-     console.log("No se consulta API trabajadores al listar lineas");
+   
 
-    return res.json({ items });
+    return res.json({ items: rows });
   } catch (err) {
     
     console.error("Error listando lineas:", err);

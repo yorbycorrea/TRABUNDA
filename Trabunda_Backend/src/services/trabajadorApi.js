@@ -6,16 +6,16 @@ if (!fetch) {
 
 const WORKERS_API_URL =
   process.env.WORKERS_API_URL || "http://172.16.1.207:4806/graphql";
+const isDni = (q) => /^\d{8}$/.test(String(q).trim());
 
 const GET_WORKER_QUERY = `
-mutation GetWorker($codigo:String!){
-  getWorker(codigo:$codigo){
+mutation GetWorker($codigo:String!, $porDni:Boolean!){
+  getWorker(codigo:$codigo, porDni:$porDni){
     ok
     worker{ id nombres apellidos dni }
-    errors { message }
+    errors { message code }
   }
-}
-`;
+}`;
 
 const buildError = (message, code) => {
   const error = new Error(message);
@@ -35,7 +35,7 @@ const getTrabajadorPorCodigo = async (codigo) => {
     cache: "no-store",
     body: JSON.stringify({
       query: GET_WORKER_QUERY,
-      variables: { codigo: codigoTrim },
+      variables: { codigo: codigoTrim, porDni: isDni(codigoTrim) }
     }),
   });
 
