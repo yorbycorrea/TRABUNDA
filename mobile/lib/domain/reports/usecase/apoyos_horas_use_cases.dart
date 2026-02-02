@@ -42,7 +42,7 @@ class MapQrToApoyoHorasModel {
     final idNum = (idAny is num)
         ? idAny
         : num.tryParse(idAny?.toString() ?? '');
-    final trabajadorId = idNum?.toInt();
+    var trabajadorId = idNum?.toInt();
 
     var codigo = (result['codigo'] ?? '').toString().trim();
     if (codigo.isEmpty && worker is Map) {
@@ -51,9 +51,20 @@ class MapQrToApoyoHorasModel {
     final dni = (result['dni'] ?? '').toString().trim();
     final codigoFinal = codigo.isNotEmpty ? codigo : dni;
 
-    final nombre = (result['nombre_completo'] ?? result['nombre'] ?? '')
-        .toString()
-        .trim();
+    if (trabajadorId == null) {
+      final codigoWorker = worker is Map ? worker['codigo'] : null;
+      final codigoResult = result['codigo'];
+      final codigoFallback = codigoWorker ?? codigoResult;
+      trabajadorId = int.tryParse(codigoFallback?.toString() ?? '');
+    }
+
+    final nombre =
+        (result['nombre_completo'] ??
+                (worker is Map ? worker['nombre'] : null) ??
+                result['nombre'] ??
+                '')
+            .toString()
+            .trim();
 
     debugPrint(
       'MapQrToApoyoHorasModel -> codigo=$codigoFinal nombre=$nombre trabajadorId=$trabajadorId',
@@ -89,9 +100,10 @@ class ValidateApoyoHorasLineas {
 
     for (final linea in lineas) {
       final codigo = linea.codigo.trim();
-      if ((codigo.isEmpty && linea.trabajadorId == null) ||
-          linea.inicio == null ||
-          linea.areaId == null) {
+      if (linea.trabajadorId == null) {
+        return 'Escanea trabajador';
+      }
+      if (codigo.isEmpty || linea.inicio == null || linea.areaId == null) {
         return 'Escanea trabajador, selecciona hora inicio y área';
       }
     }

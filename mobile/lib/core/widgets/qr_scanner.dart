@@ -115,6 +115,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
         'codigo': codigo,
         'dni': dni,
         'nombre_completo': nombre,
+        'worker': worker,
       });
     } catch (e) {
       if (!mounted) return;

@@ -248,6 +248,12 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       AppNotify.warning(context, 'Validación', validationMessage);
       return;
     }
+    for (final t in _trabajadores) {
+      if (t.trabajadorId == null) {
+        AppNotify.warning(context, 'Validación', 'Escanea trabajador');
+        return;
+      }
+    }
 
     setState(() => _saving = true);
 
@@ -269,25 +275,55 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         );
         debugPrint('   horas=$horas');
 
+        final trabajadorId = t.trabajadorId;
+        if (trabajadorId == null) {
+          AppNotify.warning(
+            context,
+            'Validación',
+            'Falta seleccionar el trabajador para guardar el apoyo.',
+          );
+          return;
+        }
+
+        final areaId = t.areaId;
+        if (areaId == null) {
+          AppNotify.warning(
+            context,
+            'Validación',
+            'Falta seleccionar el área para guardar el apoyo.',
+          );
+          return;
+        }
+
+        final inicio = t.inicio;
+        if (inicio == null) {
+          AppNotify.warning(
+            context,
+            'Validación',
+            'Falta seleccionar la hora de inicio para guardar el apoyo.',
+          );
+          return;
+        }
+
         if (t.lineaId == null) {
           t.lineaId = await _upsertApoyoHorasLinea.call(
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
-            trabajadorId: t.trabajadorId!,
-            inicio: t.inicio!,
+            trabajadorId: trabajadorId,
+            inicio: inicio,
             fin: t.fin,
             horas: horas,
-            areaId: t.areaId!,
+            areaId: areaId,
           );
         } else {
           await _upsertApoyoHorasLinea.call(
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
-            trabajadorId: t.trabajadorId!,
-            inicio: t.inicio!,
+            trabajadorId: trabajadorId,
+            inicio: inicio,
             fin: t.fin,
             horas: horas,
-            areaId: t.areaId!,
+            areaId: areaId,
           );
         }
       }
