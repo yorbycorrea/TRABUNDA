@@ -58,10 +58,15 @@ function textoSeguro(valor) {
 
 
 async function hidratarTrabajadoresPorCodigo(trabajadores) {
+  const trabajadoresConCodigo = trabajadores.map((trabajador) => ({
+    ...trabajador,
+    trabajador_codigo: String(trabajador.trabajador_codigo ?? "").trim(),
+  }));
   const codigos = [
     ...new Set(
-      trabajadores
-        .map((t) => String(t.trabajador_codigo ?? "").trim())
+       trabajadoresConCodigo
+        .filter((t) => !String(t.trabajador_nombre ?? "").trim())
+        .map((t) => t.trabajador_codigo)
         .filter(Boolean)
     ),
   ];
@@ -74,12 +79,14 @@ async function hidratarTrabajadoresPorCodigo(trabajadores) {
     })
   );
 
-  return trabajadores.map((trabajador) => {
-    const codigo = String(trabajador.trabajador_codigo ?? "").trim();
-    const data = mapa.get(codigo);
+  return trabajadoresConCodigo.map((trabajador) => {
+    if (String(trabajador.trabajador_nombre ?? "").trim()) {
+      return trabajador;
+    }
+    const data = mapa.get(trabajador.trabajador_codigo);
     return {
       ...trabajador,
-      trabajador_codigo: codigo,
+      
       trabajador_nombre: data?.nombre ?? data?.nombre_completo ?? "",
     };
   });
@@ -1329,7 +1336,8 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
 
          lr.trabajador_codigo,
          lr.trabajador_nombre,
-
+         lr.trabajador_documento,
+                 
          lr.area_id,
          lr.area_nombre,
 
@@ -2246,28 +2254,28 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       areaIdFinal = null;
       areaNombre = null;
     }
-    const trabajadorDocumento = String(
-      trabajador_codigo ?? trabajador_documento ?? ""
-    ).trim();
-    const tieneTrabajadorSeleccionado =
-      Boolean(trabajador_id) && Boolean(trabajador_nombre);
-    const tieneDocumento = Boolean(trabajadorDocumento);
+    const trabajadorCodigoInput = String(trabajador_codigo ?? "").trim();
+    const trabajadorNombreInput = String(trabajador_nombre ?? "").trim();
+    const trabajadorDocumentoInput = String(trabajador_documento ?? "").trim();
+    const tieneCodigoNombre =
+      Boolean(trabajadorCodigoInput) && Boolean(trabajadorNombreInput);
+    const tieneReferencia =
+      Boolean(trabajadorCodigoInput) || Boolean(trabajadorDocumentoInput);
 
-    if (!tieneTrabajadorSeleccionado && !tieneDocumento) {
+     if (!tieneCodigoNombre && !tieneReferencia) {
       return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
     }
 
     let trabajadorIdFinal = trabajador_id ?? null;
-    let trabajadorCodigoFinal = null;
-    let trabajadorNombreFinal = null;
+    let trabajadorCodigoFinal = trabajadorCodigoInput;
+    let trabajadorNombreFinal = trabajadorNombreInput;
+    const trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
 
-    if (tieneTrabajadorSeleccionado) {
-      trabajadorCodigoFinal = String(trabajador_id ?? "").trim();
-      trabajadorNombreFinal = trabajador_nombre;
-    } else {
+   if (!trabajadorCodigoFinal || !trabajadorNombreFinal) {
+      const codigoBusqueda = trabajadorCodigoFinal || trabajadorDocumentoFinal;
       let trabajador = null;
       try {
-        trabajador = await getTrabajadorPorCodigo(trabajadorDocumento);
+        trabajador = await getTrabajadorPorCodigo(codigoBusqueda);
       } catch (error) {
         if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
           return res
@@ -2276,9 +2284,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         }
         throw error;
       }
-      trabajadorIdFinal = trabajador?.codigo ?? null;
+      
       trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
-      trabajadorNombreFinal = trabajador?.nombre ?? "";
+      trabajadorNombreFinal = trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
     }
     
 
@@ -2353,15 +2361,29 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     // evitar duplicados por trabajador con pendiente (SANEAMIENTO)
     if (tipo === "SANEAMIENTO") {
+        const pendientesParams = [reporteId];
+      const pendientesCondiciones = [];
+      if (trabajadorCodigoFinal) {
+        pendientesCondiciones.push("trabajador_codigo = ?");
+        pendientesParams.push(trabajadorCodigoFinal);
+      }
+      if (trabajadorDocumentoFinal) {
+        pendientesCondiciones.push("trabajador_documento = ?");
+        pendientesParams.push(trabajadorDocumentoFinal);
+      }
+      const whereTrabajador = pendientesCondiciones.length
+        ? `AND (${pendientesCondiciones.join(" OR ")})`
+        : "";
+
       const [pendiente] = await pool.query(
         `SELECT id
          FROM lineas_reporte
          WHERE reporte_id = ?
-           AND trabajador_id = ?
+           ${whereTrabajador}
            AND hora_fin IS NULL
          ORDER BY id DESC
          LIMIT 1`,
-         [reporteId, trabajadorIdFinal]
+         pendientesParams
       );
 
      if (pendiente.length) {
@@ -2422,15 +2444,28 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     // ✅ evitar duplicados por trabajador con pendiente (APOYO_HORAS)
     if (tipo === "APOYO_HORAS") {
+      const pendientesParams = [reporteId];
+      const pendientesCondiciones = [];
+      if (trabajadorCodigoFinal) {
+        pendientesCondiciones.push("trabajador_codigo = ?");
+        pendientesParams.push(trabajadorCodigoFinal);
+      }
+      if (trabajadorDocumentoFinal) {
+        pendientesCondiciones.push("trabajador_documento = ?");
+        pendientesParams.push(trabajadorDocumentoFinal);
+      }
+      const whereTrabajador = pendientesCondiciones.length
+        ? `AND (${pendientesCondiciones.join(" OR ")})`
+        : "";
       const [pendiente] = await pool.query(
         `SELECT id
          FROM lineas_reporte
          WHERE reporte_id = ?
-           AND trabajador_id = ?
+            ${whereTrabajador}
            AND hora_fin IS NULL
          ORDER BY id DESC
          LIMIT 1`,
-         [reporteId, trabajadorIdFinal]
+          pendientesParams
       );
 
       if (pendiente.length) {
@@ -2467,8 +2502,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
        (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre,
-        trabajador_codigo, trabajador_nombre, horas, hora_inicio, hora_fin, kilos, labores)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        trabajador_codigo, trabajador_nombre, trabajador_documento,
+        horas, hora_inicio, hora_fin, kilos, labores)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
         trabajadorIdFinal,
@@ -2477,6 +2513,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         areaNombre, // ✅
         trabajadorCodigoFinal,
         trabajadorNombreFinal,
+        trabajadorDocumentoFinal,
         horasValue,
         hora_inicio ?? null,
         horaFinValue,
