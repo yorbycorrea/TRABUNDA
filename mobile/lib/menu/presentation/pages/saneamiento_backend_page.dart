@@ -199,6 +199,13 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
             ((t.inicio != null && t.fin != null)
                 ? _calculateHoras(t.inicio!, t.fin!)
                 : null);
+        final trabajadorDocumento = (t.trabajadorDocumento ?? t.dniQr ?? '')
+            .trim();
+        final trabajadorDocumentoOrNull = trabajadorDocumento.isEmpty
+            ? null
+            : trabajadorDocumento;
+        final trabajadorCodigo = t.codigoCtrl.text.trim();
+        final trabajadorNombre = t.nombreCtrl.text.trim();
 
         // si creó línea, guarda ID
         if (t.lineaId == null) {
@@ -213,6 +220,9 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
             trabajadorId: t.trabajadorId!,
+            trabajadorCodigo: trabajadorCodigo,
+            trabajadorDocumento: trabajadorDocumentoOrNull,
+            trabajadorNombre: trabajadorNombre,
             inicio: t.inicio!,
             fin: t.fin,
             horas: horas,
@@ -230,6 +240,9 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
             trabajadorId: t.trabajadorId!,
+            trabajadorCodigo: trabajadorCodigo,
+            trabajadorDocumento: trabajadorDocumentoOrNull,
+            trabajadorNombre: trabajadorNombre,
             inicio: t.inicio!,
             fin: t.fin,
             horas: horas,

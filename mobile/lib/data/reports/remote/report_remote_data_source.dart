@@ -264,6 +264,7 @@ class ReportRemoteDataSource {
     required int reporteId,
     required int trabajadorId,
     String? trabajadorCodigo,
+    String? trabajadorDocumento,
     String? trabajadorNombre,
     required String horaInicio,
     String? horaFin,
@@ -274,7 +275,7 @@ class ReportRemoteDataSource {
       final payload = <String, dynamic>{
         'trabajador_id': trabajadorId,
         'trabajador_codigo': trabajadorCodigo,
-        'trabajador_documento': trabajadorCodigo,
+        'trabajador_documento': trabajadorDocumento,
         'trabajador_nombre': trabajadorNombre,
         'hora_inicio': horaInicio,
         'hora_fin': horaFin,
@@ -288,13 +289,13 @@ class ReportRemoteDataSource {
     final payload = <String, dynamic>{
       'trabajador_id': trabajadorId,
       'trabajador_codigo': trabajadorCodigo,
-      'trabajador_documento': trabajadorCodigo,
+      'trabajador_documento': trabajadorDocumento,
       'trabajador_nombre': trabajadorNombre,
       'hora_inicio': horaInicio,
       'hora_fin': horaFin,
       'horas': horas,
       'area_id': areaId,
-    };
+    }..removeWhere((key, value) => value == null);
 
     final resp = await _api.post('/reportes/$reporteId/lineas', payload);
     final decoded = _api.decodeJsonOrThrow(resp);
@@ -322,6 +323,9 @@ class ReportRemoteDataSource {
     int? lineaId,
     required int reporteId,
     required int trabajadorId,
+    String? trabajadorCodigo,
+    String? trabajadorDocumento,
+    String? trabajadorNombre,
     String? horaInicio,
     String? horaFin,
     double? horas,
@@ -330,6 +334,9 @@ class ReportRemoteDataSource {
     if (lineaId != null) {
       final payload = <String, dynamic>{
         'trabajador_id': trabajadorId,
+        'trabajador_codigo': trabajadorCodigo,
+        'trabajador_documento': trabajadorDocumento,
+        'trabajador_nombre': trabajadorNombre,
         'hora_inicio': horaInicio,
         'hora_fin': horaFin,
         'horas': horas,
@@ -345,6 +352,9 @@ class ReportRemoteDataSource {
 
     final payload = <String, dynamic>{
       'trabajador_id': trabajadorId,
+      'trabajador_codigo': trabajadorCodigo,
+      'trabajador_documento': trabajadorDocumento,
+      'trabajador_nombre': trabajadorNombre,
       'hora_inicio': horaInicio,
       'hora_fin': horaFin,
       'horas': horas,
@@ -352,7 +362,7 @@ class ReportRemoteDataSource {
       'labores': (labores == null || labores.trim().isEmpty)
           ? null
           : labores.trim(),
-    };
+    }..removeWhere((key, value) => value == null);
 
     final resp = await _api.post('/reportes/$reporteId/lineas', payload);
     final decoded = _api.decodeJsonOrThrow(resp);

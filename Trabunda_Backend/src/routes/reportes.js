@@ -2254,17 +2254,13 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     const trabajadorIdInput = String(trabajador_id ?? "").trim();
     const trabajadorIdEsNumerico =
       Boolean(trabajadorIdInput) && !Number.isNaN(Number(trabajadorIdInput));
-    const usarIdComoCodigo =
-      !trabajadorCodigoInput && !trabajadorDocumentoInput && trabajadorIdEsNumerico;
-    const trabajadorCodigoInputFinal = usarIdComoCodigo
-      ? trabajadorIdInput
-      : trabajadorCodigoInput;
+  
     const tieneCodigoNombre =
-      Boolean(trabajadorCodigoInputFinal) && Boolean(trabajadorNombreInput);
+      Boolean(trabajadorCodigoInput) && Boolean(trabajadorNombreInput);
+    const tieneDocumento = Boolean(trabajadorDocumentoInput);
+    const usarIdComoCodigo = !trabajadorCodigoInput && !tieneDocumento && trabajadorIdEsNumerico;
     const tieneReferencia =
-      Boolean(trabajadorCodigoInputFinal) ||
-      Boolean(trabajadorDocumentoInput) ||
-      trabajadorIdEsNumerico;
+      Boolean(trabajadorCodigoInput) || Boolean(trabajadorDocumentoInput) || trabajadorIdEsNumerico;
 
 
      if (!tieneCodigoNombre && !tieneReferencia) {
@@ -2280,28 +2276,24 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
 
     let trabajadorIdFinal = null;
-    let trabajadorCodigoFinal = trabajadorCodigoInputFinal;
+    let trabajadorCodigoFinal = trabajadorCodigoInput;
     let trabajadorNombreFinal = trabajadorNombreInput;
     const trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
 
-   if (!trabajadorCodigoFinal || !trabajadorNombreFinal) {
-      const codigoBusqueda =
-        trabajadorCodigoFinal ||
-        trabajadorDocumentoFinal ||
-        (trabajadorIdInput !== null ? String(trabajadorIdInput).trim() : "");
-      const fuenteCodigoBusqueda = trabajadorCodigoFinal
-        ? "trabajador_codigo"
-        : trabajadorDocumentoFinal
-          ? "trabajador_documento"
-          : "trabajador_id->trabajador_codigo";
-      console.log("[DEBUG][POST /reportes/:id/lineas] Codigo lookup:", {
-        codigoBusqueda,
-        fuente: fuenteCodigoBusqueda,
-        trabajador_id: trabajadorIdInput,
+    if (tieneCodigoNombre) {
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "codigo+nombre",
+        trabajador_codigo: trabajadorCodigoFinal,
+        trabajador_nombre: trabajadorNombreFinal,
+      });
+    } else if (tieneDocumento) {
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "dni",
+        trabajador_documento: trabajadorDocumentoFinal,
       });
       let trabajador = null;
       try {
-        trabajador = await getTrabajadorPorCodigo(codigoBusqueda);
+        trabajador = await getTrabajadorPorCodigo(trabajadorDocumentoFinal);
       } catch (error) {
           console.error("[DEBUG][POST /reportes/:id/lineas] Error lookup trabajador:", {
           code: error?.code,
@@ -2323,9 +2315,55 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
           dni: trabajador?.dni ?? null,
         }
       );
+
       
       trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
-      trabajadorNombreFinal = trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
+      trabajadorNombreFinal =
+        trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
+    } else if (trabajadorCodigoInput) {
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "codigo",
+        trabajador_codigo: trabajadorCodigoInput,
+      });
+      let trabajador = null;
+      try {
+        trabajador = await getTrabajadorPorCodigo(trabajadorCodigoInput);
+      } catch (error) {
+        console.error("[DEBUG][POST /reportes/:id/lineas] Error lookup trabajador:", {
+          code: error?.code,
+          message: error?.message,
+        });
+        if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
+          return res
+            .status(400)
+            .json({ error: "TRABAJADOR_DOCUMENTO_INVALIDO" });
+        }
+        throw error;
+      }
+
+      console.log(
+        "[DEBUG][POST /reportes/:id/lineas] Resultado trabajador:",
+        {
+          codigo: trabajador?.codigo ?? null,
+          nombre: trabajador?.nombre ?? trabajador?.nombre_completo ?? null,
+          dni: trabajador?.dni ?? null,
+        }
+      );
+
+      
+      trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
+         trabajadorNombreFinal =
+        trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
+    } else if (usarIdComoCodigo) {
+      trabajadorCodigoFinal = trabajadorIdInput;
+      if (!trabajadorNombreFinal) {
+        trabajadorNombreFinal = "";
+      }
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "trabajador_id_as_codigo",
+        trabajador_codigo: trabajadorCodigoFinal,
+        trabajador_id: trabajadorIdInput,
+      });
     }
     
 
