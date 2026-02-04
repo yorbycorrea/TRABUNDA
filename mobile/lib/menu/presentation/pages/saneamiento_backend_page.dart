@@ -173,11 +173,12 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
     for (final item in _items) {
       debugPrint(
-        'SANEAMIENTO validarMinimo trabajadorCodigo=${item.codigoCtrl.text.trim()} '
-        'trabajadorNombre=${item.nombreCtrl.text.trim()} '
-        'trabajadorDocumento=${item.dniQr?.trim() ?? ''} '
-        'horaInicio=${_formatTime(item.inicio)} '
-        'labores=${item.laboresCtrl.text.trim()}',
+        '[DEBUG GUARDAR] trabajadorId=${item.trabajadorId} '
+        'trabajadorCodigo=${item.trabajadorCodigo} '
+        'inicio=${_formatTime(item.inicio)} '
+        'lineaId=${item.lineaId} '
+        'codigoCtrl=${item.codigoCtrl.text.trim()} '
+        'nombreCtrl=${item.nombreCtrl.text.trim()}',
       );
     }
 
@@ -288,27 +289,34 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                     debugPrint(
                       'SANEAMIENTO QR raw result=${result.toString()}',
                     );
-                    setState(() {
-                      final idAny = result['id'];
-                      final idNum = (idAny is num)
-                          ? idAny
-                          : num.tryParse(idAny?.toString() ?? '');
+                    final workerRaw = result['worker'];
+                    final worker = workerRaw is Map
+                        ? Map<String, dynamic>.from(workerRaw)
+                        : null;
+                    final idAny = result['id'] ?? worker?['id'];
+                    final idNum = (idAny is num)
+                        ? idAny
+                        : num.tryParse(idAny?.toString() ?? '');
+                    var newTrabId = (idNum == null) ? null : idNum.toInt();
+                    final codigo = (worker?['codigo'] ?? '').toString().trim();
+                    final dni = (result['dni'] ?? worker?['dni'] ?? '')
+                        .toString()
+                        .trim();
+                    final nombre = (worker?['nombre'] ?? '').toString().trim();
+                    final codigoFinal = codigo.isNotEmpty ? codigo : dni;
 
-                      final newTrabId = (idNum == null) ? null : idNum.toInt();
-                      final workerRaw = result['worker'];
-                      final worker = workerRaw is Map
-                          ? Map<String, dynamic>.from(workerRaw)
-                          : null;
-                      final codigo = (worker?['codigo'] ?? '')
-                          .toString()
-                          .trim();
-                      final dni = (result['dni'] ?? worker?['dni'] ?? '')
-                          .toString()
-                          .trim();
-                      final nombre = (worker?['nombre'] ?? '')
-                          .toString()
-                          .trim();
-                      final codigoFinal = codigo.isNotEmpty ? codigo : dni;
+                    setState(() {
+                      if (newTrabId == null) {
+                        newTrabId = int.tryParse(codigoFinal);
+                      }
+
+                      final validationBefore = _mapValidations();
+                      debugPrint(
+                        'SANEAMIENTO QR pre-setState codigo=$codigoFinal '
+                        'nombre=$nombre lineaId=${_items[i].lineaId} '
+                        'trabajadorId=$newTrabId inicio=${_formatTime(_items[i].inicio)} '
+                        'validations=$validationBefore',
+                      );
 
                       // ✅ Validación duplicado
                       if (_validateSaneamientoLineas.yaExisteTrabajador(
@@ -352,6 +360,14 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                           ? _calculateHoras(m.inicio!, m.fin!)
                           : null;
                     });
+
+                    final validationAfter = _mapValidations();
+                    debugPrint(
+                      'SANEAMIENTO QR post-setState codigo=$codigoFinal '
+                      'nombre=$nombre lineaId=${_items[i].lineaId} '
+                      'trabajadorId=$newTrabId inicio=${_formatTime(_items[i].inicio)} '
+                      'validations=$validationAfter',
+                    );
                   },
                 ),
 

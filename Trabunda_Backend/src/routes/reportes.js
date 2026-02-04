@@ -2251,10 +2251,21 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     const trabajadorCodigoInput = String(trabajador_codigo ?? "").trim();
     const trabajadorNombreInput = String(trabajador_nombre ?? "").trim();
     const trabajadorDocumentoInput = String(trabajador_documento ?? "").trim();
+    const trabajadorIdInput = String(trabajador_id ?? "").trim();
+    const trabajadorIdEsNumerico =
+      Boolean(trabajadorIdInput) && !Number.isNaN(Number(trabajadorIdInput));
+    const usarIdComoCodigo =
+      !trabajadorCodigoInput && !trabajadorDocumentoInput && trabajadorIdEsNumerico;
+    const trabajadorCodigoInputFinal = usarIdComoCodigo
+      ? trabajadorIdInput
+      : trabajadorCodigoInput;
     const tieneCodigoNombre =
-      Boolean(trabajadorCodigoInput) && Boolean(trabajadorNombreInput);
+      Boolean(trabajadorCodigoInputFinal) && Boolean(trabajadorNombreInput);
     const tieneReferencia =
-      Boolean(trabajadorCodigoInput) || Boolean(trabajadorDocumentoInput);
+      Boolean(trabajadorCodigoInputFinal) ||
+      Boolean(trabajadorDocumentoInput) ||
+      trabajadorIdEsNumerico;
+
 
      if (!tieneCodigoNombre && !tieneReferencia) {
        console.log(
@@ -2268,16 +2279,25 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
     }
 
-    let trabajadorIdFinal = trabajador_id ?? null;
-    let trabajadorCodigoFinal = trabajadorCodigoInput;
+    let trabajadorIdFinal = null;
+    let trabajadorCodigoFinal = trabajadorCodigoInputFinal;
     let trabajadorNombreFinal = trabajadorNombreInput;
     const trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
 
    if (!trabajadorCodigoFinal || !trabajadorNombreFinal) {
-      const codigoBusqueda = trabajadorCodigoFinal || trabajadorDocumentoFinal;
-      console.log("[DEBUG][POST /reportes/:id/lineas] Lookup trabajador:", {
+      const codigoBusqueda =
+        trabajadorCodigoFinal ||
+        trabajadorDocumentoFinal ||
+        (trabajadorIdInput !== null ? String(trabajadorIdInput).trim() : "");
+      const fuenteCodigoBusqueda = trabajadorCodigoFinal
+        ? "trabajador_codigo"
+        : trabajadorDocumentoFinal
+          ? "trabajador_documento"
+          : "trabajador_id->trabajador_codigo";
+      console.log("[DEBUG][POST /reportes/:id/lineas] Codigo lookup:", {
         codigoBusqueda,
-        tipoBusqueda: trabajadorCodigoFinal ? "codigo_interno" : "documento",
+        fuente: fuenteCodigoBusqueda,
+        trabajador_id: trabajadorIdInput,
       });
       let trabajador = null;
       try {
@@ -2294,6 +2314,15 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         }
         throw error;
       }
+
+      console.log(
+        "[DEBUG][POST /reportes/:id/lineas] Resultado trabajador:",
+        {
+          codigo: trabajador?.codigo ?? null,
+          nombre: trabajador?.nombre ?? trabajador?.nombre_completo ?? null,
+          dni: trabajador?.dni ?? null,
+        }
+      );
       
       trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
       trabajadorNombreFinal = trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
@@ -2509,6 +2538,17 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
 
     // INSERT
+    trabajadorIdFinal = null;
+    console.log(
+      "[DEBUG][POST /reportes/:id/lineas] Valores finales antes INSERT:",
+      {
+        trabajador_codigo: trabajadorCodigoFinal,
+        trabajador_nombre: trabajadorNombreFinal,
+        trabajador_documento: trabajadorDocumentoFinal,
+        trabajador_id: trabajadorIdFinal,
+      }
+    );
+
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
        (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre,
@@ -2517,7 +2557,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
-        trabajadorIdFinal,
+        null,
         cuadrilla_id ?? null,
         areaIdFinal, // ✅
         areaNombre, // ✅
