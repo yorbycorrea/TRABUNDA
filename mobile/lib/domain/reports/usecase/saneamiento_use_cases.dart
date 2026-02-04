@@ -12,12 +12,12 @@ class CalculateHoras {
 class SaneamientoLineaValidation {
   const SaneamientoLineaValidation({
     required this.trabajadorId,
-    required this.codigo,
+    required this.trabajadorCodigo,
     required this.inicio,
   });
 
   final int? trabajadorId;
-  final String codigo;
+  final String trabajadorCodigo;
   final TimeOfDay? inicio;
 }
 
@@ -46,7 +46,9 @@ class ValidateSaneamientoLineas {
 
       if (trabajadorId != null && it.trabajadorId == trabajadorId) return true;
 
-      if (trabajadorId == null && cod.isNotEmpty && it.codigo == cod) {
+      if (trabajadorId == null &&
+          cod.isNotEmpty &&
+          it.trabajadorCodigo == cod) {
         return true;
       }
     }

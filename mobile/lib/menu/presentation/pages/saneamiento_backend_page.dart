@@ -64,21 +64,29 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  String _formatTime(TimeOfDay? t) => t == null
+      ? 'null'
+      : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
   TimeOfDay _nowTime() {
     final now = DateTime.now();
     return TimeOfDay(hour: now.hour, minute: now.minute);
   }
 
   List<SaneamientoLineaValidation> _mapValidations() {
-    return _items
-        .map(
-          (item) => SaneamientoLineaValidation(
-            trabajadorId: item.trabajadorId,
-            codigo: item.codigoCtrl.text.trim(),
-            inicio: item.inicio,
-          ),
-        )
-        .toList();
+    return _items.map((item) {
+      final codigoCtrl = item.codigoCtrl.text.trim();
+      final codigo = codigoCtrl.isNotEmpty
+          ? codigoCtrl
+          : (item.trabajadorCodigo ?? '').trim();
+      item.trabajadorCodigo = codigo;
+      item.trabajadorNombre = item.nombreCtrl.text.trim();
+      return SaneamientoLineaValidation(
+        trabajadorId: item.trabajadorId,
+        trabajadorCodigo: codigo,
+        inicio: item.inicio,
+      );
+    }).toList();
   }
 
   Future<void> _pickHora(_SaneaFormModel m, bool inicio) async {
@@ -126,6 +134,9 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
         final m = _SaneaFormModel();
         m.lineaId = it.id;
         m.trabajadorId = it.trabajadorId;
+        m.trabajadorCodigo = it.trabajadorCodigo;
+        m.trabajadorNombre = it.trabajadorNombre;
+        m.trabajadorDocumento = '';
 
         m.codigoCtrl.text = it.trabajadorCodigo;
         m.nombreCtrl.text = it.trabajadorNombre;
@@ -160,6 +171,16 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     if (widget.readOnly) return;
     if (!_formKey.currentState!.validate()) return;
 
+    for (final item in _items) {
+      debugPrint(
+        'SANEAMIENTO validarMinimo trabajadorCodigo=${item.codigoCtrl.text.trim()} '
+        'trabajadorNombre=${item.nombreCtrl.text.trim()} '
+        'trabajadorDocumento=${item.dniQr?.trim() ?? ''} '
+        'horaInicio=${_formatTime(item.inicio)} '
+        'labores=${item.laboresCtrl.text.trim()}',
+      );
+    }
+
     final validationMessage = _validateSaneamientoLineas.validarMinimo(
       _mapValidations(),
     );
@@ -180,6 +201,13 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
         // si creó línea, guarda ID
         if (t.lineaId == null) {
+          debugPrint(
+            'SANEAMIENTO upsert (crear) trabajadorCodigo=${t.codigoCtrl.text.trim()} '
+            'trabajadorNombre=${t.nombreCtrl.text.trim()} '
+            'trabajadorDocumento=${t.dniQr?.trim() ?? ''} '
+            'horaInicio=${_formatTime(t.inicio)} '
+            'labores=${t.laboresCtrl.text.trim()}',
+          );
           t.lineaId = await _upsertSaneamientoLinea.call(
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
@@ -190,6 +218,13 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
             labores: t.laboresCtrl.text,
           );
         } else {
+          debugPrint(
+            'SANEAMIENTO upsert (actualizar) trabajadorCodigo=${t.codigoCtrl.text.trim()} '
+            'trabajadorNombre=${t.nombreCtrl.text.trim()} '
+            'trabajadorDocumento=${t.dniQr?.trim() ?? ''} '
+            'horaInicio=${_formatTime(t.inicio)} '
+            'labores=${t.laboresCtrl.text.trim()}',
+          );
           await _upsertSaneamientoLinea.call(
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
@@ -250,6 +285,9 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   onPickInicio: () => _pickHora(_items[i], true),
                   onPickFin: () => _pickHora(_items[i], false),
                   onFillFromScan: (result) {
+                    debugPrint(
+                      'SANEAMIENTO QR raw result=${result.toString()}',
+                    );
                     setState(() {
                       final idAny = result['id'];
                       final idNum = (idAny is num)
@@ -257,17 +295,26 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                           : num.tryParse(idAny?.toString() ?? '');
 
                       final newTrabId = (idNum == null) ? null : idNum.toInt();
-                      final codigo = (result['codigo'] ?? '').toString().trim();
-                      final dni = (result['dni'] ?? '').toString().trim();
-                      final nombre = (result['nombre_completo'] ?? '')
+                      final workerRaw = result['worker'];
+                      final worker = workerRaw is Map
+                          ? Map<String, dynamic>.from(workerRaw)
+                          : null;
+                      final codigo = (worker?['codigo'] ?? '')
                           .toString()
                           .trim();
+                      final dni = (result['dni'] ?? worker?['dni'] ?? '')
+                          .toString()
+                          .trim();
+                      final nombre = (worker?['nombre'] ?? '')
+                          .toString()
+                          .trim();
+                      final codigoFinal = codigo.isNotEmpty ? codigo : dni;
 
                       // ✅ Validación duplicado
                       if (_validateSaneamientoLineas.yaExisteTrabajador(
                         items: _mapValidations(),
                         trabajadorId: newTrabId,
-                        codigo: codigo.isNotEmpty ? codigo : dni,
+                        codigo: codigoFinal,
                         exceptIndex: i,
                       )) {
                         AppNotify.warning(
@@ -281,8 +328,12 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                       final m = _items[i];
 
                       m.trabajadorId = newTrabId;
-                      m.codigoCtrl.text = codigo.isNotEmpty ? codigo : dni;
+                      m.trabajadorCodigo = codigoFinal;
+                      m.trabajadorNombre = nombre;
+                      m.trabajadorDocumento = dni;
+                      m.codigoCtrl.text = codigoFinal;
                       m.nombreCtrl.text = nombre;
+                      m.dniQr = dni;
 
                       debugPrint(
                         'TEMP LOG (remover luego) index=$i lineaId=${m.lineaId} codigo=${m.codigoCtrl.text}',
@@ -333,11 +384,14 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 class _SaneaFormModel {
   int? lineaId;
   int? trabajadorId;
+  String? trabajadorCodigo;
+  String? trabajadorNombre;
+  String? trabajadorDocumento;
+  String? dniQr;
 
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();
   final laboresCtrl = TextEditingController();
-  final _horaInicioCtrl = TextEditingController();
 
   TimeOfDay? inicio;
   TimeOfDay? fin;
