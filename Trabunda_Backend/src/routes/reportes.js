@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 const ExcelJS = require('exceljs');
-//const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
+const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 
 //const { width } = require("pdfkit/js/page");
 
