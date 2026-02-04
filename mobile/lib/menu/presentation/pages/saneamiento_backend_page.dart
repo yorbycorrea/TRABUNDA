@@ -48,6 +48,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     _upsertSaneamientoLinea = UpsertSaneamientoLinea(repository);
     _calculateHoras = CalculateHoras();
     _validateSaneamientoLineas = const ValidateSaneamientoLineas();
+    debugPrint('SANEAMIENTO initState reporteId=${widget.reporteId}');
     _loadLineasExistentes();
   }
 
@@ -73,18 +74,41 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     return TimeOfDay(hour: now.hour, minute: now.minute);
   }
 
+  int? _deriveTrabajadorId({
+    required int? trabajadorId,
+    required String? trabajadorCodigo,
+  }) {
+    if (trabajadorId != null) return trabajadorId;
+    final codigo = trabajadorCodigo?.trim() ?? '';
+    if (codigo.isEmpty) return null;
+    return int.tryParse(codigo);
+  }
+
   List<SaneamientoLineaValidation> _mapValidations() {
     return _items.map((item) {
       final codigoCtrl = item.codigoCtrl.text.trim();
+      final labores = item.laboresCtrl.text.trim();
       final codigo = codigoCtrl.isNotEmpty
           ? codigoCtrl
           : (item.trabajadorCodigo ?? '').trim();
+      final activo =
+          item.lineaId != null ||
+          codigoCtrl.isNotEmpty ||
+          item.inicio != null ||
+          item.fin != null ||
+          labores.isNotEmpty;
       item.trabajadorCodigo = codigo;
+      item.trabajadorId = _deriveTrabajadorId(
+        trabajadorId: item.trabajadorId,
+        trabajadorCodigo: codigo,
+      );
       item.trabajadorNombre = item.nombreCtrl.text.trim();
       return SaneamientoLineaValidation(
         trabajadorId: item.trabajadorId,
         trabajadorCodigo: codigo,
         inicio: item.inicio,
+        labores: labores,
+        activo: activo,
       );
     }).toList();
   }
@@ -113,8 +137,16 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   void _addTrabajador() => setState(() => _items.add(_SaneaFormModel()));
 
   Future<void> _loadLineasExistentes() async {
+    debugPrint(
+      'SANEAMIENTO _loadLineasExistentes reporteId=${widget.reporteId}',
+    );
     try {
       final items = await _fetchSaneamientoLineas.call(widget.reporteId);
+
+      debugPrint(
+        'SANEAMIENTO _loadLineasExistentes reporteId=${widget.reporteId} '
+        'items=${items.length}',
+      );
 
       if (items.isEmpty) return;
 
@@ -130,10 +162,14 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       }
 
       final models = <_SaneaFormModel>[];
-      for (final it in items) {
+      for (var i = 0; i < items.length; i++) {
+        final it = items[i];
         final m = _SaneaFormModel();
         m.lineaId = it.id;
-        m.trabajadorId = it.trabajadorId;
+        m.trabajadorId = _deriveTrabajadorId(
+          trabajadorId: it.trabajadorId,
+          trabajadorCodigo: it.trabajadorCodigo,
+        );
         m.trabajadorCodigo = it.trabajadorCodigo;
         m.trabajadorNombre = it.trabajadorNombre;
         m.trabajadorDocumento = '';
@@ -143,6 +179,12 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
         m.inicio = parseTime(it.horaInicio);
         m.fin = parseTime(it.horaFin);
+
+        debugPrint(
+          'SANEAMIENTO load index=$i lineaId=${m.lineaId} '
+          'trabajadorCodigo=${m.trabajadorCodigo} '
+          'horaInicio=${_formatTime(m.inicio)}',
+        );
 
         final horasValue = it.horas;
         if (horasValue != null) {
@@ -172,6 +214,10 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     if (!_formKey.currentState!.validate()) return;
 
     for (final item in _items) {
+      item.trabajadorId = _deriveTrabajadorId(
+        trabajadorId: item.trabajadorId,
+        trabajadorCodigo: item.trabajadorCodigo ?? item.codigoCtrl.text.trim(),
+      );
       debugPrint(
         '[DEBUG GUARDAR] trabajadorId=${item.trabajadorId} '
         'trabajadorCodigo=${item.trabajadorCodigo} '
@@ -193,7 +239,12 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     setState(() => _saving = true);
 
     try {
-      for (final t in _items) {
+      for (var index = 0; index < _items.length; index++) {
+        final t = _items[index];
+        t.trabajadorId = _deriveTrabajadorId(
+          trabajadorId: t.trabajadorId,
+          trabajadorCodigo: t.trabajadorCodigo ?? t.codigoCtrl.text.trim(),
+        );
         final horas =
             t.horas ??
             ((t.inicio != null && t.fin != null)
@@ -206,6 +257,24 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
             : trabajadorDocumento;
         final trabajadorCodigo = t.codigoCtrl.text.trim();
         final trabajadorNombre = t.nombreCtrl.text.trim();
+        final payload = <String, Object?>{
+          'lineaId': t.lineaId,
+          'reporteId': widget.reporteId,
+          'trabajadorId': t.trabajadorId,
+          'trabajadorCodigo': trabajadorCodigo,
+          'trabajadorDocumento': trabajadorDocumentoOrNull,
+          'trabajadorNombre': trabajadorNombre,
+          'horaInicio': _formatTime(t.inicio),
+          'horaFin': _formatTime(t.fin),
+          'horas': horas,
+          'labores': t.laboresCtrl.text.trim(),
+        };
+        debugPrint(
+          'SANEAMIENTO payload index=$index '
+          'lineaId=${t.lineaId ?? 'nuevo'} '
+          'trabajadorCodigo=$trabajadorCodigo '
+          '$payload',
+        );
 
         // si creó línea, guarda ID
         if (t.lineaId == null) {
@@ -454,6 +523,12 @@ class _SaneamientoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    bool isActivo() =>
+        model.lineaId != null ||
+        model.codigoCtrl.text.trim().isNotEmpty ||
+        model.inicio != null ||
+        model.fin != null ||
+        model.laboresCtrl.text.trim().isNotEmpty;
 
     return Card(
       elevation: 0,
@@ -530,8 +605,9 @@ class _SaneamientoCard extends StatelessWidget {
                         },
                 ),
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Ingresa el código' : null,
+              validator: (v) => isActivo() && (v == null || v.trim().isEmpty)
+                  ? 'Ingresa el código'
+                  : null,
             ),
 
             const SizedBox(height: 14),
@@ -559,8 +635,9 @@ class _SaneamientoCard extends StatelessWidget {
                 border: OutlineInputBorder(),
               ),
               validator: (v) {
-                // Si quieres hacerlo obligatorio, descomenta:
-                // if (v == null || v.trim().isEmpty) return 'Describe las labores';
+                if (isActivo() && (v == null || v.trim().isEmpty)) {
+                  return 'Describe las labores';
+                }
                 return null;
               },
             ),

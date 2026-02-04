@@ -14,11 +14,15 @@ class SaneamientoLineaValidation {
     required this.trabajadorId,
     required this.trabajadorCodigo,
     required this.inicio,
+    required this.labores,
+    required this.activo,
   });
 
   final int? trabajadorId;
   final String trabajadorCodigo;
   final TimeOfDay? inicio;
+  final String labores;
+  final bool activo;
 }
 
 class ValidateSaneamientoLineas {
@@ -26,8 +30,19 @@ class ValidateSaneamientoLineas {
 
   String? validarMinimo(List<SaneamientoLineaValidation> items) {
     for (final item in items) {
-      if (item.trabajadorId == null || item.inicio == null) {
-        return 'Escanea trabajador y selecciona Hora inicio';
+      if (!item.activo) {
+        continue;
+      }
+
+      final codigoVacio = item.trabajadorCodigo.trim().isEmpty;
+      if (item.trabajadorId == null && codigoVacio) {
+        return 'Escanea trabajador o ingresa código';
+      }
+      if (item.inicio == null) {
+        return 'Selecciona Hora inicio';
+      }
+      if (item.labores.trim().isEmpty) {
+        return 'Describe las labores';
       }
     }
     return null;
