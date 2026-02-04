@@ -1095,6 +1095,55 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     const updates = [];
     const params = [];
 
+     if (hasField("trabajador_id")) {
+      const value = body.trabajador_id;
+      if (value === null) {
+        if (clear) {
+          updates.push("trabajador_id = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("trabajador_id = ?");
+        params.push(value);
+      }
+    }
+    if (hasField("trabajador_codigo")) {
+      const value = body.trabajador_codigo;
+      if (value === null) {
+        if (clear) {
+          updates.push("trabajador_codigo = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("trabajador_codigo = ?");
+        params.push(String(value).trim());
+      }
+    }
+    if (hasField("trabajador_nombre")) {
+      const value = body.trabajador_nombre;
+      if (value === null) {
+        if (clear) {
+          updates.push("trabajador_nombre = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("trabajador_nombre = ?");
+        params.push(String(value).trim());
+      }
+    }
+    if (hasField("trabajador_documento")) {
+      const value = body.trabajador_documento;
+      if (value === null) {
+        if (clear) {
+          updates.push("trabajador_documento = ?");
+          params.push(null);
+        }
+      } else {
+        updates.push("trabajador_documento = ?");
+        params.push(String(value).trim());
+      }
+    }
+
     if (hasField("cuadrilla_id")) {
       const value = body.cuadrilla_id;
       if (value === null) {
@@ -1232,6 +1281,14 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     const sql = `UPDATE lineas_reporte SET ${updates.join(", ")} WHERE id = ?`;
     const paramsFinal = [...params, lineaId];
 
+    console.log("TEMP LOG (remover luego) PATCH /reportes/lineas/:lineaId payload final", {
+      lineaId,
+      clear,
+      sql,
+      params: paramsFinal,
+    });
+
+
 
 
     console.log("[debug][PATCH /reportes/lineas/:lineaId] SQL", {
@@ -1345,6 +1402,11 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
        ORDER BY lr.id ASC`,
       [reporteId]
     );
+
+      console.log("TEMP LOG (remover luego) GET /reportes/:id/lineas response", {
+      reporteId,
+      items: rows,
+    });
 
    
 
@@ -2435,6 +2497,23 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         horasValue = null; // pendiente
       }
     }
+
+     console.log("TEMP LOG (remover luego) POST /reportes/:id/lineas payload final", {
+      reporteId,
+      tipo,
+      trabajador_id: trabajadorIdFinal,
+      trabajador_codigo: trabajadorCodigoFinal,
+      trabajador_nombre: trabajadorNombreFinal,
+      trabajador_documento: trabajadorDocumentoFinal,
+      cuadrilla_id: cuadrilla_id ?? null,
+      area_id: areaIdFinal,
+      area_nombre: areaNombre,
+      hora_inicio: hora_inicio ?? null,
+      hora_fin: horaFinValue,
+      horas: horasValue,
+      kilos: kilos ?? null,
+      labores: labores ?? null,
+    });
 
     // evitar duplicados por trabajador con pendiente (SANEAMIENTO)
     if (tipo === "SANEAMIENTO") {

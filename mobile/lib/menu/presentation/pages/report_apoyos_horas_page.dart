@@ -129,10 +129,60 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     return TimeOfDay(hour: now.hour, minute: now.minute);
   }
 
+  int? _deriveTrabajadorId({
+    required int? trabajadorId,
+    required String? trabajadorCodigo,
+  }) {
+    if (trabajadorId != null) return trabajadorId;
+    final codigo = trabajadorCodigo?.trim() ?? '';
+    if (codigo.isEmpty) return null;
+    return int.tryParse(codigo);
+  }
+
+  Future<void> _lookupTrabajadorForUi(_ApoyoFormModel model) async {
+    final trabajadorId = model.trabajadorId;
+    if (trabajadorId == null) return;
+    if (model.codigoCtrl.text.trim().isNotEmpty &&
+        model.nombreCtrl.text.trim().isNotEmpty) {
+      return;
+    }
+
+    try {
+      final query = Uri.encodeQueryComponent(trabajadorId.toString());
+      final resp = await widget.api.get('/trabajadores/lookup?q=$query');
+      final decoded = widget.api.decodeJsonOrThrow(
+        resp,
+        hint: 'lookup trabajador ',
+      );
+      if (decoded is! Map<String, dynamic>) return;
+
+      final workerRaw = decoded['worker'];
+      final worker = workerRaw is Map
+          ? Map<String, dynamic>.from(workerRaw)
+          : null;
+      final codigo = (worker?['codigo'] ?? decoded['codigo'] ?? '')
+          .toString()
+          .trim();
+      final nombre = (worker?['nombre'] ?? decoded['nombre_completo'] ?? '')
+          .toString()
+          .trim();
+
+      if (codigo.isNotEmpty && model.codigoCtrl.text.trim().isEmpty) {
+        model.codigoCtrl.text = codigo;
+      }
+      if (nombre.isNotEmpty && model.nombreCtrl.text.trim().isEmpty) {
+        model.nombreCtrl.text = nombre;
+      }
+    } catch (e) {
+      debugPrint('Lookup trabajador UI falló: $e');
+    }
+  }
+
   List<ApoyoHorasLineaInput> _buildLineasInput() {
     return _trabajadores
         .map(
           (t) => ApoyoHorasLineaInput(
+            lineaId: t.lineaId,
             trabajadorId: t.trabajadorId,
             codigo: t.codigoCtrl.text.trim(),
             inicio: t.inicio,
@@ -167,6 +217,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   Future<void> _loadLineasExistentes() async {
     try {
       final items = await _fetchApoyoLineas.call(widget.reporteId);
+      debugPrint(
+        'TEMP LOG (remover luego) _fetchApoyoLineas response items=${items.length} data=$items',
+      );
 
       if (items.isEmpty) return;
 
@@ -184,13 +237,25 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       }
 
       for (final it in items) {
+        debugPrint(
+          'TEMP LOG (remover luego) mapping lineaId=${it.id} trabajadorId=${it.trabajadorId} codigo=${it.trabajadorCodigo} nombre=${it.trabajadorNombre} areaId=${it.areaId} areaNombre=${it.areaNombre} inicio=${it.horaInicio} fin=${it.horaFin} horas=${it.horas}',
+        );
         final m = _ApoyoFormModel();
 
         m.lineaId = it.id;
-        m.trabajadorId = it.trabajadorId;
+        m.trabajadorId = _deriveTrabajadorId(
+          trabajadorId: it.trabajadorId,
+          trabajadorCodigo: it.trabajadorCodigo,
+        );
 
-        m.codigoCtrl.text = it.trabajadorCodigo;
-        m.nombreCtrl.text = it.trabajadorNombre;
+        final trabajadorCodigo = (it.trabajadorCodigo ?? '').trim();
+        final trabajadorNombre = (it.trabajadorNombre ?? '').trim();
+        if (trabajadorCodigo.isNotEmpty) {
+          m.codigoCtrl.text = trabajadorCodigo;
+        }
+        if (trabajadorNombre.isNotEmpty) {
+          m.nombreCtrl.text = trabajadorNombre;
+        }
 
         m.areaId = it.areaId;
         m.areaNombre = (it.areaNombre ?? '').isEmpty ? null : it.areaNombre;
@@ -229,6 +294,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
           ..addAll(models);
         _syncAreaIdsWithNombre(updateState: false);
       });
+      for (final model in models) {
+        await _lookupTrabajadorForUi(model);
+      }
     } catch (e) {
       if (!mounted) return;
       AppNotify.error(context, 'Error', 'No se pudieron cargar líneas: $e');
@@ -241,18 +309,22 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   }
 
   Future<void> _guardar() async {
+    final lineasInput = _buildLineasInput();
+    debugPrint('TEMP LOG (remover luego) pre-validate controllers:');
+    for (final t in _trabajadores) {
+      debugPrint(
+        'TEMP LOG (remover luego) lineaId=${t.lineaId} trabajadorId=${t.trabajadorId} codigo=${t.codigoCtrl.text} nombre=${t.nombreCtrl.text} areaId=${t.areaId} inicio=${_fmt(t.inicio)} fin=${_fmt(t.fin)} horas=${t.horas}',
+      );
+    }
+    debugPrint(
+      'TEMP LOG (remover luego) payload=${lineasInput.map((e) => {'trabajadorId': e.trabajadorId, 'codigo': e.codigo, 'inicio': _fmt(e.inicio), 'areaId': e.areaId}).toList()}',
+    );
     if (!_formKey.currentState!.validate()) return;
 
-    final validationMessage = _validateApoyoHorasLineas(_buildLineasInput());
+    final validationMessage = _validateApoyoHorasLineas(lineasInput);
     if (validationMessage != null) {
       AppNotify.warning(context, 'Validación', validationMessage);
       return;
-    }
-    for (final t in _trabajadores) {
-      if (t.trabajadorId == null) {
-        AppNotify.warning(context, 'Validación', 'Escanea trabajador');
-        return;
-      }
     }
 
     setState(() => _saving = true);

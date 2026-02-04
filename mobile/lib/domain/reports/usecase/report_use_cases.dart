@@ -170,7 +170,7 @@ class UpsertApoyoHorasLinea {
   Future<int?> call({
     int? lineaId,
     required int reporteId,
-    required int trabajadorId,
+    int? trabajadorId,
     String? trabajadorCodigo,
     String? trabajadorDocumento,
     String? trabajadorNombre,

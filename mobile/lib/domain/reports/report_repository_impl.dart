@@ -251,7 +251,8 @@ class ReportRepositoryImpl implements ReportRepository {
   Future<int?> upsertApoyoLinea({
     int? lineaId,
     required int reporteId,
-    required int trabajadorId,
+
+    int? trabajadorId,
     String? trabajadorCodigo,
     String? trabajadorDocumento,
     String? trabajadorNombre,

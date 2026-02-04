@@ -262,7 +262,7 @@ class ReportRemoteDataSource {
   Future<int?> upsertApoyoLinea({
     int? lineaId,
     required int reporteId,
-    required int trabajadorId,
+    int? trabajadorId,
     String? trabajadorCodigo,
     String? trabajadorDocumento,
     String? trabajadorNombre,
@@ -271,31 +271,40 @@ class ReportRemoteDataSource {
     double? horas,
     required int areaId,
   }) async {
-    if (lineaId != null) {
+    Map<String, dynamic> buildPayload() {
       final payload = <String, dynamic>{
-        'trabajador_id': trabajadorId,
-        'trabajador_codigo': trabajadorCodigo,
-        'trabajador_documento': trabajadorDocumento,
-        'trabajador_nombre': trabajadorNombre,
         'hora_inicio': horaInicio,
         'hora_fin': horaFin,
         'horas': horas,
         'area_id': areaId,
-      }..removeWhere((key, value) => value == null);
+      };
+      if (trabajadorId != null) {
+        payload['trabajador_id'] = trabajadorId;
+      } else {
+        final codigo = trabajadorCodigo?.trim();
+        final nombre = trabajadorNombre?.trim();
+        final documento = trabajadorDocumento?.trim();
+        if (codigo != null && codigo.isNotEmpty) {
+          payload['trabajador_codigo'] = codigo;
+        }
+        if (nombre != null && nombre.isNotEmpty) {
+          payload['trabajador_nombre'] = nombre;
+        }
+        if (documento != null && documento.isNotEmpty) {
+          payload['trabajador_documento'] = documento;
+        }
+      }
+      payload.removeWhere((key, value) => value == null);
+      return payload;
+    }
+
+    if (lineaId != null) {
+      final payload = buildPayload();
       final resp = await _api.patch('/reportes/lineas/$lineaId', payload);
       _ensureSuccess(resp, hint: 'Actualizar línea apoyo');
       return lineaId;
     }
-    final payload = <String, dynamic>{
-      'trabajador_id': trabajadorId,
-      'trabajador_codigo': trabajadorCodigo,
-      'trabajador_documento': trabajadorDocumento,
-      'trabajador_nombre': trabajadorNombre,
-      'hora_inicio': horaInicio,
-      'hora_fin': horaFin,
-      'horas': horas,
-      'area_id': areaId,
-    }..removeWhere((key, value) => value == null);
+    final payload = buildPayload();
 
     final resp = await _api.post('/reportes/$reporteId/lineas', payload);
     final decoded = _api.decodeJsonOrThrow(resp);

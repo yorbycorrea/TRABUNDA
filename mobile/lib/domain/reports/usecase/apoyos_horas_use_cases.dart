@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 class ApoyoHorasLineaInput {
   ApoyoHorasLineaInput({
+    required this.lineaId,
     required this.trabajadorId,
     required this.codigo,
     required this.inicio,
     required this.areaId,
   });
-
+  final int? lineaId;
   final int? trabajadorId;
   final String codigo;
   final TimeOfDay? inicio;
@@ -100,11 +101,15 @@ class ValidateApoyoHorasLineas {
 
     for (final linea in lineas) {
       final codigo = linea.codigo.trim();
-      if (linea.trabajadorId == null) {
+      final hasTrabajador =
+          linea.lineaId != null ||
+          linea.trabajadorId != null ||
+          codigo.isNotEmpty;
+      if (!hasTrabajador) {
         return 'Escanea trabajador';
       }
-      if (codigo.isEmpty || linea.inicio == null || linea.areaId == null) {
-        return 'Escanea trabajador, selecciona hora inicio y área';
+      if (linea.inicio == null || linea.areaId == null) {
+        return 'Selecciona hora inicio y área';
       }
     }
 
