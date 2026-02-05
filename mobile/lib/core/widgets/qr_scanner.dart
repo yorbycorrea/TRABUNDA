@@ -98,7 +98,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
       final codigo = (worker?['codigo'] ?? data['codigo'] ?? '').toString();
       final dni = (worker?['dni'] ?? data['dni'] ?? '').toString();
-      final nombre = (worker?['nombre'] ?? data['nombre_completo'] ?? '')
+      final nombre = (worker?['nombre'] ?? data['nombre_completo'] ?? data['nombre'] ?? '')
           .toString();
 
       debugPrint(
@@ -114,6 +114,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
         'id': idNum?.toInt(),
         'codigo': codigo,
         'dni': dni,
+        'nombre': nombre,
         'nombre_completo': nombre,
         'worker': worker,
       });

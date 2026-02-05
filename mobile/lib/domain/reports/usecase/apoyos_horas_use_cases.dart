@@ -20,11 +20,13 @@ class ApoyoHorasScanResult {
     required this.trabajadorId,
     required this.codigo,
     required this.nombre,
+    required this.documento,
   });
 
   final int? trabajadorId;
   final String codigo;
   final String nombre;
+  final String documento;
 }
 
 class CalculateHoras {
@@ -49,7 +51,7 @@ class MapQrToApoyoHorasModel {
     if (codigo.isEmpty && worker is Map) {
       codigo = (worker['codigo'] ?? '').toString().trim();
     }
-    final dni = (result['dni'] ?? '').toString().trim();
+    final dni = (result['dni'] ?? (worker is Map ? worker['dni'] : null) ?? '').toString().trim();
     final codigoFinal = codigo.isNotEmpty ? codigo : dni;
 
     if (trabajadorId == null) {
@@ -75,6 +77,7 @@ class MapQrToApoyoHorasModel {
       trabajadorId: trabajadorId,
       codigo: codigoFinal,
       nombre: nombre,
+      documento: dni,
     );
   }
 }

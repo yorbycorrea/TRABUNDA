@@ -65,6 +65,7 @@ class ApoyoHorasLinea {
   final int? trabajadorId;
   final String trabajadorCodigo;
   final String trabajadorNombre;
+  final String trabajadorDocumento;
   final int? areaId;
   final String? areaNombre;
   final String? horaInicio;
@@ -76,6 +77,7 @@ class ApoyoHorasLinea {
     required this.trabajadorId,
     required this.trabajadorCodigo,
     required this.trabajadorNombre,
+    required this.trabajadorDocumento,
     required this.areaId,
     required this.areaNombre,
     required this.horaInicio,
