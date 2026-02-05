@@ -155,6 +155,9 @@ class _TrabajoAvanceCuadrillaDetallePageState
         ? workerIdAny
         : num.tryParse(workerIdAny?.toString() ?? '');
     final workerId = workerIdNum?.toInt();
+    final qOriginal = (res['qOriginal'] ?? res['scannedValue'] ?? '')
+        .toString()
+        .trim();
 
     var codigo = (res['codigo'] ?? '').toString().trim();
     if (codigo.isEmpty && worker is Map) {
@@ -164,13 +167,22 @@ class _TrabajoAvanceCuadrillaDetallePageState
         .toString()
         .trim();
 
-    debugPrint('QR values -> codigo=$codigo nombre=$nombre workerId=$workerId');
+    final isDni = RegExp(r'^\d{8}$').hasMatch(qOriginal);
+    final qToSend = qOriginal.isNotEmpty ? qOriginal : codigo;
+    final localDetectedType = isDni
+        ? 'DNI'
+        : (qToSend.isNotEmpty ? 'CODIGO' : 'VACIO');
 
-    if (codigo.isEmpty) {
+    debugPrint(
+      'TA add worker payload -> cuadrillaId=${widget.cuadrillaId}, '
+      'q=$qToSend, codigo=$codigo, tipoLocal=$localDetectedType, workerId=$workerId',
+    );
+
+    if (qToSend.isEmpty) {
       AppNotify.warning(
         context,
         'Atención',
-        'El trabajador no tiene código válido',
+        'No se pudo obtener un DNI o código válido del QR',
       );
       return;
     }
@@ -178,13 +190,23 @@ class _TrabajoAvanceCuadrillaDetallePageState
     try {
       await _addTrabajador.call(
         cuadrillaId: widget.cuadrillaId,
-        codigo: codigo,
+        q: qToSend,
+        codigo: codigo.isNotEmpty ? codigo : null,
       );
 
       await _load();
 
-      AppNotify.success(context, 'Agregado', 'Agregado: $codigo - $nombre');
+      AppNotify.success(context, 'Agregado', 'Agregado: $qToSend - $nombre');
     } catch (e) {
+      final errorText = e.toString();
+      if (errorText.contains('TRABAJADOR_NO_ENCONTRADO')) {
+        AppNotify.warning(
+          context,
+          'Trabajador no encontrado',
+          'No se encontró al trabajador. Verifica el QR o DNI e intenta nuevamente.',
+        );
+        return;
+      }
       AppNotify.error(context, 'Error', 'Error agregando trabajador: $e');
     }
   }

@@ -9,6 +9,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 const ExcelJS = require('exceljs');
 const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
+const { resolveTrabajadorLookup } = require("../services/trabajadorLookup");
 
 //const { width } = require("pdfkit/js/page");
 
@@ -941,19 +942,21 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
 router.post("/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores", authMiddleware, async (req, res) => {
   try {
     const cuadrillaId = Number(req.params.cuadrillaId);
-    const { codigo } = req.body || {};
+    const { q, codigo } = req.body || {};
 
     if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
       return res.status(400).json({ error: "cuadrillaId inválido" });
     }
-    if (!codigo || !String(codigo).trim()) return res.status(400).json({ error: "codigo requerido" });
-    const codigoTrim = String(codigo).trim();
-    const trabajador = await getTrabajadorPorCodigo(codigoTrim);
+    const lookupInput = q ?? codigo;
+    const { worker: trabajador } = await resolveTrabajadorLookup({
+      q: lookupInput,
+      pool,
+    });
 
     await pool.query(
       `INSERT INTO trabajo_avance_trabajadores (cuadrilla_id, trabajador_codigo, trabajador_nombre)
        VALUES (?, ?, ?)`,
-       [cuadrillaId, codigoTrim, trabajador.nombre ?? null]
+        [cuadrillaId, String(trabajador.codigo ?? "").trim(), trabajador.nombre ?? null]
     );
 
     const [trabajadoresRaw] = await pool.query(
@@ -968,8 +971,14 @@ router.post("/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores", authMiddlewa
 
     return res.status(201).json({ ok: true, trabajadores });
   } catch (e) {
+     if (String(e?.code) === "Q_REQUERIDO") {
+      return res.status(400).json({ error: "q es requerido" });
+    }
+    if (String(e?.code) === "CODIGO_INVALIDO") {
+      return res.status(400).json({ error: "CODIGO_INVALIDO" });
+    }
     if (String(e?.code) === "TRABAJADOR_NO_ENCONTRADO") {
-      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+      return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO", q: e?.q, tipoDetectado: e?.tipoDetectado });
     }
     if (String(e?.code) === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "El trabajador ya está en esta cuadrilla" });

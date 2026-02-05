@@ -16,6 +16,15 @@ mutation GetWorkerByCodigo($codigo:String!){
   }
 }`;
 
+const GET_WORKER_BY_DNI_QUERY = `
+mutation GetWorkerByDni($dni:String!){
+  getWorker(dni:$dni){
+    ok
+    worker{ id nombres apellidos sexo dni }
+    errors { message }
+  }
+}`;
+
 const buildError = (message, code) => {
   const error = new Error(message);
   error.code = code;
@@ -92,9 +101,9 @@ const getTrabajadorPorDni = async (dni) => {
   }
 
   return fetchTrabajador({
-    query: GET_WORKER_BY_CODIGO_QUERY,
-    variables: { codigo: dniTrim },
-    lookupType: "dni_as_codigo",
+    query: GET_WORKER_BY_DNI_QUERY,
+    variables: { dni: dniTrim },
+    lookupType: "dni",
   });
 };
 

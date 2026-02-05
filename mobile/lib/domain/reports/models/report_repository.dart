@@ -125,7 +125,8 @@ abstract class ReportRepository {
 
   Future<void> addTrabajoAvanceTrabajador({
     required int cuadrillaId,
-    required String codigo,
+    required String q,
+    String? codigo,
   });
 
   Future<void> deleteTrabajoAvanceTrabajador(int trabajadorId);

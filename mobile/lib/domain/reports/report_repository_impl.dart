@@ -514,10 +514,12 @@ class ReportRepositoryImpl implements ReportRepository {
   @override
   Future<void> addTrabajoAvanceTrabajador({
     required int cuadrillaId,
-    required String codigo,
+    required String q,
+    String? codigo,
   }) async {
     await _remote.addTrabajoAvanceTrabajador(
       cuadrillaId: cuadrillaId,
+      q: q,
       codigo: codigo,
     );
   }

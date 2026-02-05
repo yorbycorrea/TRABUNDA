@@ -509,11 +509,21 @@ class ReportRemoteDataSource {
 
   Future<void> addTrabajoAvanceTrabajador({
     required int cuadrillaId,
-    required String codigo,
+    required String q,
+    String? codigo,
   }) async {
+    final payload = <String, dynamic>{
+      'q': q,
+      if (codigo != null && codigo.trim().isNotEmpty) 'codigo': codigo.trim(),
+    };
+
+    debugPrint(
+      'TA remote add trabajador POST -> cuadrillaId=$cuadrillaId, '
+      "q=${payload['q']}, codigo=${payload['codigo']}",
+    );
     final resp = await _api.post(
       '/reportes/trabajo-avance/cuadrillas/$cuadrillaId/trabajadores',
-      {'codigo': codigo},
+      payload,
     );
     _ensureSuccess(resp, hint: 'Agregar trabajador trabajo avance');
   }

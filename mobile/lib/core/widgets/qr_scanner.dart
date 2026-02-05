@@ -82,7 +82,8 @@ class _QrScannerPageState extends State<QrScannerPage> {
     bool popped = false;
 
     try {
-      final data = await _lookupTrabajador(rawValue);
+      final normalizedScannedValue = rawValue.replaceAll(RegExp(r'\s+'), '');
+      final data = await _lookupTrabajador(normalizedScannedValue);
 
       if (!mounted) return;
 
@@ -98,8 +99,9 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
       final codigo = (worker?['codigo'] ?? data['codigo'] ?? '').toString();
       final dni = (worker?['dni'] ?? data['dni'] ?? '').toString();
-      final nombre = (worker?['nombre'] ?? data['nombre_completo'] ?? data['nombre'] ?? '')
-          .toString();
+      final nombre =
+          (worker?['nombre'] ?? data['nombre_completo'] ?? data['nombre'] ?? '')
+              .toString();
 
       debugPrint(
         'QR parsed values -> codigo=$codigo, dni=$dni, nombre_completo=$nombre',
@@ -114,6 +116,8 @@ class _QrScannerPageState extends State<QrScannerPage> {
         'id': idNum?.toInt(),
         'codigo': codigo,
         'dni': dni,
+        'qOriginal': normalizedScannedValue,
+        'scannedValue': normalizedScannedValue,
         'nombre': nombre,
         'nombre_completo': nombre,
         'worker': worker,

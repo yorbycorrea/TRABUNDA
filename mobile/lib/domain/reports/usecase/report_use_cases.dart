@@ -361,9 +361,14 @@ class AddTrabajoAvanceTrabajador {
   AddTrabajoAvanceTrabajador(this._repository);
   final ReportRepository _repository;
 
-  Future<void> call({required int cuadrillaId, required String codigo}) {
+  Future<void> call({
+    required int cuadrillaId,
+    required String q,
+    String? codigo,
+  }) {
     return _repository.addTrabajoAvanceTrabajador(
       cuadrillaId: cuadrillaId,
+      q: q,
       codigo: codigo,
     );
   }
