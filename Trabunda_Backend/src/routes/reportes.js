@@ -792,7 +792,7 @@ router.get(
     
 
     try {
-      console.log("RESP CUADRILLA:", JSON.stringify(payload, null, 2));
+      
       const cuadrillaId = Number(req.params.cuadrillaId);
       if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
         return res.status(400).json({ error: "cuadrillaId inválido" });
@@ -823,6 +823,14 @@ router.get(
          ORDER BY tav.id DESC`,
         [cuadrillaId]
       );
+
+       const payload = {
+        cuadrilla,
+        trabajadores: Array.isArray(trabajadoresRaw) ? trabajadoresRaw : [],
+      };
+
+      // ✅ log correcto: ya existe payload
+      console.log("RESP CUADRILLA:", JSON.stringify(payload, null, 2));
 
       return res.json({
         cuadrilla,
