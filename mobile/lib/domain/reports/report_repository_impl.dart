@@ -418,7 +418,8 @@ class ReportRepositoryImpl implements ReportRepository {
     final decoded = await _remote.fetchTrabajoAvanceResumen(reporteId);
     final rep = (decoded['reporte'] as Map?)?.cast<String, dynamic>();
     final tot = (decoded['totales'] as Map<String, dynamic>);
-    final cuad = (decoded['cuadrillas'] as List).cast<Map<String, dynamic>>();
+    final cuad = (decoded['cuadrillas'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
 
     double toDouble(dynamic v) {
       if (v == null) return 0;
@@ -481,9 +482,14 @@ class ReportRepositoryImpl implements ReportRepository {
       cuadrillaId,
     );
 
+    final cuadrillaRaw = decoded['cuadrilla'];
+    if (cuadrillaRaw is! Map) {
+      throw Exception('Respuesta inválida: cuadrilla no es mapa.');
+    }
+
     return TrabajoAvanceCuadrillaDetalle(
-      cuadrilla: TaCuadrilla.fromJson(decoded['cuadrilla']),
-      trabajadores: (decoded['trabajadores'] as List)
+      cuadrilla: TaCuadrilla.fromJson(cuadrillaRaw.cast<String, dynamic>()),
+      trabajadores: (decoded['trabajadores'] as List? ?? [])
           .cast<Map<String, dynamic>>()
           .map(TaTrabajador.fromJson)
           .toList(),

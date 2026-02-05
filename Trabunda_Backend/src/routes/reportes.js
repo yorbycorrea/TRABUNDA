@@ -789,7 +789,10 @@ router.get(
   "/trabajo-avance/cuadrillas/:cuadrillaId",
   authMiddleware,
   async (req, res) => {
+    
+
     try {
+      console.log("RESP CUADRILLA:", JSON.stringify(payload, null, 2));
       const cuadrillaId = Number(req.params.cuadrillaId);
       if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
         return res.status(400).json({ error: "cuadrillaId inválido" });
@@ -821,7 +824,11 @@ router.get(
         [cuadrillaId]
       );
 
-     return res.json({ items: rows });
+      return res.json({
+        cuadrilla,
+        trabajadores: Array.isArray(trabajadoresRaw) ? trabajadoresRaw : [],
+      });
+
     } catch (e) {
        if (e?.code === "TRABAJADOR_NO_ENCONTRADO") {
         return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
