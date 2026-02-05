@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 const { authMiddleware } = require("../middlewares/auth");
+const { pool } = require("../db");
 
 const respondWriteDisabled = (res) =>
   res
@@ -17,12 +18,56 @@ const respondWriteDisabled = (res) =>
 router.get("/lookup",  authMiddleware, async(req, res) => {
   try {
     const qRaw = String(req.query.q ?? "").trim();
-    const digits = qRaw.replace(/\D+/g, "");
-    const codigo =
-      digits.length === 8 ? digits : digits.length > 0 ? digits : qRaw;
-    if (!codigo) return res.status(400).json({error: "q es requerido"});
+    
+    const isDni = /^\d{8}$/.test(qRaw);
+    if (!qRaw) return res.status(400).json({error: "q es requerido"});
 
-    const result = await getTrabajadorPorCodigo(codigo);
+    
+
+    console.log("TEMP LOG (remover luego) /trabajadores/lookup query", {
+      q: qRaw,
+      type: isDni ? "dni" : "codigo",
+      
+    });
+
+     if (!isDni) {
+      const [rows] = await pool.query(
+        `SELECT codigo, nombre_completo, dni
+         FROM trabajadores
+         WHERE codigo = ?
+         LIMIT 1`,
+        [qRaw]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
+      }
+
+      const row = rows[0];
+      console.log("TEMP LOG (remover luego) /trabajadores/lookup resultado", {
+        q: qRaw,
+        type: "codigo",
+        source: "BD",
+        saved: {
+          codigo: row.codigo ?? null,
+          nombre_completo: row.nombre_completo ?? null,
+          dni: row.dni ?? null,
+        },
+      });
+
+      return res.json({
+        ok: true,
+        worker: {
+          codigo: row.codigo ?? null,
+          nombre: row.nombre_completo ?? null,
+          dni: row.dni ?? null,
+        },
+      });
+    }
+
+     return res.status(404).json({error: "TRABAJADOR_NO_ENCONTRADO"});
+
+     
 
     if (
       !result

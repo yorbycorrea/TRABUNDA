@@ -6,11 +6,38 @@ if (!fetch) {
 
 const WORKERS_API_URL =
   process.env.WORKERS_API_URL || "http://172.16.1.207:4806/graphql";
-const isDni = (q) => /^\d{8}$/.test(String(q).trim());
 
-const GET_WORKER_QUERY = `
-mutation GetWorker($codigo:String!){
+
+const GET_WORKER_BY_CODIGO_QUERY = `
+mutation GetWorkerByCodigo($codigo:String!){
   getWorker(codigo:$codigo){
+    ok
+     worker{ id nombres apellidos sexo dni }
+    errors { message }
+  }
+}`;
+
+const GET_WORKER_BY_DNI_QUERY = `
+mutation GetWorkerByDni($dni:String!){
+   getWorker(dni:$dni){
+    ok
+    worker{ id nombres apellidos sexo dni }
+    errors { message }
+  }
+}`;
+
+const GET_WORKER_BY_DOCUMENTO_QUERY = `
+mutation GetWorkerByDocumento($documento:String!){
+  getWorker(documento:$documento){
+    ok
+    worker{ id nombres apellidos dni }
+    errors { message }
+  }
+}`;
+
+const GET_WORKER_BY_POR_DNI_QUERY = `
+mutation GetWorkerByPorDni($porDni:String!){
+  getWorker(porDni:$porDni){
     ok
     worker{ id nombres apellidos dni }
     errors { message }
@@ -23,19 +50,24 @@ const buildError = (message, code) => {
   return error;
 };
 
-const getTrabajadorPorCodigo = async (codigo) => {
-  const codigoTrim = String(codigo ?? "").trim();
-  if (!codigoTrim) {
-    throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
-  }
+const fetchTrabajador = async ({ query, variables, lookupType }) => {
+  console.info("GraphQL lookup request", {
+    lookupType,
+    url: WORKERS_API_URL,
+    query: query.replace(/\s+/g, " ").trim(),
+    variables,
+  });
 
+
+
+  
   const response = await fetch(WORKERS_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
     body: JSON.stringify({
-      query: GET_WORKER_QUERY,
-      variables: { codigo: codigoTrim, porDni: isDni(codigoTrim) }
+      query,
+      variables,
     }),
   });
 
@@ -72,10 +104,13 @@ const getTrabajadorPorCodigo = async (codigo) => {
     throw buildError("TRABAJADOR_GQL_ERROR", "TRABAJADOR_GQL_ERROR");
   }
 
-  const getWorkerResponse = payload?.data?.getWorker;
-  const worker = getWorkerResponse?.worker;
-  const ok = getWorkerResponse?.ok;
-  const errors = getWorkerResponse?.errors;
+  const responsePayload = payload?.data?.getWorker;
+  if (payloadErrors.length && !responsePayload) {
+    throw buildError("TRABAJADOR_GQL_ERROR", "TRABAJADOR_GQL_ERROR");
+  }
+  const worker = responsePayload?.worker;
+  const ok = responsePayload?.ok;
+  const errors = responsePayload?.errors;
 
   if (!ok || !worker) {
     const msg = Array.isArray(errors) && errors.length
@@ -88,8 +123,71 @@ const getTrabajadorPorCodigo = async (codigo) => {
 
   return {
     codigo: worker.id,
+    dni: worker.dni ?? null,
+    sexo: worker.sexo ?? null,
     nombre: `${worker.nombres} ${worker.apellidos}`.trim(),
   };
 };
 
-module.exports = { getTrabajadorPorCodigo };
+const getTrabajadorPorCodigo = async (codigo) => {
+  const codigoTrim = String(codigo ?? "").trim();
+  if (!codigoTrim) {
+    throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
+  }
+
+  return fetchTrabajador({
+    query: GET_WORKER_BY_CODIGO_QUERY,
+    variables: { codigo: codigoTrim },
+    lookupType: "codigo",
+  });
+};
+
+const getTrabajadorPorDni = async (dni) => {
+  const dniTrim = String(dni ?? "").trim();
+  if (!dniTrim) {
+    throw buildError("TRABAJADOR_NO_ENCONTRADO", "TRABAJADOR_NO_ENCONTRADO");
+  }
+
+  const dniStrategies = [
+    {
+      argName: "dni",
+      query: GET_WORKER_BY_DNI_QUERY,
+      variables: { dni: dniTrim },
+    },
+    {
+      argName: "documento",
+      query: GET_WORKER_BY_DOCUMENTO_QUERY,
+      variables: { documento: dniTrim },
+    },
+    {
+      argName: "porDni",
+      query: GET_WORKER_BY_POR_DNI_QUERY,
+      variables: { porDni: dniTrim },
+    },
+  ];
+
+  let lastError = null;
+
+  for (const strategy of dniStrategies) {
+    try {
+      return await fetchTrabajador({
+        query: strategy.query,
+        variables: strategy.variables,
+        lookupType: `dni:${strategy.argName}`,
+      });
+    } catch (error) {
+      lastError = error;
+      if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
+        throw error;
+      }
+      console.warn("Fallo lookup DNI con argumento GraphQL", {
+        argName: strategy.argName,
+        error: error?.message,
+      });
+    }
+  }
+
+  throw lastError || buildError("TRABAJADOR_GQL_ERROR", "TRABAJADOR_GQL_ERROR");
+};
+
+module.exports = { getTrabajadorPorCodigo, getTrabajadorPorDni };

@@ -1381,9 +1381,10 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.trabajador_id,
          lr.cuadrilla_id,
 
-         lr.trabajador_codigo,
-         lr.trabajador_nombre,
-         lr.trabajador_documento,
+          COALESCE(lr.trabajador_codigo, CAST(lr.trabajador_id AS CHAR)) AS trabajador_codigo,
+         COALESCE(NULLIF(lr.trabajador_nombre, ''), t.nombre_completo, '') AS trabajador_nombre,
+         COALESCE(lr.trabajador_documento, t.dni) AS trabajador_documento,
+         lr.trabajador_nombre AS trabajador_nombre_origen,
                  
          lr.area_id,
          lr.area_nombre,
@@ -1395,17 +1396,26 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.kilos,
          lr.labores,
 
-         c.nombre AS cuadrilla_nombre
+         c.nombre AS cuadrilla_nombre,
+         t.nombre_completo AS trabajador_nombre_join
        FROM lineas_reporte lr
        LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
+       LEFT JOIN trabajadores t ON t.codigo = CAST(lr.trabajador_id AS CHAR)
        WHERE lr.reporte_id = ?
        ORDER BY lr.id ASC`,
       [reporteId]
     );
 
-      console.log("TEMP LOG (remover luego) GET /reportes/:id/lineas response", {
+      const joinFillCount = rows.filter(
+      (item) => !String(item?.trabajador_nombre_origen ?? '').trim() && String(item?.trabajador_nombre_join ?? '').trim()
+    ).length;
+
+    const items = rows.map(({ trabajador_nombre_join, trabajador_nombre_origen, ...rest }) => rest);
+
+    console.log("TEMP LOG (remover luego) GET /reportes/:id/lineas", {
       reporteId,
-      items: rows,
+       itemsCount: items.length,
+      nombreDesdeJoinCount: joinFillCount,
     });
 
    
@@ -2320,7 +2330,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     const tieneCodigoNombre =
       Boolean(trabajadorCodigoInput) && Boolean(trabajadorNombreInput);
     const tieneDocumento = Boolean(trabajadorDocumentoInput);
-    const usarIdComoCodigo = !trabajadorCodigoInput && !tieneDocumento && trabajadorIdEsNumerico;
+    //const usarIdComoCodigo = !trabajadorCodigoInput && !tieneDocumento && trabajadorIdEsNumerico;
     const tieneReferencia =
       Boolean(trabajadorCodigoInput) || Boolean(trabajadorDocumentoInput) || trabajadorIdEsNumerico;
 
@@ -2337,12 +2347,23 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "TRABAJADOR_NO_ENCONTRADO" });
     }
 
-    let trabajadorIdFinal = null;
+    let trabajadorIdFinal = trabajadorIdEsNumerico ? Number(trabajadorIdInput) : null;
     let trabajadorCodigoFinal = trabajadorCodigoInput;
     let trabajadorNombreFinal = trabajadorNombreInput;
     const trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
 
-    if (tieneCodigoNombre) {
+      if (trabajadorIdEsNumerico) {
+      trabajadorIdFinal = Number(trabajadorIdInput);
+      trabajadorCodigoFinal = String(trabajadorIdFinal);
+      if (!trabajadorNombreFinal) {
+        trabajadorNombreFinal = "";
+      }
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "trabajador_id",
+        trabajador_id: trabajadorIdFinal,
+        trabajador_codigo: trabajadorCodigoFinal,
+      });
+    } else if (tieneCodigoNombre) {
       console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
         fuente: "codigo+nombre",
         trabajador_codigo: trabajadorCodigoFinal,
@@ -2383,48 +2404,14 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       trabajadorNombreFinal =
         trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
     } else if (trabajadorCodigoInput) {
-      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
-        fuente: "codigo",
-        trabajador_codigo: trabajadorCodigoInput,
-      });
-      let trabajador = null;
-      try {
-        trabajador = await getTrabajadorPorCodigo(trabajadorCodigoInput);
-      } catch (error) {
-        console.error("[DEBUG][POST /reportes/:id/lineas] Error lookup trabajador:", {
-          code: error?.code,
-          message: error?.message,
-        });
-        if (error?.code === "TRABAJADOR_NO_ENCONTRADO") {
-          return res
-            .status(400)
-            .json({ error: "TRABAJADOR_DOCUMENTO_INVALIDO" });
-        }
-        throw error;
-      }
-
-      console.log(
-        "[DEBUG][POST /reportes/:id/lineas] Resultado trabajador:",
-        {
-          codigo: trabajador?.codigo ?? null,
-          nombre: trabajador?.nombre ?? trabajador?.nombre_completo ?? null,
-          dni: trabajador?.dni ?? null,
-        }
-      );
-
-      
-      trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
-         trabajadorNombreFinal =
-        trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
-    } else if (usarIdComoCodigo) {
-      trabajadorCodigoFinal = trabajadorIdInput;
+       trabajadorCodigoFinal = trabajadorCodigoInput;
       if (!trabajadorNombreFinal) {
         trabajadorNombreFinal = "";
       }
       console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
-        fuente: "trabajador_id_as_codigo",
+        fuente: "codigo_directo",
         trabajador_codigo: trabajadorCodigoFinal,
-        trabajador_id: trabajadorIdInput,
+        
       });
     }
     
@@ -2655,7 +2642,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     }
 
     // INSERT
-    trabajadorIdFinal = null;
+    
     console.log(
       "[DEBUG][POST /reportes/:id/lineas] Valores finales antes INSERT:",
       {
@@ -2665,6 +2652,10 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         trabajador_id: trabajadorIdFinal,
       }
     );
+    if (trabajadorIdFinal !== null) {
+      trabajadorCodigoFinal = String(trabajadorIdFinal);
+    }
+
 
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
@@ -2674,7 +2665,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         reporteId,
-        null,
+        trabajadorIdFinal,
         cuadrilla_id ?? null,
         areaIdFinal, // ✅
         areaNombre, // ✅
