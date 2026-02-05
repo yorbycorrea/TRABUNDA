@@ -1422,7 +1422,11 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.trabajador_id,
          lr.cuadrilla_id,
 
-          COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR)) AS trabajador_codigo,
+        CASE
+           WHEN TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR))) REGEXP '^[0-9]+$'
+             THEN LPAD(TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR))), 5, '0')
+           ELSE TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR)))
+         END AS trabajador_codigo,
          COALESCE(NULLIF(lr.trabajador_nombre, ''), t.nombre_completo, '') AS trabajador_nombre,
          COALESCE(NULLIF(lr.trabajador_documento, ''), t.dni) AS trabajador_documento,
          lr.trabajador_nombre AS trabajador_nombre_origen,
@@ -1441,7 +1445,13 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          t.nombre_completo AS trabajador_nombre_join
        FROM lineas_reporte lr
        LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
-       LEFT JOIN trabajadores t ON t.codigo = COALESCE(NULLIF(lr.trabajador_codigo, ''), CAST(lr.trabajador_id AS CHAR))
+       LEFT JOIN trabajadores t
+         ON (
+           TRIM(t.codigo) REGEXP '^[0-9]+$'
+           AND TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), CAST(lr.trabajador_id AS CHAR))) REGEXP '^[0-9]+$'
+           AND CAST(TRIM(t.codigo) AS UNSIGNED) = CAST(TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), CAST(lr.trabajador_id AS CHAR))) AS UNSIGNED)
+         )
+         OR TRIM(t.codigo) = TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), CAST(lr.trabajador_id AS CHAR)))
        WHERE lr.reporte_id = ?
        ORDER BY lr.id ASC`,
       [reporteId]
@@ -1461,7 +1471,7 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
 
    
 
-    return res.json({ items: rows });
+     return res.json({ items });
   } catch (err) {
     
     console.error("Error listando lineas:", err);

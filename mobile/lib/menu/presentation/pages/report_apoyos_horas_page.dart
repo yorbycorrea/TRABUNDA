@@ -124,6 +124,12 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  String _codigo5(String codigo) {
+    final raw = codigo.trim();
+    if (raw.isEmpty) return '';
+    return RegExp(r'^\d+$').hasMatch(raw) ? raw.padLeft(5, '0') : raw;
+  }
+
   TimeOfDay _nowTime() {
     final now = DateTime.now();
     return TimeOfDay(hour: now.hour, minute: now.minute);
@@ -213,7 +219,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         final trabajadorNombre = (it.trabajadorNombre ?? '').trim();
         final trabajadorDocumento = (it.trabajadorDocumento ?? '').trim();
         if (trabajadorCodigo.isNotEmpty) {
-          m.codigoCtrl.text = trabajadorCodigo;
+          m.codigoCtrl.text = _codigo5(trabajadorCodigo);
         }
         if (trabajadorNombre.isNotEmpty) {
           m.nombreCtrl.text = trabajadorNombre;
@@ -459,7 +465,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
                       setState(() {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
-                        _trabajadores[i].codigoCtrl.text = mapped.codigo;
+                        _trabajadores[i].codigoCtrl.text = _codigo5(
+                          mapped.codigo,
+                        );
                         _trabajadores[i].nombreCtrl.text = mapped.nombre;
                         _trabajadores[i].trabajadorDocumento = mapped.documento;
                         debugPrint(

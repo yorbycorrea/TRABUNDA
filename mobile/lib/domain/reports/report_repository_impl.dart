@@ -33,6 +33,12 @@ class ReportRepositoryImpl implements ReportRepository {
     );
   }
 
+  String _codigo5(dynamic value) {
+    final raw = (value ?? '').toString().trim();
+    if (raw.isEmpty) return '';
+    return RegExp(r'^\d+$').hasMatch(raw) ? raw.padLeft(5, '0') : raw;
+  }
+
   @override
   Future<List<UserPickerItem>> fetchUserPickers({
     required List<String> roles,
@@ -233,7 +239,7 @@ class ReportRepositoryImpl implements ReportRepository {
           (it) => ApoyoHorasLinea(
             id: (it['id'] as num?)?.toInt(),
             trabajadorId: (it['trabajador_id'] as num?)?.toInt(),
-            trabajadorCodigo: (it['trabajador_codigo'] ?? '').toString(),
+            trabajadorCodigo: _codigo5(it['trabajador_codigo']),
             trabajadorNombre: (it['trabajador_nombre'] ?? '').toString(),
             trabajadorDocumento: (it['trabajador_documento'] ?? '').toString(),
             areaId: (it['area_id'] as num?)?.toInt(),

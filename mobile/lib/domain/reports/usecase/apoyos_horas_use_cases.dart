@@ -51,8 +51,13 @@ class MapQrToApoyoHorasModel {
     if (codigo.isEmpty && worker is Map) {
       codigo = (worker['codigo'] ?? '').toString().trim();
     }
-    final dni = (result['dni'] ?? (worker is Map ? worker['dni'] : null) ?? '').toString().trim();
-    final codigoFinal = codigo.isNotEmpty ? codigo : dni;
+    final dni = (result['dni'] ?? (worker is Map ? worker['dni'] : null) ?? '')
+        .toString()
+        .trim();
+    final codigoFinalRaw = codigo.isNotEmpty ? codigo : dni;
+    final codigoFinal = RegExp(r'^\d+$').hasMatch(codigoFinalRaw)
+        ? codigoFinalRaw.padLeft(5, '0')
+        : codigoFinalRaw;
 
     if (trabajadorId == null) {
       final codigoWorker = worker is Map ? worker['codigo'] : null;
