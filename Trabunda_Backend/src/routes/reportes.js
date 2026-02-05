@@ -1381,11 +1381,11 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.trabajador_id,
          lr.cuadrilla_id,
 
-          COALESCE(lr.trabajador_codigo, CAST(lr.trabajador_id AS CHAR)) AS trabajador_codigo,
+          COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR)) AS trabajador_codigo,
          COALESCE(NULLIF(lr.trabajador_nombre, ''), t.nombre_completo, '') AS trabajador_nombre,
-         COALESCE(lr.trabajador_documento, t.dni) AS trabajador_documento,
+         COALESCE(NULLIF(lr.trabajador_documento, ''), t.dni) AS trabajador_documento,
          lr.trabajador_nombre AS trabajador_nombre_origen,
-                 
+
          lr.area_id,
          lr.area_nombre,
 
@@ -1400,7 +1400,7 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          t.nombre_completo AS trabajador_nombre_join
        FROM lineas_reporte lr
        LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
-       LEFT JOIN trabajadores t ON t.codigo = CAST(lr.trabajador_id AS CHAR)
+       LEFT JOIN trabajadores t ON t.codigo = COALESCE(NULLIF(lr.trabajador_codigo, ''), CAST(lr.trabajador_id AS CHAR))
        WHERE lr.reporte_id = ?
        ORDER BY lr.id ASC`,
       [reporteId]

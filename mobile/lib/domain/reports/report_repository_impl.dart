@@ -235,6 +235,7 @@ class ReportRepositoryImpl implements ReportRepository {
             trabajadorId: (it['trabajador_id'] as num?)?.toInt(),
             trabajadorCodigo: (it['trabajador_codigo'] ?? '').toString(),
             trabajadorNombre: (it['trabajador_nombre'] ?? '').toString(),
+            trabajadorDocumento: (it['trabajador_documento'] ?? '').toString(),
             areaId: (it['area_id'] as num?)?.toInt(),
             areaNombre: (it['area_nombre'] ?? '').toString(),
             horaInicio: it['hora_inicio']?.toString(),

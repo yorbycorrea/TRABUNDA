@@ -139,45 +139,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     return int.tryParse(codigo);
   }
 
-  Future<void> _lookupTrabajadorForUi(_ApoyoFormModel model) async {
-    final trabajadorId = model.trabajadorId;
-    if (trabajadorId == null) return;
-    if (model.codigoCtrl.text.trim().isNotEmpty &&
-        model.nombreCtrl.text.trim().isNotEmpty) {
-      return;
-    }
-
-    try {
-      final query = Uri.encodeQueryComponent(trabajadorId.toString());
-      final resp = await widget.api.get('/trabajadores/lookup?q=$query');
-      final decoded = widget.api.decodeJsonOrThrow(
-        resp,
-        hint: 'lookup trabajador ',
-      );
-      if (decoded is! Map<String, dynamic>) return;
-
-      final workerRaw = decoded['worker'];
-      final worker = workerRaw is Map
-          ? Map<String, dynamic>.from(workerRaw)
-          : null;
-      final codigo = (worker?['codigo'] ?? decoded['codigo'] ?? '')
-          .toString()
-          .trim();
-      final nombre = (worker?['nombre'] ?? decoded['nombre_completo'] ?? '')
-          .toString()
-          .trim();
-
-      if (codigo.isNotEmpty && model.codigoCtrl.text.trim().isEmpty) {
-        model.codigoCtrl.text = codigo;
-      }
-      if (nombre.isNotEmpty && model.nombreCtrl.text.trim().isEmpty) {
-        model.nombreCtrl.text = nombre;
-      }
-    } catch (e) {
-      debugPrint('Lookup trabajador UI falló: $e');
-    }
-  }
-
   List<ApoyoHorasLineaInput> _buildLineasInput() {
     return _trabajadores
         .map(
@@ -250,11 +211,15 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
         final trabajadorCodigo = (it.trabajadorCodigo ?? '').trim();
         final trabajadorNombre = (it.trabajadorNombre ?? '').trim();
+        final trabajadorDocumento = (it.trabajadorDocumento ?? '').trim();
         if (trabajadorCodigo.isNotEmpty) {
           m.codigoCtrl.text = trabajadorCodigo;
         }
         if (trabajadorNombre.isNotEmpty) {
           m.nombreCtrl.text = trabajadorNombre;
+        }
+        if (trabajadorDocumento.isNotEmpty) {
+          m.trabajadorDocumento = trabajadorDocumento;
         }
 
         m.areaId = it.areaId;
@@ -294,9 +259,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
           ..addAll(models);
         _syncAreaIdsWithNombre(updateState: false);
       });
-      for (final model in models) {
-        await _lookupTrabajadorForUi(model);
-      }
     } catch (e) {
       if (!mounted) return;
       AppNotify.error(context, 'Error', 'No se pudieron cargar líneas: $e');
@@ -384,6 +346,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             trabajadorId: trabajadorId,
             trabajadorCodigo: t.codigoCtrl.text.trim(),
             trabajadorNombre: t.nombreCtrl.text.trim(),
+            trabajadorDocumento: t.trabajadorDocumento,
             inicio: inicio,
             fin: t.fin,
             horas: horas,
@@ -396,6 +359,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             trabajadorId: trabajadorId,
             trabajadorCodigo: t.codigoCtrl.text.trim(),
             trabajadorNombre: t.nombreCtrl.text.trim(),
+            trabajadorDocumento: t.trabajadorDocumento,
             inicio: inicio,
             fin: t.fin,
             horas: horas,
@@ -497,6 +461,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
                         _trabajadores[i].codigoCtrl.text = mapped.codigo;
                         _trabajadores[i].nombreCtrl.text = mapped.nombre;
+                        _trabajadores[i].trabajadorDocumento = mapped.documento;
                         debugPrint(
                           'TEMP LOG (remover luego) index=$i lineaId=${_trabajadores[i].lineaId} codigo=${_trabajadores[i].codigoCtrl.text}',
                         );
@@ -552,6 +517,7 @@ class _ApoyoFormModel {
 
   int? lineaId;
   int? trabajadorId;
+  String? trabajadorDocumento;
 
   final codigoCtrl = TextEditingController();
   final nombreCtrl = TextEditingController();
