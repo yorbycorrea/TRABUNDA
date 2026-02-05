@@ -56,6 +56,47 @@ function textoSeguro(valor) {
   return String(valor);
 }
 
+async function hidratarTrabajadoresPorCodigo(items = [], dbPool = pool) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const codigos = [...new Set(
+    items
+      .map((item) => String(item?.trabajador_codigo ?? "").trim())
+      .filter(Boolean)
+  )];
+
+  if (codigos.length === 0) return items;
+
+  const placeholders = codigos.map(() => "?").join(",");
+  const [rows] = await dbPool.query(
+    `SELECT TRIM(codigo) AS codigo, nombre_completo, dni
+     FROM trabajadores
+     WHERE TRIM(codigo) IN (${placeholders})`,
+    codigos
+  );
+
+  const trabajadoresByCodigo = new Map(
+    rows.map((row) => [String(row.codigo ?? "").trim(), row])
+  );
+
+  return items.map((item) => {
+    const codigo = String(item?.trabajador_codigo ?? "").trim();
+    const trabajador = trabajadoresByCodigo.get(codigo);
+    if (!trabajador) return item;
+
+    return {
+      ...item,
+      trabajador_codigo: codigo || item?.trabajador_codigo,
+      trabajador_nombre:
+        String(item?.trabajador_nombre ?? "").trim() ||
+        trabajador.nombre_completo ||
+        item?.trabajador_nombre,
+      trabajador_documento:
+        item?.trabajador_documento ?? trabajador.dni ?? null,
+    };
+  });
+}
+
 
 
 
