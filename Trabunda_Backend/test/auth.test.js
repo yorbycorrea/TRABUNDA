@@ -20,6 +20,7 @@ beforeAll(() => {
 afterEach(() => {
   // Limpieza de fixtures simulados: restablecemos los mocks para evitar fugas entre tests.
   pool.query.mockReset();
+  pool.getConnection.mockReset();
 });
 
 describe("Auth routes", () => {
@@ -107,4 +108,72 @@ describe("Auth routes", () => {
     expect(okResponse.status).toBe(200);
     expect(okResponse.body.user.username).toBe("demo");
   });
-});
+
+   test("POST /auth/register permite crear usuario con rol ADMINISTRADOR", async () => {
+    const token = jwt.sign(
+      { sub: 1, username: "admin", roles: ["ADMINISTRADOR"] },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    const connection = {
+      beginTransaction: jest.fn().mockResolvedValue(undefined),
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 99 }])
+        .mockResolvedValueOnce([[{ id: 2 }]])
+        .mockResolvedValueOnce([{}]),
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn(),
+    };
+
+    pool.getConnection.mockResolvedValueOnce(connection);
+
+    const app = require("../src/index");
+    const response = await request(app)
+      .post("/auth/register")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        username: "nuevo_user",
+        password: "123456",
+        nombre: "Nuevo Usuario",
+        roles: ["PLANILLERO"],
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.user_id).toBe(99);
+    expect(connection.beginTransaction).toHaveBeenCalled();
+    expect(connection.commit).toHaveBeenCalled();
+  });
+
+  test("POST /auth/register deniega acceso a usuario sin rol ADMINISTRADOR", async () => {
+    const token = jwt.sign(
+      { sub: 2, username: "planillero", roles: ["PLANILLERO"] },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    const app = require("../src/index");
+    const response = await request(app)
+      .post("/auth/register")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        username: "otro_user",
+
+
+
+
+
+
+        
+        password: "123456",
+        nombre: "Otro Usuario",
+      });
+
+    expect(response.status).toBe(403);
+  });}
+
+  
+);

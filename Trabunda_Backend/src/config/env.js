@@ -1,18 +1,24 @@
+const path = require("path");
+const fs = require("fs");
+
 if (process.env.NODE_ENV !== "test") {
-  require("dotenv").config();
+   const envPath = process.env.ENV_FILE || path.resolve(process.cwd(), ".env");
+  const result = require("dotenv").config({ path: envPath });
+
+  if (result.error && process.env.NODE_ENV !== "production") {
+    console.warn(`[env] No se pudo cargar ${envPath}:`, result.error.message);
+  }
+
+  if (process.env.ENV_DEBUG === "true") {
+    console.log(
+      `[env] archivo cargado: ${envPath} (exists=${fs.existsSync(envPath)})`
+    );
+  }
 }
 
 process.env.PORT ||= "3000";
 
-const requiredVars = [
-  "PORT",
-  "DB_HOST",
-  "DB_PORT",
-  "DB_USER",
-  "DB_PASS",
-
-  
-];
+const requiredVars = ["PORT", "DB_HOST", "DB_PORT", "DB_USER", "DB_PASS", "JWT_SECRET"];
 
 const envDbVar =
   process.env.NODE_ENV === "production"

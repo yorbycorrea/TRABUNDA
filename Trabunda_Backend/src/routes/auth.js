@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(
   "/register",
   authMiddleware,
-  requireRole("ADMIN"),
+  requireRole("ADMINISTRADOR"),
   authController.register
 );
 
