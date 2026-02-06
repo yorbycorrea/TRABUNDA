@@ -10,6 +10,8 @@ services:
       - DB_HOST=db
       - DB_NAME=${DB_NAME_PROD}
       - WORKERS_API_URL=${WORKERS_API_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
 
   db:
     environment:
