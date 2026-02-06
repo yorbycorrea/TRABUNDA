@@ -734,17 +734,70 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
     }
 
     const [cuadrillas] = await pool.query(
-      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id
        FROM trabajo_avance_cuadrillas
        WHERE reporte_id = ?
        ORDER BY FIELD(tipo,'RECEPCION','FILETEADO','APOYO_RECEPCION'), nombre`,
       [reporteId]
     );
 
-    const totales = { RECEPCION: 0, FILETEADO: 0, APOYO_RECEPCION: 0 };
-    for (const c of cuadrillas) totales[c.tipo] += Number(c.produccion_kg || 0);
+    const recepcion = cuadrillas
+      .filter((c) => c.tipo === "RECEPCION")
+      .map((c) => ({
+        ...c,
+        produccion_kg: 0,
+        kg: 0,
+      }));
 
-    return res.json({ reporteId, totales, cuadrillas });
+    const fileteado = cuadrillas
+      .filter((c) => c.tipo === "FILETEADO")
+      .map((c) => ({
+        ...c,
+        kg: Number(c.produccion_kg || 0),
+      }));
+
+    const apoyos = cuadrillas
+      .filter((c) => c.tipo === "APOYO_RECEPCION")
+      .map((c) => ({
+        ...c,
+        produccion_kg: 0,
+        kg: 0,
+      }));
+
+    const totalKg = fileteado.reduce((acc, c) => acc + Number(c.kg || 0), 0);
+
+    const apoyosGlobal = apoyos.filter((c) => !c.apoyo_de_cuadrilla_id);
+    const apoyosPorCuadrillaMap = new Map();
+    for (const apoyo of apoyos) {
+      if (!apoyo.apoyo_de_cuadrilla_id) continue;
+      if (!apoyosPorCuadrillaMap.has(apoyo.apoyo_de_cuadrilla_id)) {
+        const cuadrillaFileteado =
+          fileteado.find((c) => c.id === apoyo.apoyo_de_cuadrilla_id) || {
+            id: apoyo.apoyo_de_cuadrilla_id,
+          };
+        apoyosPorCuadrillaMap.set(apoyo.apoyo_de_cuadrilla_id, {
+          cuadrillaFileteado,
+          apoyos: [],
+        });
+      }
+      apoyosPorCuadrillaMap.get(apoyo.apoyo_de_cuadrilla_id).apoyos.push(apoyo);
+    }
+
+    const apoyos_recepcion = {
+      global: apoyosGlobal,
+      por_cuadrilla: Array.from(apoyosPorCuadrillaMap.values()),
+    };
+
+    const totales = { RECEPCION: 0, FILETEADO: totalKg, APOYO_RECEPCION: 0 };
+
+    return res.json({
+      reporteId,
+      recepcion,
+      fileteado: { lista: fileteado, totalKg },
+      apoyos_recepcion,
+      totales,
+      cuadrillas,
+    });
   } catch (e) {
     console.error("resumen trabajo-avance error:", e);
     return res.status(500).json({ error: "Error interno resumen trabajo-avance" });
@@ -758,20 +811,73 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
 router.post("/trabajo-avance/:id/cuadrillas", authMiddleware, async (req, res) => {
   try {
     const reporteId = Number(req.params.id);
-    const { tipo, nombre, apoyoDeCuadrillaId } = req.body || {};
+    const {
+      tipo,
+      nombre,
+      apoyoDeCuadrillaId,
+      apoyo_scope,
+      apoyo_de_cuadrilla_id,
+    } = req.body || {};
 
     if (!Number.isInteger(reporteId) || reporteId <= 0) return res.status(400).json({ error: "id inválido" });
     if (!tipoTrabajoAvanceValido(tipo)) return res.status(400).json({ error: "tipo inválido" });
     if (!nombre || !String(nombre).trim()) return res.status(400).json({ error: "nombre requerido" });
 
+    let apoyoScopeFinal = null;
+    let apoyoCuadrillaFinal = null;
+
+    if (tipo === "APOYO_RECEPCION") {
+      apoyoScopeFinal = String(apoyo_scope ?? "GLOBAL").trim().toUpperCase();
+      if (!["GLOBAL", "CUADRILLA"].includes(apoyoScopeFinal)) {
+        return res.status(400).json({ error: "apoyo_scope inválido" });
+      }
+
+      if (apoyoScopeFinal === "CUADRILLA") {
+        const apoyoCuadrillaId = Number(
+          apoyo_de_cuadrilla_id ?? apoyoDeCuadrillaId
+        );
+        if (!Number.isInteger(apoyoCuadrillaId) || apoyoCuadrillaId <= 0) {
+          return res.status(400).json({ error: "apoyo_de_cuadrilla_id requerido" });
+        }
+
+        const [[cuadrillaApoyo]] = await pool.query(
+          `SELECT id
+           FROM trabajo_avance_cuadrillas
+           WHERE id = ?
+             AND reporte_id = ?
+             AND tipo = 'FILETEADO'
+           LIMIT 1`,
+          [apoyoCuadrillaId, reporteId]
+        );
+
+        if (!cuadrillaApoyo) {
+          return res.status(400).json({ error: "apoyo_de_cuadrilla_id inválido" });
+        }
+
+        apoyoCuadrillaFinal = apoyoCuadrillaId;
+      }
+    }
+
     const [ins] = await pool.query(
-      `INSERT INTO trabajo_avance_cuadrillas (reporte_id, tipo, nombre, apoyo_de_cuadrilla_id)
-       VALUES (?, ?, ?, ?)`,
-      [reporteId, tipo, String(nombre).trim(), apoyoDeCuadrillaId ?? null]
+     `INSERT INTO trabajo_avance_cuadrillas (
+        reporte_id,
+        tipo,
+        nombre,
+        apoyo_scope,
+        apoyo_de_cuadrilla_id
+       )
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        reporteId,
+        tipo,
+        String(nombre).trim(),
+        apoyoScopeFinal,
+        apoyoCuadrillaFinal,
+      ]
     );
 
     const [[row]] = await pool.query(
-      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id
        FROM trabajo_avance_cuadrillas WHERE id = ?`,
       [ins.insertId]
     );
@@ -800,7 +906,7 @@ router.get(
       }
 
       const [[cuadrilla]] = await pool.query(
-        `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+        `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id
          FROM trabajo_avance_cuadrillas
          WHERE id = ?`,
         [cuadrillaId]
@@ -915,15 +1021,30 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
       return res.status(400).json({ error: "cuadrillaId inválido" });
     }
 
+    const [[cuadrillaActual]] = await pool.query(
+      `SELECT tipo
+       FROM trabajo_avance_cuadrillas
+       WHERE id = ?
+       LIMIT 1`,
+      [cuadrillaId]
+    );
+
+    if (!cuadrillaActual) {
+      return res.status(404).json({ error: "Cuadrilla no encontrada" });
+    }
+
+    const produccionFinal =
+      cuadrillaActual.tipo === "FILETEADO" ? produccion_kg ?? 0 : 0;
+
     await pool.query(
       `UPDATE trabajo_avance_cuadrillas
        SET hora_inicio = ?, hora_fin = ?, produccion_kg = ?
        WHERE id = ?`,
-      [hora_inicio ?? null, hora_fin ?? null, produccion_kg ?? 0, cuadrillaId]
+      [hora_inicio ?? null, hora_fin ?? null, produccionFinal, cuadrillaId]
     );
 
     const [[row]] = await pool.query(
-      `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_de_cuadrilla_id
+       `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id
        FROM trabajo_avance_cuadrillas WHERE id = ?`,
       [cuadrillaId]
     );
@@ -1912,10 +2033,12 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       const ws = workersByCuadrilla.get(Number(c.id)) || [];
       const pers = ws.length;
 
-      const kg = toNum(c.produccion_kg);
-      const resultadoFilete = filetecal(kg);
-      const resultadodesu = desucal(kg);
-      const resultadoaleta1 = aleta(kg);  
+      const kgBase = toNum(c.produccion_kg);
+      const usaKg = c.tipo === "FILETEADO";
+      const kg = usaKg ? kgBase : 0;
+      const resultadoFilete = usaKg ? filetecal(kg) : 0;
+      const resultadodesu = usaKg ? desucal(kg) : 0;
+      const resultadoaleta1 = usaKg ? aleta(kg) : 0;
        
       const hi = c.hora_inicio ? String(c.hora_inicio).slice(0,5) : "";
       const hf = c.hora_fin ? String(c.hora_fin).slice(0,5) : "";
