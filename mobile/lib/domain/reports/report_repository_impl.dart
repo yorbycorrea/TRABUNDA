@@ -417,15 +417,102 @@ class ReportRepositoryImpl implements ReportRepository {
   Future<TrabajoAvanceResumen> fetchTrabajoAvanceResumen(int reporteId) async {
     final decoded = await _remote.fetchTrabajoAvanceResumen(reporteId);
     final rep = (decoded['reporte'] as Map?)?.cast<String, dynamic>();
-    final tot = (decoded['totales'] as Map<String, dynamic>);
-    final cuad = (decoded['cuadrillas'] as List? ?? [])
-        .cast<Map<String, dynamic>>();
 
     double toDouble(dynamic v) {
       if (v == null) return 0;
       if (v is num) return v.toDouble();
       if (v is String) return double.tryParse(v) ?? 0;
       return 0;
+    }
+
+    Map<String, dynamic>? toMap(dynamic v) {
+      return v is Map ? v.cast<String, dynamic>() : null;
+    }
+
+    List<Map<String, dynamic>> toList(dynamic v) {
+      if (v is! List) return <Map<String, dynamic>>[];
+      return v.whereType<Map>().cast<Map<String, dynamic>>().toList();
+    }
+
+    double totalDesdeSeccion(
+      Map<String, dynamic>? seccion,
+      List<TaCuadrilla> cuadrillas,
+    ) {
+      if (seccion != null) {
+        if (seccion.containsKey('total_kg')) {
+          return toDouble(seccion['total_kg']);
+        }
+        if (seccion.containsKey('totalKg')) {
+          return toDouble(seccion['totalKg']);
+        }
+      }
+      return cuadrillas.fold(0, (acc, c) => acc + c.produccionKg);
+    }
+
+    final recepcionMap = toMap(decoded['recepcion']);
+    final fileteadoMap = toMap(decoded['fileteado']);
+    final apoyosMap = toMap(decoded['apoyos_recepcion']);
+    final allCuadrillasRaw = toList(decoded['cuadrillas']);
+
+    final recepcionRaw = toList(recepcionMap?['cuadrillas']);
+    final fileteadoRaw = toList(fileteadoMap?['cuadrillas']);
+
+    final recepcionCuadrillas = (recepcionRaw.isNotEmpty
+            ? recepcionRaw
+            : allCuadrillasRaw
+                .where((c) => c['tipo'] == 'RECEPCION')
+                .toList())
+        .map(TaCuadrilla.fromJson)
+        .toList();
+
+    final fileteadoCuadrillas = (fileteadoRaw.isNotEmpty
+            ? fileteadoRaw
+            : allCuadrillasRaw
+                .where((c) => c['tipo'] == 'FILETEADO')
+                .toList())
+        .map(TaCuadrilla.fromJson)
+        .toList();
+
+    final apoyosGlobalRaw = toList(apoyosMap?['global']);
+    final porCuadrillaRaw =
+        apoyosMap?['por_cuadrilla'] ?? apoyosMap?['porCuadrilla'];
+
+    final apoyosGlobal =
+        apoyosGlobalRaw.map(TaCuadrilla.fromJson).toList();
+    final apoyosPorCuadrilla = <int, List<TaCuadrilla>>{};
+
+    if (porCuadrillaRaw is Map) {
+      for (final entry in porCuadrillaRaw.entries) {
+        final key = int.tryParse(entry.key.toString());
+        final items = toList(entry.value)
+            .map(TaCuadrilla.fromJson)
+            .toList();
+        if (key != null) {
+          apoyosPorCuadrilla[key] = items;
+        } else {
+          apoyosGlobal.addAll(items);
+        }
+      }
+    }
+
+    if (apoyosGlobal.isEmpty && apoyosPorCuadrilla.isEmpty) {
+      final apoyoFallback = allCuadrillasRaw
+          .where((c) => c['tipo'] == 'APOYO_RECEPCION')
+          .map(TaCuadrilla.fromJson)
+          .toList();
+      for (final apoyo in apoyoFallback) {
+        if (apoyo.apoyoScope == 'POR_CUADRILLA' ||
+            apoyo.apoyoDeCuadrillaId != null) {
+          final id = apoyo.apoyoDeCuadrillaId;
+          if (id != null) {
+            apoyosPorCuadrilla.putIfAbsent(id, () => []).add(apoyo);
+          } else {
+            apoyosGlobal.add(apoyo);
+          }
+        } else {
+          apoyosGlobal.add(apoyo);
+        }
+      }
     }
 
     return TrabajoAvanceResumen(
@@ -437,12 +524,18 @@ class ReportRepositoryImpl implements ReportRepository {
               horaInicio: rep['hora_inicio']?.toString(),
               horaFin: rep['hora_fin']?.toString(),
             ),
-      totales: {
-        'RECEPCION': toDouble(tot['RECEPCION']),
-        'FILETEADO': toDouble(tot['FILETEADO']),
-        'APOYO_RECEPCION': toDouble(tot['APOYO_RECEPCION']),
-      },
-      cuadrillas: cuad.map(TaCuadrilla.fromJson).toList(),
+      recepcion: TrabajoAvanceSeccion(
+        cuadrillas: recepcionCuadrillas,
+        totalKg: totalDesdeSeccion(recepcionMap, recepcionCuadrillas),
+      ),
+      fileteado: TrabajoAvanceSeccion(
+        cuadrillas: fileteadoCuadrillas,
+        totalKg: totalDesdeSeccion(fileteadoMap, fileteadoCuadrillas),
+      ),
+      apoyosRecepcion: TrabajoAvanceApoyosRecepcion(
+        global: apoyosGlobal,
+        porCuadrilla: apoyosPorCuadrilla,
+      ),
     );
   }
 
@@ -464,12 +557,14 @@ class ReportRepositoryImpl implements ReportRepository {
     required int reporteId,
     required String tipo,
     required String nombre,
+    String? apoyoScope,
     int? apoyoDeCuadrillaId,
   }) async {
     await _remote.createTrabajoAvanceCuadrilla(
       reporteId: reporteId,
       tipo: tipo,
       nombre: nombre,
+      apoyoScope: apoyoScope,
       apoyoDeCuadrillaId: apoyoDeCuadrillaId,
     );
   }

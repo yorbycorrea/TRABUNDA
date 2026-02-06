@@ -20,6 +20,7 @@ class TaCuadrilla {
   final String? horaFin;
   final double produccionKg;
   final int? apoyoDeCuadrillaId;
+  final String? apoyoScope;
 
   TaCuadrilla({
     required this.id,
@@ -29,6 +30,7 @@ class TaCuadrilla {
     required this.horaFin,
     required this.produccionKg,
     required this.apoyoDeCuadrillaId,
+    required this.apoyoScope,
   });
 
   factory TaCuadrilla.fromJson(Map<String, dynamic> j) => TaCuadrilla(
@@ -39,6 +41,7 @@ class TaCuadrilla {
     horaFin: j['hora_fin']?.toString(),
     produccionKg: toDouble(j['produccion_kg']), // ✅ aquí está el fix real
     apoyoDeCuadrillaId: toIntOrNull(j['apoyo_de_cuadrilla_id']),
+    apoyoScope: j['apoyo_scope']?.toString(),
   );
 }
 

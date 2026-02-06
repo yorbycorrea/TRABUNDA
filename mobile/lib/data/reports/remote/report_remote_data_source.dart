@@ -459,6 +459,7 @@ class ReportRemoteDataSource {
     required int reporteId,
     required String tipo,
     required String nombre,
+    String? apoyoScope,
     int? apoyoDeCuadrillaId,
   }) async {
     final resp = await _api.post(
@@ -466,6 +467,7 @@ class ReportRemoteDataSource {
       {
         'tipo': tipo,
         'nombre': nombre,
+        if (apoyoScope != null) 'apoyoScope': apoyoScope,
         'apoyoDeCuadrillaId': apoyoDeCuadrillaId,
       },
     );
