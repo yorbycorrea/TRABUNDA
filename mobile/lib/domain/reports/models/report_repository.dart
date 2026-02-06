@@ -109,6 +109,7 @@ abstract class ReportRepository {
     required int reporteId,
     required String tipo,
     required String nombre,
+    String? apoyoScope,
     int? apoyoDeCuadrillaId,
   });
 

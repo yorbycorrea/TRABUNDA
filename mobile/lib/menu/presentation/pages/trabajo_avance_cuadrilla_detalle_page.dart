@@ -110,7 +110,9 @@ class _TrabajoAvanceCuadrillaDetallePageState
   }
 
   Future<void> _guardarCabecera() async {
-    final kg = double.tryParse(_kgCtrl.text.replaceAll(",", ".")) ?? 0;
+    final kg = _cuadrilla?.tipo == 'FILETEADO'
+        ? double.tryParse(_kgCtrl.text.replaceAll(",", ".")) ?? 0
+        : (_cuadrilla?.produccionKg ?? 0);
 
     try {
       await _updateCuadrilla.call(
@@ -380,27 +382,29 @@ class _TrabajoAvanceCuadrillaDetallePageState
                 _headerCuadrilla(c),
 
                 // ✅ Producción KG (solo input)
-                Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: TextField(
-                      controller: _kgCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: "Producción total (kg) de la cuadrilla",
-                        labelStyle: TextStyle(color: AppColors.barraNavegacion),
-                        border: OutlineInputBorder(),
+                if (c.tipo == 'FILETEADO')
+                  Card(
+                    elevation: 3,
+                    margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: TextField(
+                        controller: _kgCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: "Producción total (kg) de la cuadrilla",
+                          labelStyle:
+                              TextStyle(color: AppColors.barraNavegacion),
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 6),
 

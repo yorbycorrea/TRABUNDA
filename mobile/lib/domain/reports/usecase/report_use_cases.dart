@@ -318,12 +318,14 @@ class CreateTrabajoAvanceCuadrilla {
     required int reporteId,
     required String tipo,
     required String nombre,
+    String? apoyoScope,
     int? apoyoDeCuadrillaId,
   }) {
     return _repository.createTrabajoAvanceCuadrilla(
       reporteId: reporteId,
       tipo: tipo,
       nombre: nombre,
+      apoyoScope: apoyoScope,
       apoyoDeCuadrillaId: apoyoDeCuadrillaId,
     );
   }

@@ -38,12 +38,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   _TaMode _mode = _TaMode.start;
   bool get _readOnly => _mode == _TaMode.view;
 
-  List<TaCuadrilla> _cuadrillas = [];
-  Map<String, double> _totales = {
-    "RECEPCION": 0,
-    "FILETEADO": 0,
-    "APOYO_RECEPCION": 0,
-  };
+  List<TaCuadrilla> _recepcionCuadrillas = [];
+  List<TaCuadrilla> _fileteadoCuadrillas = [];
+  List<TaCuadrilla> _apoyosGlobal = [];
+  Map<int, List<TaCuadrilla>> _apoyosPorCuadrilla = {};
+  double _totalFileteadoKg = 0;
 
   late final StartTrabajoAvance _startTrabajoAvance;
   late final FetchTrabajoAvance _fetchTrabajoAvance;
@@ -69,8 +68,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
       _reporteEncontrado = null;
       _inicio = null;
       _fin = null;
-      _cuadrillas.clear();
-      _totales = {"RECEPCION": 0, "FILETEADO": 0, "APOYO_RECEPCION": 0};
+      _recepcionCuadrillas.clear();
+      _fileteadoCuadrillas.clear();
+      _apoyosGlobal.clear();
+      _apoyosPorCuadrilla.clear();
+      _totalFileteadoKg = 0;
     });
   }
 
@@ -129,8 +131,11 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   }
 
   void _limpiarResumen() {
-    _cuadrillas = [];
-    _totales = {"RECEPCION": 0, "FILETEADO": 0, "APOYO_RECEPCION": 0};
+    _recepcionCuadrillas = [];
+    _fileteadoCuadrillas = [];
+    _apoyosGlobal = [];
+    _apoyosPorCuadrilla = {};
+    _totalFileteadoKg = 0;
     _inicio = null;
     _fin = null;
   }
@@ -234,16 +239,16 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     final resumen = await _fetchTrabajoAvance.call(_reporteId!);
 
     setState(() {
-      _totales = resumen.totales;
-      _cuadrillas = resumen.cuadrillas;
+      _recepcionCuadrillas = resumen.recepcion.cuadrillas;
+      _fileteadoCuadrillas = resumen.fileteado.cuadrillas;
+      _apoyosGlobal = resumen.apoyosRecepcion.global;
+      _apoyosPorCuadrilla = resumen.apoyosRecepcion.porCuadrilla;
+      _totalFileteadoKg = resumen.fileteado.totalKg;
 
       _inicio = _parseTime(resumen.reporte?.horaInicio);
       _fin = _parseTime(resumen.reporte?.horaFin);
     });
   }
-
-  List<TaCuadrilla> _porTipo(String tipo) =>
-      _cuadrillas.where((c) => c.tipo == tipo).toList();
 
   // =========================
   // ✅ UI header (en START no debe auto-open)
@@ -447,71 +452,118 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
     if (_readOnly) return; // ✅ bloqueo
     final ctrl = TextEditingController();
     int? apoyoDeId;
-
-    final recepciones = _porTipo("RECEPCION");
+    String apoyoScope = 'GLOBAL';
+    final fileteados = _fileteadoCuadrillas;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(
-          tipo == "APOYO_RECEPCION"
-              ? "Nuevo apoyo de recepción"
-              : "Nueva cuadrilla",
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ctrl,
-              decoration: const InputDecoration(
-                labelText: "Nombre (ej: CLEY, TOLVA 1, F-11)",
-              ),
-            ),
-            if (tipo == "APOYO_RECEPCION") ...[
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                value: apoyoDeId,
-                items: [
-                  const DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text("Sin vincular"),
-                  ),
-                  ...recepciones.map(
-                    (r) => DropdownMenuItem<int?>(
-                      value: r.id,
-                      child: Text("Apoya a: ${r.nombre}"),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => apoyoDeId = v,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text(
+            tipo == "APOYO_RECEPCION"
+                ? "Nuevo apoyo de recepción"
+                : "Nueva cuadrilla",
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
                 decoration: const InputDecoration(
-                  labelText: "Vincular a cuadrilla recepción",
+                  labelText: "Nombre (ej: CLEY, TOLVA 1, F-11)",
                 ),
               ),
+              if (tipo == "APOYO_RECEPCION") ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: apoyoScope,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'GLOBAL',
+                      child: Text('GLOBAL'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'POR_CUADRILLA',
+                      child: Text('POR CUADRILLA'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setStateDialog(() {
+                      apoyoScope = value;
+                      if (apoyoScope == 'POR_CUADRILLA' &&
+                          apoyoDeId == null &&
+                          fileteados.isNotEmpty) {
+                        apoyoDeId = fileteados.first.id;
+                      }
+                      if (apoyoScope == 'GLOBAL') {
+                        apoyoDeId = null;
+                      }
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: "Tipo de apoyo",
+                  ),
+                ),
+                if (apoyoScope == 'POR_CUADRILLA') ...[
+                  const SizedBox(height: 12),
+                  if (fileteados.isEmpty)
+                    const Text(
+                      "No hay cuadrillas de fileteado disponibles.",
+                      style: TextStyle(color: AppColors.testoSecundario),
+                    )
+                  else
+                    DropdownButtonFormField<int?>(
+                      value: apoyoDeId,
+                      items: fileteados
+                          .map(
+                            (f) => DropdownMenuItem<int?>(
+                              value: f.id,
+                              child: Text("Apoya a: ${f.nombre}"),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setStateDialog(() => apoyoDeId = v),
+                      decoration: const InputDecoration(
+                        labelText: "Cuadrilla de fileteado",
+                      ),
+                    ),
+                ],
+              ],
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Crear"),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Crear"),
-          ),
-        ],
       ),
     );
 
     if (ok != true) return;
     if (_reporteId == null) return;
+    if (tipo == "APOYO_RECEPCION" &&
+        apoyoScope == 'POR_CUADRILLA' &&
+        apoyoDeId == null) {
+      showSavedToast(
+        context,
+        message: 'Selecciona una cuadrilla de fileteado',
+      );
+      return;
+    }
 
     await _createTrabajoAvanceCuadrilla.call(
       reporteId: _reporteId!,
       tipo: tipo,
       nombre: ctrl.text.trim(),
-      apoyoDeCuadrillaId: apoyoDeId,
+      apoyoScope: tipo == "APOYO_RECEPCION" ? apoyoScope : null,
+      apoyoDeCuadrillaId: tipo == "APOYO_RECEPCION" ? apoyoDeId : null,
     );
 
     await _loadResumen();
@@ -520,10 +572,26 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
   // =========================
   // ✅ Sección (bloquea + y bloquea tap en VIEW si quieres)
   // =========================
+  Future<void> _abrirCuadrillaDetalle(TaCuadrilla c) async {
+    if (_readOnly) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TrabajoAvanceCuadrillaDetallePage(
+          api: widget.api,
+          cuadrillaId: c.id,
+        ),
+      ),
+    );
+    await _loadResumen();
+  }
 
-  Widget _seccion(String titulo, String tipo, double totalKg) {
-    final items = _porTipo(tipo);
-
+  Widget _seccionBase({
+    required String titulo,
+    required String tipo,
+    required List<Widget> children,
+    required String totalText,
+  }) {
     return Card(
       color: _backgroundPorTipo(tipo),
       elevation: 3,
@@ -551,7 +619,7 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                 ),
                 const Spacer(),
                 Text(
-                  "${totalKg.toStringAsFixed(2)} kg",
+                  totalText,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(width: 8),
@@ -565,38 +633,126 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
               ],
             ),
             const SizedBox(height: 8),
-            if (items.isEmpty)
-              const Text(
-                "Sin registros",
-                style: TextStyle(color: AppColors.testoSecundario),
-              ),
-            for (final c in items)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  c.nombre,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: null,
-                trailing: Text("${c.produccionKg.toStringAsFixed(2)} kg"),
-                onTap: _readOnly
-                    ? null // ✅ en VER no entra a detalle (así garantizas solo lectura)
-                    : () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TrabajoAvanceCuadrillaDetallePage(
-                              api: widget.api,
-                              cuadrillaId: c.id,
-                            ),
-                          ),
-                        );
-                        await _loadResumen();
-                      },
-              ),
+            ...children,
           ],
         ),
       ),
+    );
+  }
+
+  Widget _cuadrillaTile(TaCuadrilla c, {required bool mostrarKg}) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        c.nombre,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: null,
+      trailing: mostrarKg
+          ? Text("${c.produccionKg.toStringAsFixed(2)} kg")
+          : const Text("—"),
+      onTap: _readOnly ? null : () => _abrirCuadrillaDetalle(c),
+    );
+  }
+
+  Widget _seccionRecepcion() {
+    return _seccionBase(
+      titulo: "Recepción",
+      tipo: "RECEPCION",
+      totalText: "—",
+      children: _recepcionCuadrillas.isEmpty
+          ? const [
+              Text(
+                "Sin registros",
+                style: TextStyle(color: AppColors.testoSecundario),
+              ),
+            ]
+          : _recepcionCuadrillas
+              .map((c) => _cuadrillaTile(c, mostrarKg: false))
+              .toList(),
+    );
+  }
+
+  Widget _seccionFileteado() {
+    return _seccionBase(
+      titulo: "Fileteado",
+      tipo: "FILETEADO",
+      totalText: "${_totalFileteadoKg.toStringAsFixed(2)} kg",
+      children: _fileteadoCuadrillas.isEmpty
+          ? const [
+              Text(
+                "Sin registros",
+                style: TextStyle(color: AppColors.testoSecundario),
+              ),
+            ]
+          : _fileteadoCuadrillas
+              .map((c) => _cuadrillaTile(c, mostrarKg: true))
+              .toList(),
+    );
+  }
+
+  Widget _seccionApoyos() {
+    final hasApoyos =
+        _apoyosGlobal.isNotEmpty || _apoyosPorCuadrilla.isNotEmpty;
+    final children = <Widget>[];
+
+    if (!hasApoyos) {
+      children.add(
+        const Text(
+          "Sin registros",
+          style: TextStyle(color: AppColors.testoSecundario),
+        ),
+      );
+    } else {
+      if (_apoyosGlobal.isNotEmpty) {
+        children.add(
+          const Text(
+            "Global",
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        );
+        children.addAll(
+          _apoyosGlobal.map((c) => _cuadrillaTile(c, mostrarKg: false)),
+        );
+      }
+      final keys = _apoyosPorCuadrilla.keys.toList()..sort();
+      for (final id in keys) {
+        final nombre = _fileteadoCuadrillas
+            .firstWhere(
+              (c) => c.id == id,
+              orElse: () => TaCuadrilla(
+                id: id,
+                tipo: "FILETEADO",
+                nombre: "Cuadrilla $id",
+                horaInicio: null,
+                horaFin: null,
+                produccionKg: 0,
+                apoyoDeCuadrillaId: null,
+                apoyoScope: null,
+              ),
+            )
+            .nombre;
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              "Apoyos a: $nombre",
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+        children.addAll(
+          _apoyosPorCuadrilla[id]!
+              .map((c) => _cuadrillaTile(c, mostrarKg: false)),
+        );
+      }
+    }
+
+    return _seccionBase(
+      titulo: "Apoyos de Recepción",
+      tipo: "APOYO_RECEPCION",
+      totalText: "—",
+      children: children,
     );
   }
 
@@ -754,21 +910,9 @@ class _TrabajoAvancePageState extends State<TrabajoAvancePage> {
                 if (_mode == _TaMode.start) ...[
                   _startActions(),
                 ] else ...[
-                  _seccion(
-                    "Recepción",
-                    "RECEPCION",
-                    _totales["RECEPCION"] ?? 0,
-                  ),
-                  _seccion(
-                    "Fileteado",
-                    "FILETEADO",
-                    _totales["FILETEADO"] ?? 0,
-                  ),
-                  _seccion(
-                    "Apoyos de Recepción",
-                    "APOYO_RECEPCION",
-                    _totales["APOYO_RECEPCION"] ?? 0,
-                  ),
+                  _seccionRecepcion(),
+                  _seccionFileteado(),
+                  _seccionApoyos(),
                   _bottomGuardar(),
                 ],
               ],

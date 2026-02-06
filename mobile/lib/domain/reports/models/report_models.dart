@@ -172,13 +172,35 @@ class TrabajoAvanceStartResult {
 
 class TrabajoAvanceResumen {
   final TrabajoAvanceReporte? reporte;
-  final Map<String, double> totales;
-  final List<TaCuadrilla> cuadrillas;
+  final TrabajoAvanceSeccion recepcion;
+  final TrabajoAvanceSeccion fileteado;
+  final TrabajoAvanceApoyosRecepcion apoyosRecepcion;
 
   const TrabajoAvanceResumen({
     required this.reporte,
-    required this.totales,
+    required this.recepcion,
+    required this.fileteado,
+    required this.apoyosRecepcion,
+  });
+}
+
+class TrabajoAvanceSeccion {
+  final List<TaCuadrilla> cuadrillas;
+  final double totalKg;
+
+  const TrabajoAvanceSeccion({
     required this.cuadrillas,
+    required this.totalKg,
+  });
+}
+
+class TrabajoAvanceApoyosRecepcion {
+  final List<TaCuadrilla> global;
+  final Map<int, List<TaCuadrilla>> porCuadrilla;
+
+  const TrabajoAvanceApoyosRecepcion({
+    required this.global,
+    required this.porCuadrilla,
   });
 }
 
