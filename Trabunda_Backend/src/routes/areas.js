@@ -243,9 +243,10 @@ router.get("/conteo-rapido", authMiddleware, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id, nombre
-       FROM areas
-       WHERE activo = 1 AND es_conteo_rapido = 1
-       ORDER BY nombre`
+       FROM areas a
+       LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
+       WHERE a.es_conteo_rapido = 1 AND a.activo = 1
+       ORDER BY COALESCE(o.orden, 9999), a.nombre`
     );
     res.json({ areas: rows });
   } catch (e) {

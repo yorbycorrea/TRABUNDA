@@ -577,8 +577,9 @@ router.get("/conteo-rapido/open", authMiddleware, async (req, res) => {
         `SELECT d.area_id, a.nombre AS area_nombre, d.cantidad
          FROM conteo_rapido_detalle d
          JOIN areas a ON a.id = d.area_id
+         LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
          WHERE d.reporte_id = ?
-         ORDER BY a.nombre`,
+         ORDER BY COALESCE(o.orden, 9999), a.nombre`,
         [reporte.id]
       );
       return res.json({ existente: true, reporte, items });
@@ -1654,7 +1655,9 @@ router.get('/conteo-rapido/:id/excel', authMiddleware, async (req, res) => {
       SELECT a.nombre AS area, d.cantidad
       FROM conteo_rapido_detalle d
       JOIN areas a ON a.id = d.area_id
+      LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
       WHERE d.reporte_id = ?
+      ORDER BY COALESCE(o.orden, 9999), a.nombre
     `,
       [reporteId]
     );
@@ -3019,8 +3022,9 @@ router.get("/conteo-rapido/:id", authMiddleware, async (req, res) => {
       `SELECT d.area_id, a.nombre AS area_nombre, d.cantidad
        FROM conteo_rapido_detalle d
        JOIN areas a ON a.id = d.area_id
+       LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
        WHERE d.reporte_id = ?
-       ORDER BY a.nombre`,
+       ORDER BY COALESCE(o.orden, 9999), a.nombre`,
       [reporteId]
     );
 
