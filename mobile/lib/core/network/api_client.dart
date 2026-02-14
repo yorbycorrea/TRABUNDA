@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'token_storage.dart';
 import 'package:mobile/env.dart';
 
 class ApiClient {
+  static const Duration _requestTimeout = Duration(seconds: 20);
   final TokenStorage tokens;
   final http.Client _http;
 
@@ -30,22 +33,89 @@ class ApiClient {
 
   Uri _uri(String path) => Env.resolvedBaseUri.resolve(path);
 
+  Never _throwDomainError({
+    required String code,
+    required Uri uri,
+    required Object error,
+    StackTrace? stackTrace,
+  }) {
+    debugPrint(
+      '❌ API error [$code] uri=$uri type=${error.runtimeType} error=$error',
+    );
+    if (stackTrace != null) {
+      debugPrint('stack: $stackTrace');
+    }
+    throw Exception(code);
+  }
+
+  Never _mapAndThrow({
+    required Uri uri,
+    required Object error,
+    required StackTrace stackTrace,
+  }) {
+    if (error is TimeoutException) {
+      _throwDomainError(
+        code: 'network_timeout',
+        uri: uri,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    if (error is SocketException) {
+      _throwDomainError(
+        code: 'network_unreachable',
+        uri: uri,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    if (error is HandshakeException || error is TlsException) {
+      _throwDomainError(
+        code: 'ssl_error',
+        uri: uri,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    if (error is http.ClientException || error is FormatException) {
+      _throwDomainError(
+        code: 'bad_response',
+        uri: uri,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    _throwDomainError(
+      code: 'bad_response',
+      uri: uri,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+
   // -----------------------
   // HTTP verbs
   // -----------------------
   Future<http.Response> get(String path) async {
     final uri = _uri(path);
-    final heders = await _headers();
+    final headers = await _headers();
     debugPrint('GET $uri');
-    debugPrint('headers: $heders');
+    debugPrint('headers: $headers');
+    try {
+      final resp = await _http
+          .get(uri, headers: headers)
+          .timeout(_requestTimeout);
 
-    final resp = await _http.get(uri, headers: heders);
-
-    debugPrint('${resp.statusCode} GET $uri');
-    debugPrint('body: ${resp.body}');
-    return resp;
-
-    //return _http.get(_uri(path), headers: await _headers());
+      debugPrint('${resp.statusCode} GET ${resp.request?.url ?? uri}');
+      debugPrint('body: ${resp.body}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   Future<http.Response> post(String path, Object body) async {
@@ -55,40 +125,65 @@ class ApiClient {
     debugPrint('➡️ headers: $headers');
     debugPrint('➡️ body: ${jsonEncode(body)}');
 
-    final resp = await _http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(body),
-    );
+    try {
+      final resp = await _http
+          .post(uri, headers: headers, body: jsonEncode(body))
+          .timeout(_requestTimeout);
 
-    debugPrint('⬅️ ${resp.statusCode} POST $uri');
-    debugPrint('⬅️ body: ${resp.body}');
-    return resp;
-    //return _http.post(
-    //_uri(path),
-    //headers: await _headers(),
-    //7body: jsonEncode(body),
-    //);
+      debugPrint('⬅️ ${resp.statusCode} POST ${resp.request?.url ?? uri}');
+      debugPrint('⬅️ body: ${resp.body}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   Future<http.Response> patch(String path, Object body) async {
-    return _http.patch(
-      _uri(path),
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final uri = _uri(path);
+    final headers = await _headers();
+    debugPrint('PATCH $uri');
+
+    try {
+      final resp = await _http
+          .patch(uri, headers: headers, body: jsonEncode(body))
+          .timeout(_requestTimeout);
+      debugPrint('${resp.statusCode} PATCH ${resp.request?.url ?? uri}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   Future<http.Response> put(String path, Object body) async {
-    return _http.put(
-      _uri(path),
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final uri = _uri(path);
+    final headers = await _headers();
+    debugPrint('PUT $uri');
+
+    try {
+      final resp = await _http
+          .put(uri, headers: headers, body: jsonEncode(body))
+          .timeout(_requestTimeout);
+      debugPrint('${resp.statusCode} PUT ${resp.request?.url ?? uri}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   Future<http.Response> delete(String path) async {
-    return _http.delete(_uri(path), headers: await _headers());
+    final uri = _uri(path);
+    final headers = await _headers();
+    debugPrint('DELETE $uri');
+
+    try {
+      final resp = await _http
+          .delete(uri, headers: headers)
+          .timeout(_requestTimeout);
+      debugPrint('${resp.statusCode} DELETE ${resp.request?.url ?? uri}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   Future<http.Response> getRaw(String path) async {
@@ -99,7 +194,17 @@ class ApiClient {
     if (access != null && access.isNotEmpty) {
       h['Authorization'] = 'Bearer $access';
     }
-    return _http.get(uri, headers: h);
+
+    debugPrint('GET RAW $uri');
+    debugPrint('headers: $h');
+
+    try {
+      final resp = await _http.get(uri, headers: h).timeout(_requestTimeout);
+      debugPrint('${resp.statusCode} GET RAW ${resp.request?.url ?? uri}');
+      return resp;
+    } catch (e, st) {
+      _mapAndThrow(uri: uri, error: e, stackTrace: st);
+    }
   }
 
   // -----------------------

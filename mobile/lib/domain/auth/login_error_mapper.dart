@@ -2,28 +2,31 @@ class LoginErrorMapper {
   const LoginErrorMapper();
 
   String friendlyMessage(String raw) {
-    final s = raw.toLowerCase();
+    final code = _normalizeCode(raw);
 
-    // Credenciales
-    if (s.contains('401') ||
-        s.contains('403') ||
-        s.contains('credenciales') ||
-        s.contains('invalid') ||
-        s.contains('unauthorized')) {
-      return 'Usuario o contraseña incorrectos.';
+    switch (code) {
+      case 'network_timeout':
+        return 'La conexión está tardando. Intenta nuevamente.';
+      case 'network_unreachable':
+        return 'No hay conexión. Revisa tu Wifi o datos móviles.';
+      case 'ssl_error':
+        return 'No se pudo establecer una conexión segura.';
+      case 'bad_response':
+        return 'El servidor respondió de forma inesperada. Intenta nuevamente.';
+      default:
+        if (raw.contains('401') || raw.contains('403')) {
+          return 'Usuario o contraseña incorrectos.';
+        }
+        return 'No se pudo iniciar sesión. Intenta nuevamente.';
+    }
+  }
+
+  String _normalizeCode(String raw) {
+    final trimmed = raw.trim().toLowerCase();
+    if (trimmed.startsWith('exception:')) {
+      return trimmed.replaceFirst('exception:', '').trim();
     }
 
-    // Conexion / red
-    if (s.contains('timeout') || s.contains('timed out')) {
-      return 'La conexión esta tardando. Intenta nuevamente.';
-    }
-    if (s.contains('socket') ||
-        s.contains('failed host') ||
-        s.contains('network') ||
-        s.contains('connection')) {
-      return 'No hay conexion. Revisa tu Wifi o datos moviles.';
-    }
-
-    return 'No se pudo iniciar sesión. Intenta Nuevamente.';
+    return trimmed;
   }
 }
