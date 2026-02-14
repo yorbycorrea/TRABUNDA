@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../../../data/auth/entities/app_user.dart';
+import 'package:mobile/data/auth/remote/auth_remote_data_source.dart';
 import '../data/auth_api_service.dart';
 import '../../../core/network/api_client.dart';
 import 'package:mobile/data/auth/entities/app_user.dart';
@@ -67,7 +68,29 @@ class AuthController extends ChangeNotifier {
       return true;
     } catch (e) {
       _user = null;
-      _errorMessage = e.toString();
+      if (e is AuthLoginException) {
+        switch (e.type) {
+          case AuthLoginErrorType.network:
+            _errorMessage =
+                'No hay conexión con el servidor. Verifica internet e inténtalo nuevamente.';
+            break;
+          case AuthLoginErrorType.invalidCredentials:
+            _errorMessage =
+                'Credenciales inválidas. Revisa tu usuario y contraseña.';
+            break;
+          case AuthLoginErrorType.server:
+            _errorMessage =
+                'No fue posible iniciar sesión por un problema del servidor.';
+            break;
+          case AuthLoginErrorType.unknown:
+            _errorMessage =
+                'Ocurrió un error inesperado al iniciar sesión. Intenta nuevamente.';
+            break;
+        }
+      } else {
+        _errorMessage =
+            'Ocurrió un error inesperado al iniciar sesión. Intenta nuevamente.';
+      }
       _updateState(AuthStatus.error);
       return false;
     }
