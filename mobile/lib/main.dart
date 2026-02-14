@@ -92,7 +92,7 @@ class TrabundaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trabunda App',
       debugShowCheckedModeBanner: false,
-      theme: theme, // ✅ AQUÍ se aplica la paleta
+      theme: theme,
 
       onGenerateRoute: (settings) {
         debugPrint('Navegando a ruta: ${settings.name}');
@@ -116,7 +116,7 @@ class TrabundaApp extends StatelessWidget {
           case '/reports/list':
             return MaterialPageRoute(builder: (_) => ReportViewPage(api: api));
 
-          case '/reports/create_saneamiento': // ✅ le faltaba el slash al inicio
+          case '/reports/create_saneamiento':
             return MaterialPageRoute(
               builder: (_) => ReportCreateSaneamientoPage(api: api),
             );
@@ -146,7 +146,7 @@ class _AuthRouterState extends State<AuthRouter> {
   @override
   void initState() {
     super.initState();
-    // Disparamos la validación del token al iniciar
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AuthControllerScope.read(context).init();
     });
@@ -154,7 +154,6 @@ class _AuthRouterState extends State<AuthRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchamos los cambios de estado
     final auth = AuthControllerScope.of(context);
 
     switch (auth.status) {
