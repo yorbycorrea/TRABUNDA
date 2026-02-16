@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 
 class Env {
   static const String _devFallbackApiUrl =
-      'https://vserver.trabunda.com'; // despues cambiar esto
-  static const String _prodFallbackApiUrl = 'https://vserver.trabunda.com';
+      'http://vserver.trabunda.com:3000'; // despues cambiar esto
+  static const String _prodFallbackApiUrl = 'http://vserver.trabunda.com:3000';
 
   static Uri get resolvedBaseUri {
     final fallbackApiUrl = kReleaseMode
