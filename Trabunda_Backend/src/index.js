@@ -2,6 +2,9 @@ const express = require("express");
 //console.log("INDEX REAL:", __filename);
 //require("./config/env");
 const { pool } = require("./db");
+const morgan = require('morgan');
+
+app.use(morgan('dev'))
 
 // 1. IMPORTAR RUTAS
 const trabajadoresRoutes = require("./routes/trabajadores");
