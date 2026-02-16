@@ -2,7 +2,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 
 class Env {
-  static const String _devFallbackApiUrl = 'http://172.16.1.207:3000';
+  static const String _devFallbackApiUrl =
+      'https://vserver.trabunda.com'; // despues cambiar esto
   static const String _prodFallbackApiUrl = 'https://vserver.trabunda.com';
 
   static Uri get resolvedBaseUri {
