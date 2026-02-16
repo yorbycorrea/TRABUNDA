@@ -2,10 +2,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 
 class Env {
-  static const String _fallbackApiUrl = 'http://172.16.1.207:3000';
+  static const String _devFallbackApiUrl = 'http://172.16.1.207:3000';
+  static const String _prodFallbackApiUrl = 'https://vserver.trabunda.com';
 
   static Uri get resolvedBaseUri {
-    final rawApiUrl = dotenv.env['API_URL'] ?? _fallbackApiUrl;
+    final fallbackApiUrl = kReleaseMode
+        ? _prodFallbackApiUrl
+        : _devFallbackApiUrl;
+    final rawApiUrl = dotenv.env['API_URL'] ?? fallbackApiUrl;
     final parsed = Uri.parse(rawApiUrl);
 
     if (parsed.scheme != 'http' && parsed.scheme != 'https') {
@@ -14,18 +18,11 @@ class Env {
       );
     }
 
-    final nonProdVserver =
-        !kReleaseMode &&
-        parsed.host == 'vserver.trabunda.com' &&
-        parsed.port == 3000;
+    final normalizedPath = parsed.path.endsWith('/')
+        ? parsed.path.substring(0, parsed.path.length - 1)
+        : parsed.path;
 
-    final adjusted = nonProdVserver ? parsed.replace(scheme: 'http') : parsed;
-
-    final normalizedPath = adjusted.path.endsWith('/')
-        ? adjusted.path.substring(0, adjusted.path.length - 1)
-        : adjusted.path;
-
-    return adjusted.replace(path: normalizedPath);
+    return parsed.replace(path: normalizedPath);
   }
 
   static String get baseUrl => resolvedBaseUri.toString();

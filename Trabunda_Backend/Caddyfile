@@ -1,0 +1,7 @@
+http://vserver.trabunda.com {
+  redir https://vserver.trabunda.com{uri} permanent
+}
+
+vserver.trabunda.com {
+  reverse_proxy backend:3000
+}
