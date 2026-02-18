@@ -43,7 +43,7 @@ app.get("/debug/workers-url", (req, res) => {
 
 // 5. DEFINIR RUTAS
 app.get("/health", (req, res) => {
-  res.json({ ok: true, message: "TRABUNDA backend online ✅" });
+  res.json({ ok: true, message: "TRABUNDA backend online " });
 });
 
 app.get("/debug/test-worker", async (req, res) => {

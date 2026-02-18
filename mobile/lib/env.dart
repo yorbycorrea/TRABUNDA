@@ -27,7 +27,7 @@ class Env {
   }
 
   static String get baseUrl => resolvedBaseUri.toString();
-  // Esto lee la variable API_URL de tu archivo .env
+  // Esto lee la variable API_URL del archivo .env
   //static String get baseUrl =>
   //dotenv.env['API_URL'] ?? 'http://172.16.1.207:3000';
 }

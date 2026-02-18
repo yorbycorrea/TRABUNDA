@@ -28,6 +28,8 @@ console.log(
   `🔧 DB bootstrap -> NODE_ENV: ${process.env.NODE_ENV}, selectedDatabase: ${selectedDatabase}`
 );
 
+console.log(process.env.DB_HOST,process.env.DB_USER, process.env.DB_PASS)
+
 // 3. Configuración dinámica del Pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST,

@@ -29,9 +29,9 @@ Future<void> bootstrapApp({required String envFile}) async {
   try {
     // Esto carga el archivo físico .env en la memoria de la app
     await dotenv.load(fileName: envFile);
-    print("✅ Variables de entorno cargadas: ${dotenv.env['API_URL']}");
+    print(" Variables de entorno cargadas: ${dotenv.env['API_URL']}");
   } catch (e) {
-    print("❌ Error cargando $envFile: $e");
+    print(" Error cargando $envFile: $e");
   }
 
   final theme = ThemeData(
