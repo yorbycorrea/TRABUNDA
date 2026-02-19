@@ -102,7 +102,7 @@ const getTrabajadorPorDni = async (dni) => {
 
   return fetchTrabajador({
     query: GET_WORKER_BY_DNI_QUERY,
-    variables: { codigo: dniTrim },
+    variables: { dni: dniTrim },
     lookupType: "dni",
   });
 };
