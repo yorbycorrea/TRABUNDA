@@ -9,7 +9,7 @@ const buildLookupError = (message, code, extra = {}) => {
   Object.assign(error, extra);
   return error;
 };
-
+// agregando liena
 const normalizeWorkerRow = (row) => ({
   codigo: row?.codigo ?? null,
   dni: row?.dni ?? null,
