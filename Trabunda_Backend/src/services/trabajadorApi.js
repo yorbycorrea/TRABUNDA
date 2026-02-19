@@ -16,14 +16,7 @@ mutation GetWorkerByCodigo($codigo:String!){
   }
 }`;
 
-const GET_WORKER_BY_DNI_QUERY = `
-mutation GetWorkerByDni($dni:String!){
-  getWorker(dni:$dni){
-    ok
-    worker{ id nombres apellidos sexo dni }
-    errors { message }
-  }
-}`;
+
 
 const buildError = (message, code) => {
   const error = new Error(message);
@@ -41,7 +34,11 @@ const fetchTrabajador = async ({ query, variables, lookupType }) => {
       variables,
     });
 
-    const headers = { "Content-Type": "application/json" };
+    const headers = {
+      "Content-Type": "application/json",
+      "x-apollo-operation-name": "GetWorker",
+    };
+
 
     console.log("=== GRAPHQL REQUEST DEBUG ===");
     console.log("WORKERS_API_URL:", process.env.WORKERS_API_URL);
@@ -51,7 +48,7 @@ const fetchTrabajador = async ({ query, variables, lookupType }) => {
 
     const response = await fetch(WORKERS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       cache: "no-store",
       body: JSON.stringify({ query, variables }),
     });
@@ -129,8 +126,8 @@ const getTrabajadorPorDni = async (dni) => {
   }
 
   return fetchTrabajador({
-    query: GET_WORKER_BY_DNI_QUERY,
-    variables: { dni: dniTrim },
+    query: GET_WORKER_BY_CODIGO_QUERY,
+    variables: { codigo: dniTrim },
     lookupType: "dni",
   });
 };
