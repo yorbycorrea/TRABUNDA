@@ -48,7 +48,7 @@ const fetchTrabajador = async ({ query, variables, lookupType }) => {
 
   const response = await fetch(WORKERS_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     cache: "no-store",
     body: JSON.stringify({ query, variables }),
   });
@@ -56,6 +56,10 @@ const fetchTrabajador = async ({ query, variables, lookupType }) => {
   let payload;
   try {
     payload = await response.json();
+    console.log("=== GRAPHQL RESPONSE DEBUG ===");
+    console.log("Status:", response.status);
+    console.log("StatusText:", response.statusText);
+    console.log("Response body:", JSON.stringify(payload, null, 2));
   } catch (error) {
     console.error("Error parseando JSON de trabajadores", {
       status: response.status,
