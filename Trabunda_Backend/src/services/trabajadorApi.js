@@ -38,6 +38,14 @@ const fetchTrabajador = async ({ query, variables, lookupType }) => {
     variables,
   });
 
+  const headers = { "Content-Type": "application/json" };
+
+  console.log("=== GRAPHQL REQUEST DEBUG ===");
+  console.log("WORKERS_API_URL:", process.env.WORKERS_API_URL);
+  console.log("Query:", query);
+  console.log("Variables:", JSON.stringify(variables, null, 2));
+  console.log("Headers:", headers);
+
   const response = await fetch(WORKERS_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
