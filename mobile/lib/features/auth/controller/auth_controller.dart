@@ -71,16 +71,16 @@ class AuthController extends ChangeNotifier {
       if (e is AuthLoginException) {
         switch (e.type) {
           case AuthLoginErrorType.network:
-            _errorMessage =
-                'No hay conexión con el servidor. Verifica internet e inténtalo nuevamente.';
+            _errorMessage = 'Sin conexión al servidor';
             break;
           case AuthLoginErrorType.invalidCredentials:
-            _errorMessage =
-                'Credenciales inválidas. Revisa tu usuario y contraseña.';
+            _errorMessage = 'Usuario o contraseña incorrectos';
+            break;
+          case AuthLoginErrorType.routeNotFound:
+            _errorMessage = 'Ruta de login no existe';
             break;
           case AuthLoginErrorType.server:
-            _errorMessage =
-                'No fue posible iniciar sesión por un problema del servidor.';
+            _errorMessage = 'Error del servidor (ver logs)';
             break;
           case AuthLoginErrorType.unknown:
             _errorMessage =

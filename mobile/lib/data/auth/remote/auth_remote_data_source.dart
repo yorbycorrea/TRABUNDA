@@ -2,7 +2,13 @@ import 'dart:convert';
 
 import 'package:mobile/core/network/api_client.dart';
 
-enum AuthLoginErrorType { network, invalidCredentials, server, unknown }
+enum AuthLoginErrorType {
+  network,
+  invalidCredentials,
+  routeNotFound,
+  server,
+  unknown,
+}
 
 class AuthLoginException implements Exception {
   AuthLoginException({
@@ -80,6 +86,14 @@ class AuthRemoteDataSource {
         throw AuthLoginException(
           type: AuthLoginErrorType.invalidCredentials,
           message: 'Usuario o contraseña inválidos.',
+          statusCode: resp.statusCode,
+        );
+      }
+
+      if (resp.statusCode == 404) {
+        throw AuthLoginException(
+          type: AuthLoginErrorType.routeNotFound,
+          message: 'La ruta de inicio de sesión no existe.',
           statusCode: resp.statusCode,
         );
       }

@@ -5,7 +5,7 @@ if (!fetch) {
 }
 
 const WORKERS_API_URL =
-  process.env.WORKERS_API_URL || "http://172.16.1.207:4806/graphql";
+  process.env.WORKERS_API_URL || "http://vserver.trabunda.com:3000/graphql";
 
 const GET_WORKER_BY_CODIGO_QUERY = `
 mutation GetWorkerByCodigo($codigo:String!){
@@ -102,7 +102,7 @@ const getTrabajadorPorDni = async (dni) => {
 
   return fetchTrabajador({
     query: GET_WORKER_BY_DNI_QUERY,
-    variables: { dni: dniTrim },
+    variables: { codigo: dniTrim },
     lookupType: "dni",
   });
 };

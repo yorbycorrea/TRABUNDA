@@ -72,20 +72,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Datos incorrectos',
-                  style: TextStyle(
-                    color: Color(0xFF8E1B1B),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(text, style: const TextStyle(color: Color(0xFFC62828))),
-              ],
-            ),
+            child: Text(text, style: const TextStyle(color: Color(0xFFC62828))),
           ),
           IconButton(
             padding: EdgeInsets.zero,
@@ -119,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
       final raw = auth.errorMessage ?? 'No se puede iniciar sesion';
       setState(() {
         // ✅ aquí transformamos el error técnico a uno amigable
-        _bannerError = _viewModel.friendlyError(raw);
+        _bannerError = raw;
       });
     }
   }
@@ -131,13 +118,9 @@ class _LoginPageState extends State<LoginPage> {
     final isLoading = auth.status == AuthStatus.loading;
 
     // ✅ ahora usamos el banner ya “limpio”
-    final rawBanner =
+    final bannerText =
         (auth.status == AuthStatus.error ? auth.errorMessage : null) ??
         _bannerError;
-
-    final bannerText = (rawBanner != null && rawBanner.trim().isNotEmpty)
-        ? _viewModel.friendlyError(rawBanner)
-        : null;
 
     return Scaffold(
       body: Stack(
