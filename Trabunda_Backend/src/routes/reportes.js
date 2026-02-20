@@ -57,6 +57,44 @@ function textoSeguro(valor) {
   return String(valor);
 }
 
+function timeToMinutes(timeValue) {
+  if (timeValue === null || timeValue === undefined) return null;
+  const [hhRaw, mmRaw] = String(timeValue).split(":");
+  const hh = Number(hhRaw);
+  const mm = Number(mmRaw);
+
+  if (!Number.isInteger(hh) || !Number.isInteger(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+
+  return hh * 60 + mm;
+}
+
+function calcularTotalHoras(horaInicio, horaFin) {
+  const inicioMin = timeToMinutes(horaInicio);
+  const finMin = timeToMinutes(horaFin);
+
+  if (inicioMin === null || finMin === null) {
+    throw new Error("Formato de hora inválido");
+  }
+
+  let totalMin = finMin - inicioMin;
+  if (finMin < inicioMin) {
+    totalMin += 24 * 60;
+  }
+
+  if (totalMin <= 0) {
+    throw new Error("hora_fin debe ser mayor que hora_inicio");
+  }
+
+  if (totalMin > 18 * 60) {
+    throw new Error(
+      "El total de horas supera 18. Verifique hora_inicio y hora_fin"
+    );
+  }
+
+  return totalMin / 60;
+}
+
 async function hidratarTrabajadoresPorCodigo(items = [], dbPool = pool) {
   if (!Array.isArray(items) || items.length === 0) return [];
 
@@ -1429,19 +1467,14 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
         : existingLinea.hora_inicio;
 
     let horasCalculadas;
-    if (permiteCalculoHoras && horaFinValue && horaInicioParaCalculo) {
-      const toMin = (s) => {
-        const [h, m] = String(s).split(":");
-        return Number(h) * 60 + Number(m);
-      };
-      const diff = toMin(horaFinValue) - toMin(horaInicioParaCalculo);
-      if (diff <= 0) {
-        return res
-          .status(400)
-          .json({ error: "hora_fin debe ser mayor que hora_inicio" });
+      if (permiteCalculoHoras && horaFinValue && horaInicioParaCalculo) {
+        try {
+          horasCalculadas = calcularTotalHoras(horaInicioParaCalculo, horaFinValue);
+        } catch (error) {
+          return res.status(400).json({ error: error.message });
+        }
       }
-      horasCalculadas = diff / 60;
-    }
+
 
    if (hasField("horas")) {
       const value = body.horas;
@@ -2670,17 +2703,12 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
 
     if (tipo === "APOYO_HORAS") {
       if (horaFinValue) {
-        const toMin = (s) => {
-          const [h, m] = String(s).split(":");
-          return Number(h) * 60 + Number(m);
-        };
-        const diff = toMin(horaFinValue) - toMin(hora_inicio);
-        if (diff <= 0) {
-          return res
-            .status(400)
-            .json({ error: "hora_fin debe ser mayor que hora_inicio" });
+         try {
+          horasValue = calcularTotalHoras(hora_inicio, horaFinValue);
+        } catch (error) {
+          return res.status(400).json({ error: error.message });
         }
-        horasValue = diff / 60;
+        
       } else {
         horasValue = null; // pendiente
       }
