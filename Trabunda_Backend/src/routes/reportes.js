@@ -88,7 +88,7 @@ function calcularTotalHoras(horaInicio, horaFin) {
 
   if (totalMin > 18 * 60) {
     throw new Error(
-      "El total de horas supera 18. Verifique hora_inicio y hora_fin"
+      "Verifica la hora de salida. El turno no puede superar mas de  18 horas"
     );
   }
 
