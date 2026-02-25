@@ -27,11 +27,10 @@ class ApiClient {
   }
 
   void debugPrint(String message) {
-    //print("Mi URL es: ${Env.baseUrl}");
     print(message);
   }
 
-  Uri _uri(String path) => Env.resolvedBaseUri.resolve(path);
+  Uri _uri(String path) => Config.resolvedBaseUri.resolve(path);
 
   Never _throwDomainError({
     required String code,
