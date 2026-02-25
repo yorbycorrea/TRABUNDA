@@ -69,18 +69,24 @@ function timeToMinutes(timeValue) {
   return hh * 60 + mm;
 }
 
-function calcularTotalHoras(horaInicio, horaFin) {
+function calcularDiferenciaMinutos(horaInicio, horaFin) {
   const inicioMin = timeToMinutes(horaInicio);
-  const finMin = timeToMinutes(horaFin);
+  const finMinOriginal = timeToMinutes(horaFin);
 
-  if (inicioMin === null || finMin === null) {
+  if (inicioMin === null || finMinOriginal === null) {
     throw new Error("Formato de hora inválido");
   }
 
-  let totalMin = finMin - inicioMin;
+  let finMin = finMinOriginal;
   if (finMin < inicioMin) {
-    totalMin += 24 * 60;
+    finMin += 24 * 60;
   }
+
+  return finMin - inicioMin;
+}
+
+function calcularTotalHoras(horaInicio, horaFin) {
+  const totalMin = calcularDiferenciaMinutos(horaInicio, horaFin);
 
   if (totalMin <= 0) {
     throw new Error("hora_fin debe ser mayor que hora_inicio");
@@ -93,6 +99,26 @@ function calcularTotalHoras(horaInicio, horaFin) {
   }
 
   return totalMin / 60;
+}
+
+function formatearTotalHorasParaPdf(linea) {
+  const horaInicio = linea?.hora_inicio;
+  const horaFin = linea?.hora_fin;
+
+  if (horaInicio && horaFin) {
+    try {
+      return calcularTotalHoras(horaInicio, horaFin).toFixed(2);
+    } catch (_) {
+      // fallback al valor persistido si no se puede recalcular
+    }
+  }
+
+  const horasPersistidas = Number(linea?.horas);
+  if (Number.isFinite(horasPersistidas)) {
+    return Math.abs(horasPersistidas).toFixed(2);
+  }
+
+  return linea?.horas ?? "";
 }
 
 async function hidratarTrabajadoresPorCodigo(items = [], dbPool = pool) {
@@ -1959,23 +1985,12 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
 
   
 
-  const timeToMinutes = (s) => {
-    if (!s) return null;
-    const parts = String(s).split(":");
-    if (parts.length < 2) return null;
-    const hh = Number(parts[0]);
-    const mm = Number(parts[1]);
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-    return hh * 60 + mm;
-  };
-
   const diffHours = (hi, hf) => {
-    const a = timeToMinutes(hi);
-    const b = timeToMinutes(hf);
-    if (a === null || b === null) return 0;
-    let d = b - a;
-    if (d < 0) d += 24 * 60; // por si cruza medianoche
-    return d / 60;
+    try {
+      return calcularDiferenciaMinutos(hi, hf) / 60;
+    } catch (_) {
+      return 0;
+    }
   };
 
   const filetecal = (kg) => {
@@ -2253,7 +2268,7 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       .map((l, i) => {
         const hIni = l.hora_inicio ? String(l.hora_inicio).slice(0, 5) : "";
         const hFin = l.hora_fin ? String(l.hora_fin).slice(0, 5) : "";
-        const horas = l.horas ?? "";
+        const horas = formatearTotalHorasParaPdf(l);
         const codigo = (l.trabajador_codigo ?? "").toString().trim();
         const nombre = l.trabajador_nombre ?? "";
         const labores = (l.labores ?? "").toString();
