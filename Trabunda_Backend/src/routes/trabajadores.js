@@ -104,5 +104,5 @@ router.delete("/:id", async (req, res) => {
 router.patch("/:id/activar", async (req, res) => {
   return respondWriteDisabled(res);
 });
-
+// probando la nueva rama dev
 module.exports = router;
