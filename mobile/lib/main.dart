@@ -1,7 +1,6 @@
 // 1. Imports de Flutter/Dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:mobile/core/network/token_storage.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -23,16 +22,12 @@ import 'package:mobile/menu/presentation/pages/report_create_saneamiento_page.da
 
 import 'package:mobile/core/theme/app_colors.dart';
 
-Future<void> bootstrapApp({required String envFile}) async {
+Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    // Esto carga el archivo físico .env en la memoria de la app
-    await dotenv.load(fileName: envFile);
-    print(" Variables de entorno cargadas: ${dotenv.env['API_URL']}");
-  } catch (e) {
-    print(" Error cargando $envFile: $e");
-  }
+  // Valida configuración obligatoria al iniciar la app.
+  final apiBaseUri = Config.resolvedBaseUri;
+  debugPrint('API_BASE_URL configurada: $apiBaseUri');
 
   final theme = ThemeData(
     scaffoldBackgroundColor: AppColors.lightCyan,
@@ -78,7 +73,7 @@ Future<void> bootstrapApp({required String envFile}) async {
 }
 
 Future<void> main() async {
-  await bootstrapApp(envFile: ".env");
+  await bootstrapApp();
 }
 
 class TrabundaApp extends StatelessWidget {

@@ -30,11 +30,7 @@ void main() {
       );
     });
 
-    final api = ApiClient(
-      baseUrl: 'http://example.com',
-      tokens: tokens,
-      httpClient: mockHttp,
-    );
+    final api = ApiClient(tokens: tokens, httpClient: mockHttp);
 
     final resp = await api.get('/ping');
 
@@ -54,11 +50,7 @@ void main() {
       return http.Response('OK', 200);
     });
 
-    final api = ApiClient(
-      baseUrl: 'http://example.com',
-      tokens: tokens,
-      httpClient: mockHttp,
-    );
+    final api = ApiClient(tokens: tokens, httpClient: mockHttp);
 
     await api.get('/ping');
 
@@ -76,11 +68,7 @@ void main() {
       return http.Response('OK', 200);
     });
 
-    final api = ApiClient(
-      baseUrl: 'http://example.com',
-      tokens: tokens,
-      httpClient: mockHttp,
-    );
+    final api = ApiClient(tokens: tokens, httpClient: mockHttp);
 
     await api.post('/login', {'user': 'a', 'pass': 'b'});
 

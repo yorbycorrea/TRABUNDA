@@ -1,16 +1,41 @@
 # mobile
 
-A new Flutter project.
+Configuración de `API_BASE_URL` con `--dart-define`.
 
-## Getting Started
+## Ejecutar en desarrollo (Android Emulator)
 
-This project is a starting point for a Flutter application.
+```bash
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Ejecutar en release (API productiva)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+flutter run --release --dart-define=API_BASE_URL=https://api.tudominio.com
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build web en release
+
+```bash
+flutter build web --release --dart-define=API_BASE_URL=https://api.tudominio.com
+```
+
+## iOS Simulator (localhost de tu máquina)
+
+```bash
+flutter run -d ios --dart-define=API_BASE_URL=http://127.0.0.1:3000
+```
+
+## iOS dispositivo físico (misma red local)
+
+Reemplaza `192.168.1.50` por la IP LAN de tu máquina:
+
+```bash
+flutter run -d <IOS_DEVICE_ID> --dart-define=API_BASE_URL=http://192.168.1.50:3000
+```
+
+## Notas
+
+- `API_BASE_URL` es obligatoria.
+- Debe usar esquema `http` o `https`.
+- Si falta o es inválida, la app falla temprano con `StateError`.

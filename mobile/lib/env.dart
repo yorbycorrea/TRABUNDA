@@ -1,33 +1,31 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter/foundation.dart';
-
-class Env {
-  static const String _devFallbackApiUrl =
-      'http://vserver.trabunda.com:3000'; // despues cambiar esto
-  static const String _prodFallbackApiUrl = 'http://vserver.trabunda.com:3000';
+class Config {
+  static const String _rawApiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
 
   static Uri get resolvedBaseUri {
-    final fallbackApiUrl = kReleaseMode
-        ? _prodFallbackApiUrl
-        : _devFallbackApiUrl;
-    final rawApiUrl = dotenv.env['API_URL'] ?? fallbackApiUrl;
-    final parsed = Uri.parse(rawApiUrl);
+    final value = _rawApiBaseUrl.trim();
 
-    if (parsed.scheme != 'http' && parsed.scheme != 'https') {
+    if (value.isEmpty) {
       throw StateError(
-        'API_URL debe usar esquema http o https. Valor recibido: "$rawApiUrl".',
+        'Falta API_BASE_URL. Debes pasar --dart-define=API_BASE_URL=http://host:puerto.',
       );
     }
 
-    final normalizedPath = parsed.path.endsWith('/')
+    final parsed = Uri.parse(value);
+    if (parsed.scheme != 'http' && parsed.scheme != 'https') {
+      throw StateError(
+        'API_BASE_URL debe usar esquema http o https. Valor recibido: "$value".',
+      );
+    }
+
+    final normalizedPath = parsed.path.endsWith('/') && parsed.path.length > 1
         ? parsed.path.substring(0, parsed.path.length - 1)
         : parsed.path;
 
     return parsed.replace(path: normalizedPath);
   }
 
-  static String get baseUrl => resolvedBaseUri.toString();
-  // Esto lee la variable API_URL del archivo .env
-  //static String get baseUrl =>
-  //dotenv.env['API_URL'] ?? 'http://172.16.1.207:3000';
+  static String get apiBaseUrl => resolvedBaseUri.toString();
 }
