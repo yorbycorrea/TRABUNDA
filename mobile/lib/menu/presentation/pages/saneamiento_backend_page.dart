@@ -4,7 +4,10 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/saneamiento_use_cases.dart';
-import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart' as hora_fin_scanner;
+import 'package:mobile/core/widgets/qr_scanner.dart';
+
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart'
+    as hora_fin_scanner;
 
 class SaneamientoBackendPage extends StatefulWidget {
   const SaneamientoBackendPage({
