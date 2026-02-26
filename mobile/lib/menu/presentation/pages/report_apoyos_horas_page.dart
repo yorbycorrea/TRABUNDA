@@ -468,26 +468,30 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     areas: _areas,
                     api: widget.api,
                     onPickInicio: () => _pickHora(_trabajadores[i], true),
-                    onPickFin: () => scanAndSetHoraFin(
-                      context: context,
-                      api: widget.api,
-                      codigoTrabajadorBloque: _trabajadores[i].codigoCtrl.text,
-                      dniTrabajadorBloque: _trabajadores[i].trabajadorDocumento,
-                      horaFinActual: _trabajadores[i].fin,
-                      onHoraFinSet: (fin, {scannedValue}) {
-                        setState(() {
-                          _trabajadores[i].fin = fin;
-                          _trabajadores[i].horas =
-                              (_trabajadores[i].inicio != null &&
-                                  _trabajadores[i].fin != null)
-                              ? _calculateHoras(
-                                  _trabajadores[i].inicio!,
-                                  _trabajadores[i].fin!,
-                                )
-                              : null;
-                        });
-                      },
-                    ),
+                    onPickFin: () {
+                      scanAndSetHoraFin(
+                        context: context,
+                        api: widget.api,
+                        codigoTrabajadorBloque:
+                            _trabajadores[i].codigoCtrl.text,
+                        dniTrabajadorBloque:
+                            _trabajadores[i].trabajadorDocumento,
+                        horaFinActual: _trabajadores[i].fin,
+                        onHoraFinSet: (fin, {scannedValue}) {
+                          setState(() {
+                            _trabajadores[i].fin = fin;
+                            _trabajadores[i].horas =
+                                (_trabajadores[i].inicio != null &&
+                                    _trabajadores[i].fin != null)
+                                ? _calculateHoras(
+                                    _trabajadores[i].inicio!,
+                                    _trabajadores[i].fin!,
+                                  )
+                                : null;
+                          });
+                        },
+                      );
+                    },
                     onChangedArea: (a) {
                       setState(() {
                         _trabajadores[i].areaId = a.id;
