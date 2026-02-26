@@ -114,9 +114,40 @@ class _TrabajoAvanceCuadrillaDetallePageState
   }
 
   Future<void> _guardarCabecera() async {
-    final kg = _cuadrilla?.tipo == 'FILETEADO'
-        ? double.tryParse(_kgCtrl.text.replaceAll(",", ".")) ?? 0
-        : (_cuadrilla?.produccionKg ?? 0);
+    double kg = _cuadrilla?.produccionKg ?? 0;
+    if (_cuadrilla?.tipo == 'FILETEADO') {
+      final kgRaw = _kgCtrl.text.trim();
+      final kgNormalized = kgRaw.replaceAll(',', '.');
+      final parsedKg = double.tryParse(kgNormalized);
+
+      debugPrint(
+        'TA guardar cuadrilla input -> cuadrillaId=${widget.cuadrillaId}, controllerRaw="$kgRaw", normalized="$kgNormalized", parsed=$parsedKg',
+      );
+
+      if (parsedKg == null) {
+        if (!mounted) return;
+        AppNotify.error(
+          context,
+          'Error',
+          'La producción (kg) es inválida. Ingresa un número válido.',
+        );
+        return;
+      }
+      kg = parsedKg;
+    }
+
+    final payloadLog = {
+      'hora_inicio': _inicio == null
+          ? null
+          : '${_inicio!.hour.toString().padLeft(2, '0')}:${_inicio!.minute.toString().padLeft(2, '0')}:00',
+      'hora_fin': _fin == null
+          ? null
+          : '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}:00',
+      'produccion_kg': kg,
+    };
+    debugPrint(
+      'TA guardar cuadrilla payload -> cuadrillaId=${widget.cuadrillaId}, payload=$payloadLog',
+    );
 
     try {
       await _updateCuadrilla.call(

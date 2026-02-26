@@ -1146,16 +1146,33 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
       });
     }
 
-    console.log(
-      "TA update cuadrilla DB row:",
-      JSON.stringify(row ?? {}, null, 2)
-    );
+    
 
 
     const [[row]] = await pool.query(
        `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id
        FROM trabajo_avance_cuadrillas WHERE id = ?`,
       [cuadrillaId]
+    );
+
+    if (!row) {
+      return res.status(500).json({
+        error: "No se pudo leer la cuadrilla actualizada",
+        cuadrillaId,
+      });
+    }
+
+    const [[postUpdateRow]] = await pool.query(
+      `SELECT id, produccion_kg
+       FROM trabajo_avance_cuadrillas
+       WHERE id = ?
+       LIMIT 1`,
+      [cuadrillaId]
+    );
+
+    console.log(
+      "TA update cuadrilla post-update:",
+      JSON.stringify(postUpdateRow ?? {}, null, 2)
     );
 
     return res.json({ ok: true, cuadrilla: row });
