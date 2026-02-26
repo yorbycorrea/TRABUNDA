@@ -197,12 +197,12 @@ class _OptionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 50, color: Colors.blueAccent),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Text(
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  fontSize: 15,
                   color: Colors.black87,
                 ),
               ),

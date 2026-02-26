@@ -2077,9 +2077,9 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
   // ===========================
   // TABLA PRINCIPAL (estilo hoja)
   // ===========================
-  // Filas: recepcion + fileteado (solo esos dos tipos en tabla principal)
+  // Filas:  fileteado 
   const tablaRows = cuadrillas
-    .filter(c => c.tipo === "RECEPCION" || c.tipo === "FILETEADO")
+     .filter(c => c.tipo === "FILETEADO")
     .map(c => {
       const ws = workersByCuadrilla.get(Number(c.id)) || [];
       const pers = ws.length;
