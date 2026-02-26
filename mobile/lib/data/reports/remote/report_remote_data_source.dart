@@ -462,15 +462,13 @@ class ReportRemoteDataSource {
     String? apoyoScope,
     int? apoyoDeCuadrillaId,
   }) async {
-    final resp = await _api.post(
-      '/reportes/trabajo-avance/$reporteId/cuadrillas',
-      {
-        'tipo': tipo,
-        'nombre': nombre,
-        if (apoyoScope != null) 'apoyoScope': apoyoScope,
-        'apoyoDeCuadrillaId': apoyoDeCuadrillaId,
-      },
-    );
+    final resp = await _api
+        .post('/reportes/trabajo-avance/$reporteId/cuadrillas', {
+          'tipo': tipo,
+          'nombre': nombre,
+          if (apoyoScope != null) 'apoyoScope': apoyoScope,
+          'apoyoDeCuadrillaId': apoyoDeCuadrillaId,
+        });
     _ensureSuccess(resp, hint: 'Crear cuadrilla trabajo avance');
     if (resp.body.trim().isEmpty) return;
     final decoded = jsonDecode(resp.body);
@@ -498,13 +496,17 @@ class ReportRemoteDataSource {
     String? horaFin,
     required double produccionKg,
   }) async {
+    final payload = {
+      'hora_inicio': horaInicio,
+      'hora_fin': horaFin,
+      'produccion_kg': produccionKg,
+    };
+    debugPrint(
+      'TA remote update cuadrilla PUT -> cuadrillaId=$cuadrillaId, payload=$payload',
+    );
     final resp = await _api.put(
       '/reportes/trabajo-avance/cuadrillas/$cuadrillaId',
-      {
-        'hora_inicio': horaInicio,
-        'hora_fin': horaFin,
-        'produccion_kg': produccionKg,
-      },
+      payload,
     );
     _ensureSuccess(resp, hint: 'Actualizar cuadrilla trabajo avance');
   }

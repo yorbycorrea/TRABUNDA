@@ -860,7 +860,8 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
       por_cuadrilla: Array.from(apoyosPorCuadrillaMap.values()),
     };
 
-    const totales = { RECEPCION: 0, FILETEADO: totalKg, APOYO_RECEPCION: 0 };
+    const totales = { RECEPCION: 0, FILETEADO: totalKgFileteado, APOYO_RECEPCION: 0 };
+
 
     return res.json({
       reporteId,
@@ -1093,6 +1094,12 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
     const cuadrillaId = Number(req.params.cuadrillaId);
     const { hora_inicio, hora_fin, produccion_kg } = req.body || {};
 
+     console.log(
+      "TA update cuadrilla req.body:",
+      JSON.stringify(req.body ?? {}, null, 2)
+    );
+
+
     if (!Number.isInteger(cuadrillaId) || cuadrillaId <= 0) {
       return res.status(400).json({ error: "cuadrillaId inválido" });
     }
@@ -1109,14 +1116,41 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
       return res.status(404).json({ error: "Cuadrilla no encontrada" });
     }
 
-    
+    const produccionKgNormalized =
+      produccion_kg == null
+        ? 0
+        : Number(String(produccion_kg).replace(/,/g, "."));
 
-    await pool.query(
+    if (!Number.isFinite(produccionKgNormalized)) {
+      return res.status(400).json({
+        error: "produccion_kg inválido",
+        value: produccion_kg,
+      });
+    }
+
+    console.log(
+      `TA update cuadrilla parsed -> cuadrillaId=${cuadrillaId}, produccion_kg=${produccionKgNormalized}`
+    );
+
+    const [updateResult] = await pool.query(
       `UPDATE trabajo_avance_cuadrillas
        SET hora_inicio = ?, hora_fin = ?, produccion_kg = ?
        WHERE id = ?`,
-      [hora_inicio ?? null, hora_fin ?? null, produccion_kg ?? 0, cuadrillaId]
+      [hora_inicio ?? null, hora_fin ?? null, produccionKgNormalized, cuadrillaId]
     );
+
+    if (!updateResult?.affectedRows) {
+      return res.status(409).json({
+        error: "No se actualizó la cuadrilla",
+        cuadrillaId,
+      });
+    }
+
+    console.log(
+      "TA update cuadrilla DB row:",
+      JSON.stringify(row ?? {}, null, 2)
+    );
+
 
     const [[row]] = await pool.query(
        `SELECT id, reporte_id, tipo, nombre, hora_inicio, hora_fin, produccion_kg, apoyo_scope, apoyo_de_cuadrilla_id

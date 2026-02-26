@@ -79,6 +79,10 @@ class _TrabajoAvanceCuadrillaDetallePageState
       final c = detalle.cuadrilla;
       final t = detalle.trabajadores;
 
+      debugPrint(
+        'TA load cuadrilla -> id=${c.id}, tipo=${c.tipo}, produccion_kg=${c.produccionKg}',
+      );
+
       setState(() {
         _cuadrilla = c;
         _trabajadores = t;
