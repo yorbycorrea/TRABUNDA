@@ -2112,12 +2112,14 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       };
     });
 
-  const totalPers = tablaRows.reduce((a,r)=> a + (r.pers||0), 0);
-  const totalKg   = tablaRows.reduce((a,r)=> a + (r.kg||0), 0);
-  const totalfile = tablaRows.reduce((a,r) => a + (r.resultado || 0), 0);
-  const totaldes = tablaRows.reduce((a,r) => a + (r.resuldesu || 0), 0);
-  const totalaleta = tablaRows.reduce((a,r) => a + (r.resultadoaleta || 0), 0);
-  const totalHe   = tablaRows.reduce((a,r)=> a + (r.he||0), 0);
+  const tablaRowsFileteado = tablaRows.filter((r) => r.tipo === "FILETEADO");
+
+  const totalPers = tablaRowsFileteado.reduce((a,r)=> a + (r.pers||0), 0);
+  const totalKg   = tablaRowsFileteado.reduce((a,r)=> a + (r.kg||0), 0);
+  const totalfile = tablaRowsFileteado.reduce((a,r) => a + (r.resultado || 0), 0);
+  const totaldes = tablaRowsFileteado.reduce((a,r) => a + (r.resuldesu || 0), 0);
+  const totalaleta = tablaRowsFileteado.reduce((a,r) => a + (r.resultadoaleta || 0), 0);
+  const totalHe   = tablaRowsFileteado.reduce((a,r)=> a + (r.he||0), 0);
   const totalKgHrsPers = (totalPers > 0 && totalHe > 0) ? (totalKg / (totalHe * totalPers)) : 0;
   
   // Nota: tu hoja tiene columnas (Descarga, Fileteado, Desuñado, Aleta).

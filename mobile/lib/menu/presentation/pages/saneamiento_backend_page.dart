@@ -134,6 +134,46 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     });
   }
 
+  Future<void> scanAndSetHoraFin(_SaneaFormModel model) async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(builder: (_) => QrScannerPage(api: widget.api)),
+    );
+    if (result == null || !mounted) return;
+
+    final workerRaw = result['worker'];
+    final worker = workerRaw is Map
+        ? Map<String, dynamic>.from(workerRaw)
+        : const <String, dynamic>{};
+    final codigoEscaneado = (worker['codigo'] ?? '').toString().trim();
+    final dniEscaneado = (result['dni'] ?? worker['dni'] ?? '')
+        .toString()
+        .trim();
+    final codigoActual = model.codigoCtrl.text.trim();
+    final documentoActual = (model.trabajadorDocumento ?? model.dniQr ?? '')
+        .trim();
+
+    final coincide =
+        (codigoEscaneado.isNotEmpty && codigoEscaneado == codigoActual) ||
+        (dniEscaneado.isNotEmpty && dniEscaneado == documentoActual);
+
+    if (!coincide) {
+      AppNotify.warning(
+        context,
+        'Escaneo inválido',
+        'Escanea el QR del mismo trabajador para registrar la hora fin.',
+      );
+      return;
+    }
+
+    setState(() {
+      model.fin = _nowTime();
+      model.horas = (model.inicio != null && model.fin != null)
+          ? _calculateHoras(model.inicio!, model.fin!)
+          : null;
+    });
+  }
+
   void _addTrabajador() => setState(() => _items.add(_SaneaFormModel()));
 
   Future<void> _loadLineasExistentes() async {
@@ -366,7 +406,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   api: widget.api,
                   readOnly: widget.readOnly,
                   onPickInicio: () => _pickHora(_items[i], true),
-                  onPickFin: () => _pickHora(_items[i], false),
+                  onPickFin: () => scanAndSetHoraFin(_items[i]),
                   onFillFromScan: (result) {
                     debugPrint(
                       'SANEAMIENTO QR raw result=${result.toString()}',
@@ -569,7 +609,7 @@ class _SaneamientoCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _HoraBox(
-                    label: 'Hora fin',
+                    label: 'Hora fin (escaneo)',
                     value: _horaText(model.fin),
                     onTap: readOnly ? null : onPickFin,
                     locked: readOnly,

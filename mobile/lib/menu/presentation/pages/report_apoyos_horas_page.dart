@@ -179,6 +179,37 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     });
   }
 
+  Future<void> scanAndSetHoraFin(_ApoyoFormModel model) async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(builder: (_) => QrScannerPage(api: widget.api)),
+    );
+    if (result == null || !mounted) return;
+
+    final mapped = _mapQrToApoyoHorasModel(result);
+    final codigoActual = model.codigoCtrl.text.trim();
+    final documentoActual = (model.trabajadorDocumento ?? '').trim();
+    final coincide =
+        (mapped.codigo.isNotEmpty && mapped.codigo == codigoActual) ||
+        (mapped.documento.isNotEmpty && mapped.documento == documentoActual);
+
+    if (!coincide) {
+      AppNotify.warning(
+        context,
+        'Escaneo inválido',
+        'Escanea el QR del mismo trabajador para registrar la hora fin.',
+      );
+      return;
+    }
+
+    setState(() {
+      model.fin = _nowTime();
+      model.horas = (model.inicio != null && model.fin != null)
+          ? _calculateHoras(model.inicio!, model.fin!)
+          : null;
+    });
+  }
+
   void _addTrabajador() => setState(() => _trabajadores.add(_ApoyoFormModel()));
 
   Future<void> _loadLineasExistentes() async {
@@ -436,7 +467,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     areas: _areas,
                     api: widget.api,
                     onPickInicio: () => _pickHora(_trabajadores[i], true),
-                    onPickFin: () => _pickHora(_trabajadores[i], false),
+                    onPickFin: () => scanAndSetHoraFin(_trabajadores[i]),
                     onChangedArea: (a) {
                       setState(() {
                         _trabajadores[i].areaId = a.id;
@@ -618,7 +649,7 @@ class _TrabajadorCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _HoraBox(
-                    label: 'Hora fin (opcional)',
+                    label: 'Hora fin (escaneo)',
                     value: _horaText(model.fin),
                     onTap: onPickFin,
                   ),
