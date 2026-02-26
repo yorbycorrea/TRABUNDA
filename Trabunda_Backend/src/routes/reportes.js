@@ -121,6 +121,54 @@ function formatearTotalHorasParaPdf(linea) {
   return linea?.horas ?? "";
 }
 
+function toNumSeguro(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return v;
+  const n = Number(String(v).trim().replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function round2(n) {
+  return Math.round((toNumSeguro(n) + Number.EPSILON) * 100) / 100;
+}
+
+const TRABAJO_AVANCE_FACTORES = Object.freeze({
+  fileteado: 0.48 * 0.8,
+  desunado: 0.15 * 0.82,
+  aleta: 0.16 * 0.9,
+});
+
+function distribuirKgTrabajoAvance(totalKg) {
+  const kg = toNumSeguro(totalKg);
+
+  const brutoFileteado = kg * TRABAJO_AVANCE_FACTORES.fileteado;
+  const brutoDesunado = kg * TRABAJO_AVANCE_FACTORES.desunado;
+  const brutoAleta = kg * TRABAJO_AVANCE_FACTORES.aleta;
+
+  const totalBrutoDistribucion = brutoFileteado + brutoDesunado + brutoAleta;
+  const totalDistribucionRound = round2(totalBrutoDistribucion);
+
+  const fileteado = round2(brutoFileteado);
+  const desunado = round2(brutoDesunado);
+  const aleta = round2(totalDistribucionRound - fileteado - desunado);
+
+  return {
+    porcentaje: { ...TRABAJO_AVANCE_FACTORES },
+    bruto: {
+      fileteado: brutoFileteado,
+      desunado: brutoDesunado,
+      aleta: brutoAleta,
+      total: totalBrutoDistribucion,
+    },
+    redondeado: {
+      fileteado,
+      desunado,
+      aleta,
+      total: round2(fileteado + desunado + aleta),
+    },
+  };
+}
+
 async function hidratarTrabajadoresPorCodigo(items = [], dbPool = pool) {
   if (!Array.isArray(items) || items.length === 0) return [];
 
@@ -808,18 +856,45 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
 
     const recepcion = cuadrillas
       .filter((c) => c.tipo === "RECEPCION")
-      .map((c) => ({
-        ...c,
-        produccion_kg: 0,
-         kg: Number(c.produccion_kg || 0),
-      }));
+      .map((c) => {
+        const kg = toNumSeguro(c.produccion_kg);
+        const distribuido = distribuirKgTrabajoAvance(kg);
+
+        if (kg > 0) {
+          console.log("[TA][RESUMEN][RECEPCION] Distribución", {
+            reporteId,
+            cuadrillaId: c.id,
+            nombre: c.nombre,
+            produccion_kg: kg,
+            porcentajes: distribuido.porcentaje,
+            resultado: distribuido.redondeado,
+          });
+        }
+
+        return {
+          ...c,
+          kg,
+          fileteado_kg: distribuido.redondeado.fileteado,
+          desunado_kg: distribuido.redondeado.desunado,
+          aleta_kg: distribuido.redondeado.aleta,
+          distribucion_total_kg: distribuido.redondeado.total,
+        };
+      });
 
     const fileteado = cuadrillas
       .filter((c) => c.tipo === "FILETEADO")
-      .map((c) => ({
-        ...c,
-        kg: Number(c.produccion_kg || 0),
-      }));
+      .map((c) => {
+        const kg = toNumSeguro(c.produccion_kg);
+        const distribuido = distribuirKgTrabajoAvance(kg);
+        return {
+          ...c,
+          kg,
+          fileteado_kg: distribuido.redondeado.fileteado,
+          desunado_kg: distribuido.redondeado.desunado,
+          aleta_kg: distribuido.redondeado.aleta,
+          distribucion_total_kg: distribuido.redondeado.total,
+        };
+      });
 
     const apoyos = cuadrillas
       .filter((c) => c.tipo === "APOYO_RECEPCION")
@@ -2032,45 +2107,13 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
 // ======================================================
 if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
 
-  const toNum = (v) => {
-    if (v === null || v === undefined) return 0;
-    if (typeof v === "number") return v;
-    const n = Number(String(v).trim().replace(",", "."));
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const fmt2 = (n) => toNum(n).toFixed(2);
-  const filcar = (kg) => toNum(kg).toFixed(2);
-  const desu = (kg) => toNum(kg).toFixed(2);
-  const alet = (kg) => toNum(kg).toFixed(2);
+   const fmt2 = (n) => toNumSeguro(n).toFixed(2);
+  const filcar = (kg) => toNumSeguro(kg).toFixed(2);
+  const desu = (kg) => toNumSeguro(kg).toFixed(2);
+  const alet = (kg) => toNumSeguro(kg).toFixed(2);
 
   
 
-  const diffHours = (hi, hf) => {
-    try {
-      return calcularDiferenciaMinutos(hi, hf) / 60;
-    } catch (_) {
-      return 0;
-    }
-  };
-
-  const filetecal = (kg) => {
-    const k = Number(kg);
-    const resultado = k  * 0.48 * 0.80;
-    return resultado;
-  }
-
-  const desucal = (kg) => {
-    const d = Number(kg);
-    const resuldesu = d * 0.15 * 0.82;
-    return resuldesu;
-  }
-
-  const aleta = (kg) => {
-    const f = Number(kg);
-    const resultadoaleta = f * 0.16 * 0.90;
-    return resultadoaleta;
-  }
 
 
   // 1) cuadrillas del reporte
@@ -2145,12 +2188,28 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       const ws = workersByCuadrilla.get(Number(c.id)) || [];
       const pers = ws.length;
 
-      const kgBase = toNum(c.produccion_kg);
+      const kgBase = toNumSeguro(c.produccion_kg);
       const usaKg = c.tipo === "RECEPCION" || c.tipo === "FILETEADO";
       const kg = usaKg ? kgBase : 0;
-      const resultadoFilete = c.tipo === "FILETEADO" ? filetecal(kg) : 0;
-      const resultadodesu = c.tipo === "FILETEADO" ? desucal(kg) : 0;
-      const resultadoaleta1 = c.tipo === "FILETEADO" ? aleta(kg) : 0;
+      const aplicaDistribucion = c.tipo === "FILETEADO" || c.tipo === "RECEPCION";
+      const distribuido = aplicaDistribucion
+        ? distribuirKgTrabajoAvance(kg)
+        : { redondeado: { fileteado: 0, desunado: 0, aleta: 0 } };
+
+      const resultadoFilete = distribuido.redondeado.fileteado;
+      const resultadodesu = distribuido.redondeado.desunado;
+      const resultadoaleta1 = distribuido.redondeado.aleta;
+
+      if (c.tipo === "RECEPCION" && kg > 0) {
+        console.log("[TA][PDF][RECEPCION] Distribución", {
+          reporteId: id,
+          cuadrillaId: c.id,
+          nombre: c.nombre,
+          produccion_kg: kg,
+          porcentajes: TRABAJO_AVANCE_FACTORES,
+          resultado: distribuido.redondeado,
+        });
+      }
        
       const hi = c.hora_inicio ? String(c.hora_inicio).slice(0,5) : "";
       const hf = c.hora_fin ? String(c.hora_fin).slice(0,5) : "";
