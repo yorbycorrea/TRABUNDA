@@ -811,7 +811,7 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
       .map((c) => ({
         ...c,
         produccion_kg: 0,
-        kg: 0,
+         kg: Number(c.produccion_kg || 0),
       }));
 
     const fileteado = cuadrillas
@@ -829,7 +829,14 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
         kg: 0,
       }));
 
-    const totalKg = fileteado.reduce((acc, c) => acc + Number(c.kg || 0), 0);
+    const totalKgRecepcion = recepcion.reduce(
+      (acc, c) => acc + Number(c.kg || 0),
+      0
+    );
+    const totalKgFileteado = fileteado.reduce(
+      (acc, c) => acc + Number(c.kg || 0),
+      0
+    );
 
     const apoyosGlobal = apoyos.filter((c) => !c.apoyo_de_cuadrilla_id);
     const apoyosPorCuadrillaMap = new Map();
@@ -858,9 +865,13 @@ router.get("/trabajo-avance/:id/resumen", authMiddleware, async (req, res) => {
     return res.json({
       reporteId,
       recepcion,
-      fileteado: { lista: fileteado, totalKg },
+      fileteado: { lista: fileteado, totalKg: totalKgFileteado },
       apoyos_recepcion,
-      totales,
+      totales: {
+        ...totales,
+        RECEPCION: totalKgRecepcion,
+        FILETEADO: totalKgFileteado,
+      },
       cuadrillas,
     });
   } catch (e) {
@@ -1098,14 +1109,13 @@ router.put("/trabajo-avance/cuadrillas/:cuadrillaId", authMiddleware, async (req
       return res.status(404).json({ error: "Cuadrilla no encontrada" });
     }
 
-    const produccionFinal =
-      cuadrillaActual.tipo === "FILETEADO" ? produccion_kg ?? 0 : 0;
+    
 
     await pool.query(
       `UPDATE trabajo_avance_cuadrillas
        SET hora_inicio = ?, hora_fin = ?, produccion_kg = ?
        WHERE id = ?`,
-      [hora_inicio ?? null, hora_fin ?? null, produccionFinal, cuadrillaId]
+      [hora_inicio ?? null, hora_fin ?? null, produccion_kg ?? 0, cuadrillaId]
     );
 
     const [[row]] = await pool.query(
@@ -2077,19 +2087,19 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
   // ===========================
   // TABLA PRINCIPAL (estilo hoja)
   // ===========================
-  // Filas:  fileteado 
+  // Filas: recepcion + fileteado (solo esos dos tipos en tabla principal)
   const tablaRows = cuadrillas
-     .filter(c => c.tipo === "FILETEADO")
+    .filter(c => c.tipo === "RECEPCION" || c.tipo === "FILETEADO")
     .map(c => {
       const ws = workersByCuadrilla.get(Number(c.id)) || [];
       const pers = ws.length;
 
       const kgBase = toNum(c.produccion_kg);
-      const usaKg = c.tipo === "FILETEADO";
+      const usaKg = c.tipo === "RECEPCION" || c.tipo === "FILETEADO";
       const kg = usaKg ? kgBase : 0;
-      const resultadoFilete = usaKg ? filetecal(kg) : 0;
-      const resultadodesu = usaKg ? desucal(kg) : 0;
-      const resultadoaleta1 = usaKg ? aleta(kg) : 0;
+      const resultadoFilete = c.tipo === "FILETEADO" ? filetecal(kg) : 0;
+      const resultadodesu = c.tipo === "FILETEADO" ? desucal(kg) : 0;
+      const resultadoaleta1 = c.tipo === "FILETEADO" ? aleta(kg) : 0;
        
       const hi = c.hora_inicio ? String(c.hora_inicio).slice(0,5) : "";
       const hf = c.hora_fin ? String(c.hora_fin).slice(0,5) : "";
@@ -2114,12 +2124,12 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
 
   const tablaRowsFileteado = tablaRows.filter((r) => r.tipo === "FILETEADO");
 
-  const totalPers = tablaRowsFileteado.reduce((a,r)=> a + (r.pers||0), 0);
-  const totalKg   = tablaRowsFileteado.reduce((a,r)=> a + (r.kg||0), 0);
-  const totalfile = tablaRowsFileteado.reduce((a,r) => a + (r.resultado || 0), 0);
-  const totaldes = tablaRowsFileteado.reduce((a,r) => a + (r.resuldesu || 0), 0);
-  const totalaleta = tablaRowsFileteado.reduce((a,r) => a + (r.resultadoaleta || 0), 0);
-  const totalHe   = tablaRowsFileteado.reduce((a,r)=> a + (r.he||0), 0);
+  const totalPers = tablaRows.reduce((a,r)=> a + (r.pers||0), 0);
+  const totalKg   = tablaRows.reduce((a,r)=> a + (r.kg||0), 0);
+  const totalfile = tablaRows.reduce((a,r) => a + (r.resultado || 0), 0);
+  const totaldes = tablaRows.reduce((a,r) => a + (r.resuldesu || 0), 0);
+  const totalaleta = tablaRows.reduce((a,r) => a + (r.resultadoaleta || 0), 0);
+  const totalHe   = tablaRows.reduce((a,r)=> a + (r.he||0), 0);
   const totalKgHrsPers = (totalPers > 0 && totalHe > 0) ? (totalKg / (totalHe * totalPers)) : 0;
   
   // Nota: tu hoja tiene columnas (Descarga, Fileteado, Desuñado, Aleta).

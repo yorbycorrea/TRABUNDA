@@ -381,30 +381,27 @@ class _TrabajoAvanceCuadrillaDetallePageState
                 // ✅ Cabecera: cuadrilla + horas
                 _headerCuadrilla(c),
 
-                // ✅ Producción KG (solo input)
-                if (c.tipo == 'FILETEADO')
-                  Card(
-                    elevation: 3,
-                    margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: TextField(
-                        controller: _kgCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: "Producción total (kg) de la cuadrilla",
-                          labelStyle:
-                              TextStyle(color: AppColors.barraNavegacion),
-                          border: OutlineInputBorder(),
-                        ),
+                Card(
+                  elevation: 3,
+                  margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      controller: _kgCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "Producción total (kg) de la cuadrilla",
+                        labelStyle: TextStyle(color: AppColors.barraNavegacion),
+                        border: OutlineInputBorder(),
                       ),
                     ),
                   ),
+                ),
 
                 const SizedBox(height: 6),
 
