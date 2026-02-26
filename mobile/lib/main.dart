@@ -1,7 +1,7 @@
 // 1. Imports de Flutter/Dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mobile/core/network/token_storage.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/data/auth/auth_repository_impl.dart';
@@ -25,9 +25,17 @@ import 'package:mobile/core/theme/app_colors.dart';
 Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final envFileName = kReleaseMode ? '.env.prod' : '.env.dev';
+  try {
+    await dotenv.load(fileName: envFileName);
+    debugPrint('dotenv cargado desde: $envFileName');
+  } catch (e) {
+    debugPrint('No se pudo cargar $envFileName: $e');
+  }
+
   // Valida configuración obligatoria al iniciar la app.
   final apiBaseUri = Config.resolvedBaseUri;
-  debugPrint('API_BASE_URL configurada: $apiBaseUri');
+  debugPrint('API_BASE_URL final resuelta: $apiBaseUri');
 
   final theme = ThemeData(
     scaffoldBackgroundColor: AppColors.lightCyan,
@@ -154,6 +162,9 @@ class _AuthRouterState extends State<AuthRouter> {
     switch (auth.status) {
       case AuthStatus.loading:
       case AuthStatus.unknown:
+        debugPrint(
+          'Splash/Auth loading con API_BASE_URL: ${Config.resolvedBaseUri}',
+        );
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
       case AuthStatus.authenticated:
