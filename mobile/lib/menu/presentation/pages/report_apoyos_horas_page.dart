@@ -5,6 +5,7 @@ import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/apoyos_horas_use_cases.dart';
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart' as hora_fin_scanner;
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -180,34 +181,23 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   }
 
   Future<void> scanAndSetHoraFin(_ApoyoFormModel model) async {
-    final result = await Navigator.push<Map<String, dynamic>?>(
-      context,
-      MaterialPageRoute(builder: (_) => QrScannerPage(api: widget.api)),
+    if (!mounted) return;
+
+    await hora_fin_scanner.scanAndSetHoraFin(
+      context: context,
+      api: widget.api,
+      codigoTrabajadorBloque: model.codigoCtrl.text,
+      horaFinActual: model.fin,
+      onHoraFinSet: (fin, {String? scannedValue}) {
+        if (!mounted) return;
+        setState(() {
+          model.fin = fin;
+          model.horas = (model.inicio != null && model.fin != null)
+              ? _calculateHoras(model.inicio!, model.fin!)
+              : null;
+        });
+      },
     );
-    if (result == null || !mounted) return;
-
-    final mapped = _mapQrToApoyoHorasModel(result);
-    final codigoActual = model.codigoCtrl.text.trim();
-    final documentoActual = (model.trabajadorDocumento ?? '').trim();
-    final coincide =
-        (mapped.codigo.isNotEmpty && mapped.codigo == codigoActual) ||
-        (mapped.documento.isNotEmpty && mapped.documento == documentoActual);
-
-    if (!coincide) {
-      AppNotify.warning(
-        context,
-        'Escaneo inválido',
-        'Escanea el QR del mismo trabajador para registrar la hora fin.',
-      );
-      return;
-    }
-
-    setState(() {
-      model.fin = _nowTime();
-      model.horas = (model.inicio != null && model.fin != null)
-          ? _calculateHoras(model.inicio!, model.fin!)
-          : null;
-    });
   }
 
   void _addTrabajador() => setState(() => _trabajadores.add(_ApoyoFormModel()));
