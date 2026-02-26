@@ -5,6 +5,7 @@ import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/saneamiento_use_cases.dart';
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart';
 
 class SaneamientoBackendPage extends StatefulWidget {
   const SaneamientoBackendPage({
@@ -406,7 +407,22 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   api: widget.api,
                   readOnly: widget.readOnly,
                   onPickInicio: () => _pickHora(_items[i], true),
-                  onPickFin: () => scanAndSetHoraFin(_items[i]),
+                  oonPickFin: () => scanAndSetHoraFin(
+                    context: context,
+                    api: widget.api,
+                    codigoTrabajadorBloque: _items[i].codigoCtrl.text,
+                    dniTrabajadorBloque: _items[i].trabajadorDocumento,
+                    horaFinActual: _items[i].fin,
+                    onHoraFinSet: (fin, {scannedValue}) {
+                      setState(() {
+                        _items[i].fin = fin;
+                        _items[i].horas =
+                            (_items[i].inicio != null && _items[i].fin != null)
+                            ? _calculateHoras(_items[i].inicio!, _items[i].fin!)
+                            : null;
+                      });
+                    },
+                  ),
                   onFillFromScan: (result) {
                     debugPrint(
                       'SANEAMIENTO QR raw result=${result.toString()}',
@@ -552,7 +568,7 @@ class _SaneamientoCard extends StatelessWidget {
   final ApiClient api;
   final bool readOnly;
   final VoidCallback onPickInicio;
-  final VoidCallback onPickFin;
+  final Future<void> Function() onPickFin;
   final void Function(Map<String, dynamic> result) onFillFromScan;
 
   String _horaText(TimeOfDay? t) {

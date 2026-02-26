@@ -5,6 +5,7 @@ import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/apoyos_horas_use_cases.dart';
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart';
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -467,7 +468,26 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     areas: _areas,
                     api: widget.api,
                     onPickInicio: () => _pickHora(_trabajadores[i], true),
-                    onPickFin: () => scanAndSetHoraFin(_trabajadores[i]),
+                    onPickFin: () => scanAndSetHoraFin(
+                      context: context,
+                      api: widget.api,
+                      codigoTrabajadorBloque: _trabajadores[i].codigoCtrl.text,
+                      dniTrabajadorBloque: _trabajadores[i].trabajadorDocumento,
+                      horaFinActual: _trabajadores[i].fin,
+                      onHoraFinSet: (fin, {scannedValue}) {
+                        setState(() {
+                          _trabajadores[i].fin = fin;
+                          _trabajadores[i].horas =
+                              (_trabajadores[i].inicio != null &&
+                                  _trabajadores[i].fin != null)
+                              ? _calculateHoras(
+                                  _trabajadores[i].inicio!,
+                                  _trabajadores[i].fin!,
+                                )
+                              : null;
+                        });
+                      },
+                    ),
                     onChangedArea: (a) {
                       setState(() {
                         _trabajadores[i].areaId = a.id;
