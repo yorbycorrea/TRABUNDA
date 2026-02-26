@@ -1,33 +1,38 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class Config {
-  static const String _rawApiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
+  static const String _baseUrlFromDefine = String.fromEnvironment(
+    'BASE_URL',
     defaultValue: '',
   );
 
   static Uri get resolvedBaseUri {
-    final value = _rawApiBaseUrl.trim();
+    final fromDefine = _baseUrlFromDefine.trim();
+    final fromDotenvBase = (dotenv.env['BASE_URL'] ?? '').trim();
+    final fromDotenvApi = (dotenv.env['API_URL'] ?? '').trim();
+
+    final value = fromDefine.isNotEmpty
+        ? fromDefine
+        : (fromDotenvBase.isNotEmpty ? fromDotenvBase : fromDotenvApi);
 
     if (value.isEmpty) {
       throw StateError(
-        'Falta API_BASE_URL. Debes pasar --dart-define=API_BASE_URL=http://host:puerto.',
+        'Falta BASE_URL (dart-define o .env). También se acepta API_URL como fallback.',
       );
     }
     final parsed = Uri.parse(value);
-    if (parsed.scheme != 'http' && parsed.scheme != 'https') {
+    final scheme = parsed.scheme.toLowerCase();
+
+    if (scheme != 'http' && scheme != 'https') {
       throw StateError(
-        'API_BASE_URL debe usar esquema http o https. Valor recibido: "$value".',
+        'BASE_URL debe usar esquema http o https. Valor recibido: "$value".',
       );
     }
 
-    final normalizedPath = parsed.path.endsWith('/') && parsed.path.length > 1
-        ? parsed.path.substring(0, parsed.path.length - 1)
+    final normalizedPath = parsed.path.endsWith('/')
+        ? parsed.path.replaceFirst(RegExp(r'/+$'), '')
         : parsed.path;
 
     return parsed.replace(path: normalizedPath);
   }
-
-  static String get apiBaseUrl => resolvedBaseUri.toString();
-  // Esto lee la variable API_URL del archivo .env
-  //static String get baseUrl =>
-  //dotenv.env['API_URL'] ?? 'http://172.16.1.207:3000';
 }
