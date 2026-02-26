@@ -1,10 +1,10 @@
 import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
-import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/saneamiento_use_cases.dart';
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart' as hora_fin_scanner;
 
 class SaneamientoBackendPage extends StatefulWidget {
   const SaneamientoBackendPage({
@@ -135,43 +135,23 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   }
 
   Future<void> scanAndSetHoraFin(_SaneaFormModel model) async {
-    final result = await Navigator.push<Map<String, dynamic>?>(
-      context,
-      MaterialPageRoute(builder: (_) => QrScannerPage(api: widget.api)),
+    if (!mounted) return;
+
+    await hora_fin_scanner.scanAndSetHoraFin(
+      context: context,
+      api: widget.api,
+      codigoTrabajadorBloque: model.codigoCtrl.text,
+      horaFinActual: model.fin,
+      onHoraFinSet: (fin, {String? scannedValue}) {
+        if (!mounted) return;
+        setState(() {
+          model.fin = fin;
+          model.horas = (model.inicio != null && model.fin != null)
+              ? _calculateHoras(model.inicio!, model.fin!)
+              : null;
+        });
+      },
     );
-    if (result == null || !mounted) return;
-
-    final workerRaw = result['worker'];
-    final worker = workerRaw is Map
-        ? Map<String, dynamic>.from(workerRaw)
-        : const <String, dynamic>{};
-    final codigoEscaneado = (worker['codigo'] ?? '').toString().trim();
-    final dniEscaneado = (result['dni'] ?? worker['dni'] ?? '')
-        .toString()
-        .trim();
-    final codigoActual = model.codigoCtrl.text.trim();
-    final documentoActual = (model.trabajadorDocumento ?? model.dniQr ?? '')
-        .trim();
-
-    final coincide =
-        (codigoEscaneado.isNotEmpty && codigoEscaneado == codigoActual) ||
-        (dniEscaneado.isNotEmpty && dniEscaneado == documentoActual);
-
-    if (!coincide) {
-      AppNotify.warning(
-        context,
-        'Escaneo inválido',
-        'Escanea el QR del mismo trabajador para registrar la hora fin.',
-      );
-      return;
-    }
-
-    setState(() {
-      model.fin = _nowTime();
-      model.horas = (model.inicio != null && model.fin != null)
-          ? _calculateHoras(model.inicio!, model.fin!)
-          : null;
-    });
   }
 
   void _addTrabajador() => setState(() => _items.add(_SaneaFormModel()));

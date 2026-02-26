@@ -16,13 +16,15 @@ Future<void> scanAndSetHoraFin({
   required TimeOfDay? horaFinActual,
   required HoraFinSetCallback onHoraFinSet,
   ConfirmReplaceHoraFinCallback? onConfirmReplace,
-  String? dniTrabajadorBloque,
 }) async {
   final codigoBloque = _normalize(codigoTrabajadorBloque, padLength: 5);
-  final dniBloque = _normalize(dniTrabajadorBloque);
 
   if (codigoBloque.isEmpty) {
-    AppNotify.warning(context, 'Atención', 'Primero registre el trabajador.');
+    AppNotify.warning(
+      context,
+      'Atención',
+      'Primero debe registrar el trabajador antes de marcar hora fin.',
+    );
     return;
   }
 
@@ -56,19 +58,12 @@ Future<void> scanAndSetHoraFin({
     result['codigo'] ?? worker?['codigo'] ?? '',
     padLength: 5,
   );
-  final scannedDni = _normalize(result['dni'] ?? worker?['dni'] ?? '');
 
-  final matchesCodigo =
-      scannedCodigo.isNotEmpty && scannedCodigo == codigoBloque;
-
-  final matchesDni =
-      dniBloque.isEmpty || (scannedDni.isNotEmpty && scannedDni == dniBloque);
-
-  if (!matchesCodigo || !matchesDni) {
+  if (scannedCodigo.isEmpty || scannedCodigo != codigoBloque) {
     AppNotify.error(
       context,
       'Error',
-      'El QR no corresponde al trabajador de este bloque.',
+      'El fotocheck escaneado no corresponde a este trabajador.',
     );
     return;
   }
