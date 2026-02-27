@@ -2494,7 +2494,12 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#039;")
           .replaceAll("\n", "<br>");
-        return `<div style="margin-top:12px;"><div style="font-weight:700; margin-bottom:4px;">OBSERVACIONES</div><div>${observacionesHtml}</div></div>`;
+         return `
+          <div class="observaciones-block">
+            <div class="observaciones-title">OBSERVACIONES</div>
+            <div class="observaciones-text">${observacionesHtml}</div>
+          </div>
+        `;
       })());
 
     const browser = await chromium.launch();
