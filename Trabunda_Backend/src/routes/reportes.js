@@ -1865,6 +1865,18 @@ router.get('/conteo-rapido/:id/excel', authMiddleware, async (req, res) => {
   try {
     const reporteId = req.params.id;
 
+     // Self-healing: asegurar orden para todas las áreas activas de conteo rápido.
+    // Usa area_id como orden base para mantener estabilidad con el orden natural de BD.
+    await pool.query(
+      `INSERT INTO conteo_rapido_area_orden (area_id, orden)
+       SELECT a.id, a.id
+       FROM areas a
+       LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
+       WHERE a.es_conteo_rapido = 1
+         AND a.activo = 1
+         AND o.area_id IS NULL`
+    );
+
     // 1️⃣ Traer cabecera del reporte
     const [[reporte]] = await pool.query(
       `
@@ -1888,7 +1900,8 @@ router.get('/conteo-rapido/:id/excel', authMiddleware, async (req, res) => {
       JOIN areas a ON a.id = d.area_id
       LEFT JOIN conteo_rapido_area_orden o ON o.area_id = a.id
       WHERE d.reporte_id = ?
-      ORDER BY COALESCE(o.orden, 9999), a.nombre
+      AND COALESCE(d.cantidad, 0) > 0
+      ORDER BY COALESCE(o.orden, 999999) ASC, a.id ASC
     `,
       [reporteId]
     );
