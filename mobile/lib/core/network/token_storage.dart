@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenStorage {
@@ -18,7 +19,10 @@ class TokenStorage {
   Future<String?> readAccess() => _storage.read(key: _kAccess);
   Future<String?> readRefresh() => _storage.read(key: _kRefresh);
   Future<void> clear() async {
+    debugPrint('TokenStorage.clear(): deleting access token');
     await _storage.delete(key: _kAccess);
+    debugPrint('TokenStorage.clear(): deleting refresh token');
     await _storage.delete(key: _kRefresh);
+    debugPrint('TokenStorage.clear(): access+refresh deleted');
   }
 }

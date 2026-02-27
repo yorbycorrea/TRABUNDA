@@ -128,7 +128,10 @@ class HomeMenuPage extends StatelessWidget {
                     TextButton.icon(
                       onPressed: () async {
                         // Logout (limpia token y user)
-                        await AuthControllerScope.read(context).logout();
+                        final authController = AuthControllerScope.read(
+                          context,
+                        );
+                        await authController.logout();
 
                         if (!context.mounted) return;
                         Navigator.pushNamedAndRemoveUntil(
@@ -197,12 +200,12 @@ class _OptionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 50, color: Colors.blueAccent),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Text(
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontSize: 16,
                   color: Colors.black87,
                 ),
               ),

@@ -32,6 +32,18 @@ class ApiClient {
 
   Uri _uri(String path) => Env.resolvedBaseUri.resolve(path);
 
+  void _logAuthHeader(String method, Uri uri, Map<String, String> headers) {
+    final authHeader = headers['Authorization'];
+    final hasAuthorization = authHeader != null && authHeader.isNotEmpty;
+    final bearerLength = authHeader != null && authHeader.startsWith('Bearer ')
+        ? authHeader.substring(7).length
+        : 0;
+
+    debugPrint(
+      '🔐 $method $uri authHeader=$hasAuthorization bearerLength=$bearerLength',
+    );
+  }
+
   Never _throwDomainError({
     required String code,
     required Uri uri,
@@ -103,6 +115,7 @@ class ApiClient {
     final uri = _uri(path);
     final headers = await _headers();
     debugPrint('GET $uri');
+    _logAuthHeader(('GET'), uri, headers);
     debugPrint('headers: $headers');
     try {
       final resp = await _http
@@ -121,6 +134,7 @@ class ApiClient {
     final uri = _uri(path);
     final headers = await _headers();
     debugPrint('➡️ POST $uri');
+    _logAuthHeader('POST', uri, headers);
     debugPrint('➡️ headers: $headers');
     debugPrint('➡️ body: ${jsonEncode(body)}');
 
@@ -141,6 +155,7 @@ class ApiClient {
     final uri = _uri(path);
     final headers = await _headers();
     debugPrint('PATCH $uri');
+    _logAuthHeader('PATCH', uri, headers);
 
     try {
       final resp = await _http
@@ -157,6 +172,7 @@ class ApiClient {
     final uri = _uri(path);
     final headers = await _headers();
     debugPrint('PUT $uri');
+    _logAuthHeader('PUT', uri, headers);
 
     try {
       final resp = await _http
@@ -173,6 +189,7 @@ class ApiClient {
     final uri = _uri(path);
     final headers = await _headers();
     debugPrint('DELETE $uri');
+    _logAuthHeader('DELETE', uri, headers);
 
     try {
       final resp = await _http
@@ -195,6 +212,7 @@ class ApiClient {
     }
 
     debugPrint('GET RAW $uri');
+    _logAuthHeader('GET', uri, h);
     debugPrint('headers: $h');
 
     try {
