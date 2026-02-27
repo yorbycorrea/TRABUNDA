@@ -3216,6 +3216,24 @@ router.patch("/:id/observaciones", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (process.env.NODE_ENV !== "test") {
+      console.log(
+        JSON.stringify(
+          {
+            type: "patch_observaciones_request",
+            method: req.method,
+            url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+            params: req.params,
+            body: req.body,
+            id_recibido: id,
+            observaciones_recibidas: req.body?.observaciones,
+          },
+          null,
+          2
+        )
+      );
+    }
+
     const [rows] = await pool.query(
       "SELECT id, tipo_reporte, creado_por_user_id FROM reportes WHERE id = ? LIMIT 1",
       [id]
