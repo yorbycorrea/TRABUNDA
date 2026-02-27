@@ -345,6 +345,91 @@ async function recalcularEstadoReporte(reporteId) {
    🔥 ORDEN IMPORTANTE (específicas primero)
 =========================================================== */
 
+
+
+/* ======================================
+   PATCH /reportes/:id/observaciones
+====================================== */
+router.patch("/:id/observaciones", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (process.env.NODE_ENV !== "test") {
+      console.log(
+        JSON.stringify(
+          {
+            type: "patch_observaciones_request",
+            method: req.method,
+            url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+            params: req.params,
+            body: req.body,
+            id_recibido: id,
+            observaciones_recibidas: req.body?.observaciones,
+          },
+          null,
+          2
+        )
+      );
+    }
+
+    const [rows] = await pool.query(
+      "SELECT id, tipo_reporte, creado_por_user_id FROM reportes WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    const reporte = rows[0];
+    if (!["APOYO_HORAS", "SANEAMIENTO"].includes(reporte.tipo_reporte)) {
+      return res.status(400).json({
+        error: "observaciones solo aplica para APOYO_HORAS y SANEAMIENTO",
+      });
+    }
+
+    const role =
+      Array.isArray(req.user.roles) && req.user.roles.length
+        ? req.user.roles[0]
+        : undefined;
+
+    if (role !== "ADMINISTRADOR" && reporte.creado_por_user_id !== req.user.id) {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+
+    let observacionesSanitizadas;
+    try {
+      observacionesSanitizadas = sanitizarObservaciones(req.body?.observaciones);
+    } catch (error) {
+      if (error?.code === "OBSERVACIONES_TOO_LONG") {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
+
+    if (!observacionesSanitizadas.provided) {
+      return res.status(400).json({
+        error: "Debes enviar el campo observaciones",
+      });
+    }
+
+    await pool.query(
+      "UPDATE reportes SET observaciones = ? WHERE id = ?",
+      [observacionesSanitizadas.value, id]
+    );
+
+    return res.json({
+      message: "Observaciones actualizadas",
+      reporte_id: Number(id),
+      observaciones: observacionesSanitizadas.value,
+    });
+  } catch (err) {
+    console.error("Error al actualizar observaciones:", err);
+    return res.status(500).json({ error: "Error interno al actualizar observaciones" });
+  }
+});
+
+
 /* ========================================
    GET /reportes/apoyo-horas/open
 ======================================== */
@@ -1102,87 +1187,6 @@ router.put("/trabajo-avance/:reporteId", authMiddleware, async (req, res) => {
 });
 
 
-/* ======================================
-   PATCH /reportes/:id/observaciones
-====================================== */
-router.patch("/:id/observaciones", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (process.env.NODE_ENV !== "test") {
-      console.log(
-        JSON.stringify(
-          {
-            type: "patch_observaciones_request",
-            method: req.method,
-            url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
-            params: req.params,
-            body: req.body,
-            id_recibido: id,
-            observaciones_recibidas: req.body?.observaciones,
-          },
-          null,
-          2
-        )
-      );
-    }
-
-    const [rows] = await pool.query(
-      "SELECT id, tipo_reporte, creado_por_user_id FROM reportes WHERE id = ? LIMIT 1",
-      [id]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ error: "Reporte no encontrado" });
-    }
-
-    const reporte = rows[0];
-    if (!["APOYO_HORAS", "SANEAMIENTO"].includes(reporte.tipo_reporte)) {
-      return res.status(400).json({
-        error: "observaciones solo aplica para APOYO_HORAS y SANEAMIENTO",
-      });
-    }
-
-    const role =
-      Array.isArray(req.user.roles) && req.user.roles.length
-        ? req.user.roles[0]
-        : undefined;
-
-    if (role !== "ADMINISTRADOR" && reporte.creado_por_user_id !== req.user.id) {
-      return res.status(403).json({ error: "No autorizado" });
-    }
-
-    let observacionesSanitizadas;
-    try {
-      observacionesSanitizadas = sanitizarObservaciones(req.body?.observaciones);
-    } catch (error) {
-      if (error?.code === "OBSERVACIONES_TOO_LONG") {
-        return res.status(400).json({ error: error.message });
-      }
-      throw error;
-    }
-
-    if (!observacionesSanitizadas.provided) {
-      return res.status(400).json({
-        error: "Debes enviar el campo observaciones",
-      });
-    }
-
-    await pool.query(
-      "UPDATE reportes SET observaciones = ? WHERE id = ?",
-      [observacionesSanitizadas.value, id]
-    );
-
-    return res.json({
-      message: "Observaciones actualizadas",
-      reporte_id: Number(id),
-      observaciones: observacionesSanitizadas.value,
-    });
-  } catch (err) {
-    console.error("Error al actualizar observaciones:", err);
-    return res.status(500).json({ error: "Error interno al actualizar observaciones" });
-  }
-});
 
 
 
