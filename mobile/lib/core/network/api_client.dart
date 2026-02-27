@@ -44,6 +44,29 @@ class ApiClient {
     );
   }
 
+  void _logRequest({
+    required String method,
+    required Uri uri,
+    required Map<String, String> headers,
+    Object? body,
+  }) {
+    debugPrint('➡️ HTTP $method');
+    debugPrint('➡️ URL: $uri');
+    debugPrint('➡️ headers: $headers');
+    debugPrint('➡️ body: ${body == null ? 'null' : jsonEncode(body)}');
+  }
+
+  void _logResponse({
+    required String method,
+    required Uri uri,
+    required http.Response response,
+  }) {
+    debugPrint('⬅️ HTTP $method');
+    debugPrint('⬅️ URL: ${response.request?.url ?? uri}');
+    debugPrint('⬅️ status: ${response.statusCode}');
+    debugPrint('⬅️ body: ${response.body}');
+  }
+
   Never _throwDomainError({
     required String code,
     required Uri uri,
@@ -114,16 +137,14 @@ class ApiClient {
   Future<http.Response> get(String path) async {
     final uri = _uri(path);
     final headers = await _headers();
-    debugPrint('GET $uri');
-    _logAuthHeader(('GET'), uri, headers);
-    debugPrint('headers: $headers');
+    _logAuthHeader('GET', uri, headers);
+    _logRequest(method: 'GET', uri: uri, headers: headers);
     try {
       final resp = await _http
           .get(uri, headers: headers)
           .timeout(_requestTimeout);
 
-      debugPrint('${resp.statusCode} GET ${resp.request?.url ?? uri}');
-      debugPrint('body: ${resp.body}');
+      _logResponse(method: 'GET', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);
@@ -133,18 +154,15 @@ class ApiClient {
   Future<http.Response> post(String path, Object body) async {
     final uri = _uri(path);
     final headers = await _headers();
-    debugPrint('➡️ POST $uri');
     _logAuthHeader('POST', uri, headers);
-    debugPrint('➡️ headers: $headers');
-    debugPrint('➡️ body: ${jsonEncode(body)}');
+    _logRequest(method: 'POST', uri: uri, headers: headers, body: body);
 
     try {
       final resp = await _http
           .post(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
 
-      debugPrint('⬅️ ${resp.statusCode} POST ${resp.request?.url ?? uri}');
-      debugPrint('⬅️ body: ${resp.body}');
+      _logResponse(method: 'POST', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);
@@ -154,14 +172,14 @@ class ApiClient {
   Future<http.Response> patch(String path, Object body) async {
     final uri = _uri(path);
     final headers = await _headers();
-    debugPrint('PATCH $uri');
     _logAuthHeader('PATCH', uri, headers);
+    _logRequest(method: 'PATCH', uri: uri, headers: headers, body: body);
 
     try {
       final resp = await _http
           .patch(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
-      debugPrint('${resp.statusCode} PATCH ${resp.request?.url ?? uri}');
+      _logResponse(method: 'PATCH', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);
@@ -171,14 +189,14 @@ class ApiClient {
   Future<http.Response> put(String path, Object body) async {
     final uri = _uri(path);
     final headers = await _headers();
-    debugPrint('PUT $uri');
     _logAuthHeader('PUT', uri, headers);
+    _logRequest(method: 'PUT', uri: uri, headers: headers, body: body);
 
     try {
       final resp = await _http
           .put(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
-      debugPrint('${resp.statusCode} PUT ${resp.request?.url ?? uri}');
+      _logResponse(method: 'PUT', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);
@@ -188,14 +206,14 @@ class ApiClient {
   Future<http.Response> delete(String path) async {
     final uri = _uri(path);
     final headers = await _headers();
-    debugPrint('DELETE $uri');
     _logAuthHeader('DELETE', uri, headers);
+    _logRequest(method: 'DELETE', uri: uri, headers: headers);
 
     try {
       final resp = await _http
           .delete(uri, headers: headers)
           .timeout(_requestTimeout);
-      debugPrint('${resp.statusCode} DELETE ${resp.request?.url ?? uri}');
+      _logResponse(method: 'DELETE', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);
@@ -211,13 +229,12 @@ class ApiClient {
       h['Authorization'] = 'Bearer $access';
     }
 
-    debugPrint('GET RAW $uri');
     _logAuthHeader('GET', uri, h);
-    debugPrint('headers: $h');
+    _logRequest(method: 'GET', uri: uri, headers: h);
 
     try {
       final resp = await _http.get(uri, headers: h).timeout(_requestTimeout);
-      debugPrint('${resp.statusCode} GET RAW ${resp.request?.url ?? uri}');
+      _logResponse(method: 'GET', uri: uri, response: resp);
       return resp;
     } catch (e, st) {
       _mapAndThrow(uri: uri, error: e, stackTrace: st);

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/env.dart';
 
 class ReportRemoteDataSource {
   ReportRemoteDataSource(this._api);
@@ -85,7 +86,14 @@ class ReportRemoteDataSource {
     String? observaciones,
   }) async {
     final payload = <String, dynamic>{'observaciones': observaciones ?? ''};
-    final resp = await _api.patch('/reportes/$reporteId/observaciones', payload);
+    final endpoint = '/reportes/$reporteId/observaciones';
+
+    _api.debugPrint('🧭 PATCH observaciones preflight');
+    _api.debugPrint('🧭 Base URL: ${Env.apiBaseUrl}');
+    _api.debugPrint('🧭 Endpoint exacto: $endpoint');
+    _api.debugPrint('🧭 Body enviado: ${jsonEncode(payload)}');
+
+    final resp = await _api.patch(endpoint, payload);
     _ensureSuccess(resp, hint: 'PATCH observaciones');
   }
 

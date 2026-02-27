@@ -23,22 +23,31 @@ const app = express();
 // 3. MIDDLEWARES DE CONFIGURACIÓN
 app.use(express.json());
 
-// 4. LOG DE PETICIONES (Muévelo aquí abajo)
+// 4. LOG GLOBAL DE PETICIONES
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== "test") {
+    const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+    console.log(
+      JSON.stringify(
+        {
+          type: "http_request",
+          method: req.method,
+          url: fullUrl,
+          headers: req.headers,
+          body: req.body,
+        },
+        null,
+        2
+      )
+    );
+  }
+  next();
+});
 
-
-
-  console.log(`Petición recibida: ${req.method} ${req.url}`);
-}
 app.get("/debug/workers-url", (req, res) => {
   res.json({
     WORKERS_API_URL: process.env.WORKERS_API_URL || "NO DEFINIDA",
   });
-});
-
-
-  next();
 });
 
 // 5. DEFINIR RUTAS
@@ -79,6 +88,24 @@ app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/reportes", reportesConteoRapidoRoutes);
 //app.use("/reportes/trabajo-avance", trabajoAvanceRoutes);
+
+// 404 temporal con respuesta JSON para diagnóstico
+app.use((req, res) => {
+  if (process.env.NODE_ENV !== "test") {
+    console.log(
+      JSON.stringify(
+        {
+          type: "http_404",
+          method: req.method,
+          url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+        },
+        null,
+        2
+      )
+    );
+  }
+  res.status(404).json({ error: "Ruta no encontrada", method: req.method, url: req.originalUrl });
+});
 
 // 6. MANEJO DE ERRORES Y PUERTO
 //const PORT = process.env.PORT || 3000;
