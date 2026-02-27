@@ -71,6 +71,24 @@ class ReportRemoteDataSource {
     throw Exception('Respuesta inválida (no lista)');
   }
 
+  Future<Map<String, dynamic>> fetchReporteCabecera(int reporteId) async {
+    final resp = await _api.get('/reportes/$reporteId');
+    final decoded = _api.decodeJsonOrThrow(resp);
+    if (decoded is! Map) {
+      throw Exception('Respuesta inválida de cabecera de reporte');
+    }
+    return decoded.cast<String, dynamic>();
+  }
+
+  Future<void> updateReporteObservaciones({
+    required int reporteId,
+    String? observaciones,
+  }) async {
+    final payload = <String, dynamic>{'observaciones': observaciones ?? ''};
+    final resp = await _api.patch('/reportes/$reporteId/observaciones', payload);
+    _ensureSuccess(resp, hint: 'PATCH observaciones');
+  }
+
   Future<Uint8List> fetchReportePdf(int reporteId) async {
     final resp = await _api.getRaw('/reportes/$reporteId/pdf');
     _api.throwIfHtml(resp, hint: 'PDF reportes');
