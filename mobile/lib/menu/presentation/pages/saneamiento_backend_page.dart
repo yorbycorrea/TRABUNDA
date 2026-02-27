@@ -702,7 +702,7 @@ class _SaneamientoCard extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                // ✅ ESTE ES EL CAMPO QUE MARCASTE (Labores realizadas)
+                //
                 TextFormField(
                   controller: model.laboresCtrl,
                   maxLines: 3,
