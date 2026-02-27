@@ -102,13 +102,16 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
 
-    if (!ok) {
-      final raw = auth.errorMessage ?? 'No se puede iniciar sesion';
-      setState(() {
-        // ✅ aquí transformamos el error técnico a uno amigable
-        _bannerError = raw;
-      });
+    if (ok) {
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+      return;
     }
+
+    final raw = auth.errorMessage ?? 'No se puede iniciar sesion';
+    setState(() {
+      // ✅ aquí transformamos el error técnico a uno amigable
+      _bannerError = raw;
+    });
   }
 
   @override
