@@ -7,7 +7,7 @@ import 'token_storage.dart';
 import 'package:mobile/env.dart';
 
 class ApiClient {
-  static const Duration _requestTimeout = Duration(seconds: 20);
+  static const Duration _requestTimeout = Duration(seconds: 10);
   final TokenStorage tokens;
   final http.Client _http;
 
@@ -30,7 +30,7 @@ class ApiClient {
     print(message);
   }
 
-  Uri _uri(String path) => Config.resolvedBaseUri.resolve(path);
+  Uri _uri(String path) => Env.resolvedBaseUri.resolve(path);
 
   Never _throwDomainError({
     required String code,

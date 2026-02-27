@@ -1,10 +1,10 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../../../data/auth/entities/app_user.dart';
 import 'package:mobile/data/auth/remote/auth_remote_data_source.dart';
 import '../data/auth_api_service.dart';
-import '../../../core/network/api_client.dart';
-import 'package:mobile/data/auth/entities/app_user.dart';
+//import '../../../core/network/api_client.dart';
+//import 'package:mobile/data/auth/entities/app_user.dart';
 import 'package:mobile/domain/auth/usecases/get_current_user.dart';
 import 'package:mobile/domain/auth/usecases/login.dart';
 import 'package:mobile/domain/auth/usecases/logout.dart';
@@ -38,19 +38,36 @@ class AuthController extends ChangeNotifier {
   // Se inicializa la app validando si el token guardado es real
   Future<void> init() async {
     _updateState(AuthStatus.loading);
+    _errorMessage = null;
+
+    AuthStatus nextStatus = AuthStatus.unauthenticated;
     try {
       final currentUser = await _getCurrentUser();
       if (currentUser == null) {
         _user = null;
-        _updateState(AuthStatus.unauthenticated);
+        nextStatus = AuthStatus.unauthenticated;
         return;
       }
       _user = currentUser;
       _updateState((AuthStatus.authenticated));
     } catch (e) {
-      _errorMessage = 'Error de conexión: $e';
-      _updateState(AuthStatus.error);
+      _user = null;
+      if (_isNetworkError(e)) {
+        _errorMessage = 'Sin conexión, intenta de nuevo';
+      } else {
+        _errorMessage = 'No se pudo validar la sesión. Intenta de nuevo';
+      }
+      nextStatus = AuthStatus.error;
+    } finally {
+      _updateState(nextStatus);
     }
+  }
+
+  bool _isNetworkError(Object error) {
+    final message = error.toString();
+    return message.contains('network_timeout') ||
+        message.contains('network_unreachable') ||
+        message.contains('ssl_error');
   }
 
   Future<bool> login({

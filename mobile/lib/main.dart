@@ -1,7 +1,9 @@
 // 1. Imports de Flutter/Dart
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'package:mobile/core/network/token_storage.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/data/auth/auth_repository_impl.dart';
@@ -22,8 +24,16 @@ import 'package:mobile/menu/presentation/pages/report_create_saneamiento_page.da
 
 import 'package:mobile/core/theme/app_colors.dart';
 
-Future<void> bootstrapApp() async {
+Future<void> bootstrapApp({required String envFile}) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    // Esto carga el archivo físico .env en la memoria de la app
+    await dotenv.load(fileName: envFile);
+    print(" Variables de entorno cargadas: ${dotenv.env['API_URL']}");
+  } catch (e) {
+    print(" Error cargando $envFile: $e");
+  }
 
   final envFileName = kReleaseMode ? '.env.prod' : '.env.dev';
   try {
@@ -34,8 +44,6 @@ Future<void> bootstrapApp() async {
   }
 
   // Valida configuración obligatoria al iniciar la app.
-  final apiBaseUri = Config.resolvedBaseUri;
-  debugPrint('API_BASE_URL final resuelta: $apiBaseUri');
 
   final theme = ThemeData(
     scaffoldBackgroundColor: AppColors.lightCyan,
@@ -81,7 +89,7 @@ Future<void> bootstrapApp() async {
 }
 
 Future<void> main() async {
-  await bootstrapApp();
+  await bootstrapApp(envFile: ".env");
 }
 
 class TrabundaApp extends StatelessWidget {
@@ -145,6 +153,86 @@ class AuthRouter extends StatefulWidget {
   State<AuthRouter> createState() => _AuthRouterState();
 }
 
+class ConfigErrorApp extends StatelessWidget {
+  const ConfigErrorApp({super.key, required this.technicalDetail});
+
+  final String technicalDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: ConfigErrorPage(technicalDetail: technicalDetail),
+    );
+  }
+}
+
+class ConfigErrorPage extends StatelessWidget {
+  const ConfigErrorPage({super.key, required this.technicalDetail});
+
+  final String technicalDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'BASE_URL no configurado',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                technicalDetail,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => bootstrapApp(envFile: ".env"),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+_ConfigCandidate _detectBaseUrlCandidate() {
+  const fromDefine = String.fromEnvironment('BASE_URL', defaultValue: '');
+  final fromDotenvBase = (dotenv.env['BASE_URL'] ?? '').trim();
+  final fromDotenvApi = (dotenv.env['API_URL'] ?? '').trim();
+
+  if (fromDefine.trim().isNotEmpty) {
+    return _ConfigCandidate(
+      source: 'dart-define BASE_URL',
+      value: fromDefine.trim(),
+    );
+  }
+  if (fromDotenvBase.isNotEmpty) {
+    return _ConfigCandidate(source: '.env BASE_URL', value: fromDotenvBase);
+  }
+  if (fromDotenvApi.isNotEmpty) {
+    return _ConfigCandidate(source: '.env API_URL', value: fromDotenvApi);
+  }
+
+  return const _ConfigCandidate(source: 'sin origen detectado', value: null);
+}
+
+class _ConfigCandidate {
+  const _ConfigCandidate({required this.source, required this.value});
+
+  final String source;
+  final String? value;
+}
+
 class _AuthRouterState extends State<AuthRouter> {
   @override
   void initState() {
@@ -162,9 +250,6 @@ class _AuthRouterState extends State<AuthRouter> {
     switch (auth.status) {
       case AuthStatus.loading:
       case AuthStatus.unknown:
-        debugPrint(
-          'Splash/Auth loading con API_BASE_URL: ${Config.resolvedBaseUri}',
-        );
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
       case AuthStatus.authenticated:
