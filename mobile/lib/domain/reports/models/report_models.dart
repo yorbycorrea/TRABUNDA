@@ -30,6 +30,19 @@ class ReportOpenInfo {
   });
 }
 
+
+class ReporteCabecera {
+  final int id;
+  final String tipoReporte;
+  final String? observaciones;
+
+  const ReporteCabecera({
+    required this.id,
+    required this.tipoReporte,
+    required this.observaciones,
+  });
+}
+
 class ReportPendiente {
   final int reportId;
   final String fecha;

@@ -42,6 +42,12 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   late final FetchApoyoLineas _fetchApoyoLineas;
   late final UpsertApoyoHorasLinea _upsertApoyoHorasLinea;
   late final DeleteReporteLinea _deleteReporteLinea;
+  late final FetchReporteCabecera _fetchReporteCabecera;
+  late final UpdateReporteObservaciones _updateReporteObservaciones;
+
+  final TextEditingController _observacionesCtrl = TextEditingController();
+  bool _showObservaciones = false;
+  static const int _obsMaxLength = 2000;
 
   final _calculateHoras = CalculateHoras();
   final _validateApoyoHorasLineas = ValidateApoyoHorasLineas();
@@ -55,8 +61,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     _fetchApoyoLineas = FetchApoyoLineas(repository);
     _upsertApoyoHorasLinea = UpsertApoyoHorasLinea(repository);
     _deleteReporteLinea = DeleteReporteLinea(repository);
+    _fetchReporteCabecera = FetchReporteCabecera(repository);
+    _updateReporteObservaciones = UpdateReporteObservaciones(repository);
     _loadAreas();
     _loadLineasExistentes();
+    _loadObservaciones();
   }
 
   @override
@@ -65,6 +74,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
       t.codigoCtrl.dispose();
       t.nombreCtrl.dispose();
     }
+    _observacionesCtrl.dispose();
     super.dispose();
   }
 
@@ -341,6 +351,19 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     }
   }
 
+
+  Future<void> _loadObservaciones() async {
+    try {
+      final cabecera = await _fetchReporteCabecera.call(widget.reporteId);
+      final texto = (cabecera.observaciones ?? '').trim();
+      if (!mounted) return;
+      setState(() {
+        _observacionesCtrl.text = texto;
+        _showObservaciones = texto.isNotEmpty;
+      });
+    } catch (_) {}
+  }
+
   String _fmt(TimeOfDay? t) {
     if (t == null) return 'null';
     return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -443,6 +466,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
           );
         }
       }
+
+      await _updateReporteObservaciones.call(
+        reporteId: widget.reporteId,
+        observaciones: _observacionesCtrl.text.trim(),
+      );
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -566,13 +594,36 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                   ),
 
                 const SizedBox(height: 8),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _addTrabajador,
-                    icon: const Icon(Icons.person_add_outlined),
-                    label: const Text('Agregar trabajador'),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _addTrabajador,
+                      icon: const Icon(Icons.person_add_outlined),
+                      label: const Text('Agregar trabajador'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _showObservaciones = !_showObservaciones),
+                      icon: Icon(_showObservaciones ? Icons.remove_comment_outlined : Icons.add_comment_outlined),
+                      label: const Text('Observaciones'),
+                    ),
+                  ],
                 ),
+                if (_showObservaciones) ...[
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _observacionesCtrl,
+                    minLines: 3,
+                    maxLines: 6,
+                    maxLength: _obsMaxLength,
+                    decoration: const InputDecoration(
+                      labelText: 'Observaciones',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 50,

@@ -77,6 +77,27 @@ class ReportRepositoryImpl implements ReportRepository {
   }
 
   @override
+  Future<ReporteCabecera> fetchReporteCabecera(int reporteId) async {
+    final item = await _remote.fetchReporteCabecera(reporteId);
+    return ReporteCabecera(
+      id: (item['id'] as num?)?.toInt() ?? reporteId,
+      tipoReporte: (item['tipo_reporte'] ?? '').toString(),
+      observaciones: item['observaciones']?.toString(),
+    );
+  }
+
+  @override
+  Future<void> updateReporteObservaciones({
+    required int reporteId,
+    String? observaciones,
+  }) async {
+    await _remote.updateReporteObservaciones(
+      reporteId: reporteId,
+      observaciones: observaciones,
+    );
+  }
+
+  @override
   Future<Uint8List> fetchConteoRapidoExcel(int reporteId) async {
     return _remote.fetchConteoRapidoExcel(reporteId);
   }

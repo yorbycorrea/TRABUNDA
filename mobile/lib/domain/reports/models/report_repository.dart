@@ -16,6 +16,11 @@ abstract class ReportRepository {
   });
 
   Future<Uint8List> fetchReportePdf(int reporteId);
+  Future<ReporteCabecera> fetchReporteCabecera(int reporteId);
+  Future<void> updateReporteObservaciones({
+    required int reporteId,
+    String? observaciones,
+  });
   Future<Uint8List> fetchConteoRapidoExcel(int reporteId);
 
   Future<int> createReporte({

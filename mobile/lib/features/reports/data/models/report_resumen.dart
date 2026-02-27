@@ -5,6 +5,7 @@ class ReportResumen {
   final String planillero; // creado_por_nombre
   final String? tipoReporte; // "APOYO_HORAS" | ...
   final String? areaNombre; // puede venir null
+  final String? observaciones;
 
   ReportResumen({
     required this.id,
@@ -13,6 +14,7 @@ class ReportResumen {
     required this.planillero,
     required this.tipoReporte,
     required this.areaNombre,
+    required this.observaciones,
   });
 
   factory ReportResumen.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class ReportResumen {
       planillero: json['creado_por_nombre']?.toString() ?? '',
       tipoReporte: json['tipo_reporte']?.toString(),
       areaNombre: json['area_nombre']?.toString(),
+      observaciones: json['observaciones']?.toString(),
     );
   }
 }

@@ -240,6 +240,27 @@ function renderTablaHoras(doc, lineas) {
   });
 }
 
+function sanitizarObservaciones(rawObservaciones) {
+  if (rawObservaciones === undefined) {
+    return { provided: false, value: undefined };
+  }
+
+  const texto = String(rawObservaciones ?? '').trim();
+
+  if (!texto) {
+    return { provided: true, value: null };
+  }
+
+  const maxLength = 2000;
+  if (texto.length > maxLength) {
+    const error = new Error(`Las observaciones no pueden exceder ${maxLength} caracteres`);
+    error.code = 'OBSERVACIONES_TOO_LONG';
+    throw error;
+  }
+
+  return { provided: true, value: texto };
+}
+
 function flagParaTipoReporte(tipo) {
   switch (tipo) {
     case "APOYO_HORAS":
@@ -1960,7 +1981,8 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
          r.turno,
          r.tipo_reporte,
          r.creado_por_user_id,
-         r.creado_por_nombre
+         r.creado_por_nombre,
+         r.observaciones
        FROM reportes r
        WHERE r.id = ?
        LIMIT 1`,
@@ -2357,7 +2379,20 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
       .replaceAll("{{FECHA}}", fechaTxt)
       .replaceAll("{{TURNO}}", reporte.turno || "")
       .replaceAll("{{PLANILLERO}}", reporte.creado_por_nombre || "")
-      .replaceAll("{{FILAS}}", filasHtml);
+      .replaceAll("{{FILAS}}", filasHtml)
+      .replaceAll("{{OBSERVACIONES_BLOQUE}}", (() => {
+        if (!["APOYO_HORAS", "SANEAMIENTO"].includes(reporte.tipo_reporte)) return "";
+        const observacionesTexto = String(reporte.observaciones ?? "").trim();
+        if (!observacionesTexto) return "";
+        const observacionesHtml = observacionesTexto
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;")
+          .replaceAll("\n", "<br>");
+        return `<div style="margin-top:12px;"><div style="font-weight:700; margin-bottom:4px;">OBSERVACIONES</div><div>${observacionesHtml}</div></div>`;
+      })());
 
     const browser = await chromium.launch();
     const page = await browser.newPage();
@@ -2446,6 +2481,24 @@ router.get("/:id", authMiddleware, async (req, res) => {
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { fecha, turno, tipo_reporte, area_id, observaciones } = req.body;
+    let observacionesSanitizadas = null;
+    try {
+      const observacionesPayload = sanitizarObservaciones(observaciones);
+      if (
+        observacionesPayload.provided &&
+        !["APOYO_HORAS", "SANEAMIENTO"].includes(tipo_reporte)
+      ) {
+        return res.status(400).json({
+          error: "observaciones solo aplica para APOYO_HORAS y SANEAMIENTO",
+        });
+      }
+      observacionesSanitizadas = observacionesPayload.value;
+    } catch (error) {
+      if (error?.code === "OBSERVACIONES_TOO_LONG") {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
     const creado_por_user_id = req.user.id;
 
     if (!fecha || !turno || !tipo_reporte) {
@@ -2558,7 +2611,7 @@ router.post("/", authMiddleware, async (req, res) => {
         areaIdFinal,
         creado_por_user_id,
         creado_por_nombre,
-        observaciones || null,
+        observacionesSanitizadas,
         "ABIERTO",
         usaEspera24h ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
       ]
@@ -3008,6 +3061,15 @@ router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { fecha, turno, area_id, observaciones } = req.body;
+    let observacionesSanitizadas;
+    try {
+      observacionesSanitizadas = sanitizarObservaciones(observaciones);
+    } catch (error) {
+      if (error?.code === "OBSERVACIONES_TOO_LONG") {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
 
     const [rows] = await pool.query(
       "SELECT id, tipo_reporte FROM reportes WHERE id = ? LIMIT 1",
@@ -3033,9 +3095,14 @@ router.put("/:id", authMiddleware, async (req, res) => {
       params.push(t);
     }
 
-    if (Object.prototype.hasOwnProperty.call(req.body, "observaciones")) {
+    if (observacionesSanitizadas?.provided) {
+      if (!["APOYO_HORAS", "SANEAMIENTO"].includes(tipoReporte)) {
+        return res.status(400).json({
+          error: "observaciones solo aplica para APOYO_HORAS y SANEAMIENTO",
+        });
+      }
       updates.push("observaciones = ?");
-      params.push(observaciones || null);
+      params.push(observacionesSanitizadas.value);
     }
 
     // SANEAMIENTO no usa area_id en cabecera
@@ -3140,6 +3207,71 @@ router.get("/conteo-rapido/:id", authMiddleware, async (req, res) => {
   }
 });
 
+
+
+/* ======================================
+   PATCH /reportes/:id/observaciones
+====================================== */
+router.patch("/:id/observaciones", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(
+      "SELECT id, tipo_reporte, creado_por_user_id FROM reportes WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "Reporte no encontrado" });
+    }
+
+    const reporte = rows[0];
+    if (!["APOYO_HORAS", "SANEAMIENTO"].includes(reporte.tipo_reporte)) {
+      return res.status(400).json({
+        error: "observaciones solo aplica para APOYO_HORAS y SANEAMIENTO",
+      });
+    }
+
+    const role =
+      Array.isArray(req.user.roles) && req.user.roles.length
+        ? req.user.roles[0]
+        : undefined;
+
+    if (role !== "ADMINISTRADOR" && reporte.creado_por_user_id !== req.user.id) {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+
+    let observacionesSanitizadas;
+    try {
+      observacionesSanitizadas = sanitizarObservaciones(req.body?.observaciones);
+    } catch (error) {
+      if (error?.code === "OBSERVACIONES_TOO_LONG") {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
+
+    if (!observacionesSanitizadas.provided) {
+      return res.status(400).json({
+        error: "Debes enviar el campo observaciones",
+      });
+    }
+
+    await pool.query(
+      "UPDATE reportes SET observaciones = ? WHERE id = ?",
+      [observacionesSanitizadas.value, id]
+    );
+
+    return res.json({
+      message: "Observaciones actualizadas",
+      reporte_id: Number(id),
+      observaciones: observacionesSanitizadas.value,
+    });
+  } catch (err) {
+    console.error("Error al actualizar observaciones:", err);
+    return res.status(500).json({ error: "Error interno al actualizar observaciones" });
+  }
+});
 
 
 /* ======================================

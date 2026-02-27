@@ -43,6 +43,12 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   late final DeleteReporteLinea _deleteReporteLinea;
   late final CalculateHoras _calculateHoras;
   late final ValidateSaneamientoLineas _validateSaneamientoLineas;
+  late final FetchReporteCabecera _fetchReporteCabecera;
+  late final UpdateReporteObservaciones _updateReporteObservaciones;
+
+  final TextEditingController _observacionesCtrl = TextEditingController();
+  bool _showObservaciones = false;
+  static const int _obsMaxLength = 2000;
 
   @override
   void initState() {
@@ -53,8 +59,11 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     _deleteReporteLinea = DeleteReporteLinea(repository);
     _calculateHoras = CalculateHoras();
     _validateSaneamientoLineas = const ValidateSaneamientoLineas();
+    _fetchReporteCabecera = FetchReporteCabecera(repository);
+    _updateReporteObservaciones = UpdateReporteObservaciones(repository);
     debugPrint('SANEAMIENTO initState reporteId=${widget.reporteId}');
     _loadLineasExistentes();
+    _loadObservaciones();
   }
 
   @override
@@ -64,6 +73,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
       it.nombreCtrl.dispose();
       it.laboresCtrl.dispose();
     }
+    _observacionesCtrl.dispose();
     super.dispose();
   }
 
@@ -281,6 +291,19 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     }
   }
 
+
+  Future<void> _loadObservaciones() async {
+    try {
+      final cabecera = await _fetchReporteCabecera.call(widget.reporteId);
+      final texto = (cabecera.observaciones ?? '').trim();
+      if (!mounted) return;
+      setState(() {
+        _observacionesCtrl.text = texto;
+        _showObservaciones = texto.isNotEmpty || widget.readOnly;
+      });
+    } catch (_) {}
+  }
+
   Future<void> _guardar() async {
     if (widget.readOnly) return;
     if (!_formKey.currentState!.validate()) return;
@@ -391,6 +414,11 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
           );
         }
       }
+
+      await _updateReporteObservaciones.call(
+        reporteId: widget.reporteId,
+        observaciones: _observacionesCtrl.text.trim(),
+      );
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -527,13 +555,40 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                 ),
 
               const SizedBox(height: 8),
-              Center(
-                child: TextButton.icon(
-                  onPressed: widget.readOnly ? null : _addTrabajador,
-                  icon: const Icon(Icons.person_add_outlined),
-                  label: const Text('Agregar trabajador'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton.icon(
+                    onPressed: widget.readOnly ? null : _addTrabajador,
+                    icon: const Icon(Icons.person_add_outlined),
+                    label: const Text('Agregar trabajador'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _showObservaciones = !_showObservaciones),
+                    icon: Icon(_showObservaciones ? Icons.remove_comment_outlined : Icons.add_comment_outlined),
+                    label: const Text('Observaciones'),
+                  ),
+                ],
               ),
+              if (_showObservaciones || (widget.readOnly && _observacionesCtrl.text.trim().isNotEmpty)) ...[
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _observacionesCtrl,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: _obsMaxLength,
+                  readOnly: widget.readOnly,
+                  decoration: InputDecoration(
+                    labelText: 'Observaciones',
+                    alignLabelWithHint: true,
+                    border: const OutlineInputBorder(),
+                    helperText: widget.readOnly && _observacionesCtrl.text.trim().isEmpty
+                        ? 'Sin observaciones'
+                        : null,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               if (!widget.readOnly)
                 SizedBox(

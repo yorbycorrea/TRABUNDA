@@ -49,6 +49,27 @@ class FetchReportePdf {
   }
 }
 
+class FetchReporteCabecera {
+  FetchReporteCabecera(this._repository);
+  final ReportRepository _repository;
+
+  Future<ReporteCabecera> call(int reporteId) {
+    return _repository.fetchReporteCabecera(reporteId);
+  }
+}
+
+class UpdateReporteObservaciones {
+  UpdateReporteObservaciones(this._repository);
+  final ReportRepository _repository;
+
+  Future<void> call({required int reporteId, String? observaciones}) {
+    return _repository.updateReporteObservaciones(
+      reporteId: reporteId,
+      observaciones: observaciones,
+    );
+  }
+}
+
 class FetchConteoRapidoExcel {
   FetchConteoRapidoExcel(this._repository);
   final ReportRepository _repository;
