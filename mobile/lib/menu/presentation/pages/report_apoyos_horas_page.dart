@@ -351,7 +351,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     }
   }
 
-
   Future<void> _loadObservaciones() async {
     try {
       final cabecera = await _fetchReporteCabecera.call(widget.reporteId);
@@ -604,8 +603,14 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     ),
                     const SizedBox(width: 8),
                     TextButton.icon(
-                      onPressed: () => setState(() => _showObservaciones = !_showObservaciones),
-                      icon: Icon(_showObservaciones ? Icons.remove_comment_outlined : Icons.add_comment_outlined),
+                      onPressed: () => setState(
+                        () => _showObservaciones = !_showObservaciones,
+                      ),
+                      icon: Icon(
+                        _showObservaciones
+                            ? Icons.add_comment
+                            : Icons.add_comment_outlined,
+                      ),
                       label: const Text('Observaciones'),
                     ),
                   ],

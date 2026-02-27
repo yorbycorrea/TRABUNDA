@@ -291,7 +291,6 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     }
   }
 
-
   Future<void> _loadObservaciones() async {
     try {
       final cabecera = await _fetchReporteCabecera.call(widget.reporteId);
@@ -565,13 +564,21 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   ),
                   const SizedBox(width: 8),
                   TextButton.icon(
-                    onPressed: () => setState(() => _showObservaciones = !_showObservaciones),
-                    icon: Icon(_showObservaciones ? Icons.remove_comment_outlined : Icons.add_comment_outlined),
+                    onPressed: () => setState(
+                      () => _showObservaciones = !_showObservaciones,
+                    ),
+                    icon: Icon(
+                      _showObservaciones
+                          ? Icons.add_comment
+                          : Icons.add_comment_outlined,
+                    ),
                     label: const Text('Observaciones'),
                   ),
                 ],
               ),
-              if (_showObservaciones || (widget.readOnly && _observacionesCtrl.text.trim().isNotEmpty)) ...[
+              if (_showObservaciones ||
+                  (widget.readOnly &&
+                      _observacionesCtrl.text.trim().isNotEmpty)) ...[
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _observacionesCtrl,
@@ -583,7 +590,9 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                     labelText: 'Observaciones',
                     alignLabelWithHint: true,
                     border: const OutlineInputBorder(),
-                    helperText: widget.readOnly && _observacionesCtrl.text.trim().isEmpty
+                    helperText:
+                        widget.readOnly &&
+                            _observacionesCtrl.text.trim().isEmpty
                         ? 'Sin observaciones'
                         : null,
                   ),
