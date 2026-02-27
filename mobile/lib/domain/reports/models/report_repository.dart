@@ -79,6 +79,8 @@ abstract class ReportRepository {
     String? labores,
   });
 
+  Future<void> deleteReporteLinea(int lineaId);
+
   Future<List<ConteoRapidoArea>> fetchConteoRapidoAreas();
 
   Future<ConteoRapidoOpenResult> openConteoRapido({

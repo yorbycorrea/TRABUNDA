@@ -194,6 +194,15 @@ class UpsertApoyoHorasLinea {
   }
 }
 
+class DeleteReporteLinea {
+  DeleteReporteLinea(this._repository);
+  final ReportRepository _repository;
+
+  Future<void> call(int lineaId) {
+    return _repository.deleteReporteLinea(lineaId);
+  }
+}
+
 class FetchSaneamientoLineas {
   FetchSaneamientoLineas(this._repository);
   final ReportRepository _repository;

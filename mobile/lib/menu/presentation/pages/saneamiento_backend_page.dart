@@ -40,6 +40,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
 
   late final FetchSaneamientoLineas _fetchSaneamientoLineas;
   late final UpsertSaneamientoLinea _upsertSaneamientoLinea;
+  late final DeleteReporteLinea _deleteReporteLinea;
   late final CalculateHoras _calculateHoras;
   late final ValidateSaneamientoLineas _validateSaneamientoLineas;
 
@@ -49,6 +50,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     final repository = ReportRepositoryImpl(widget.api);
     _fetchSaneamientoLineas = FetchSaneamientoLineas(repository);
     _upsertSaneamientoLinea = UpsertSaneamientoLinea(repository);
+    _deleteReporteLinea = DeleteReporteLinea(repository);
     _calculateHoras = CalculateHoras();
     _validateSaneamientoLineas = const ValidateSaneamientoLineas();
     debugPrint('SANEAMIENTO initState reporteId=${widget.reporteId}');
@@ -158,6 +160,53 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
   }
 
   void _addTrabajador() => setState(() => _items.add(_SaneaFormModel()));
+
+  Future<void> _confirmDeleteTrabajador(int index) async {
+    if (widget.readOnly || index < 0 || index >= _items.length) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar trabajador'),
+        content: const Text('¿Seguro que quieres eliminar este trabajador?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí, eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    final target = _items[index];
+
+    try {
+      if (target.lineaId != null) {
+        await _deleteReporteLinea.call(target.lineaId!);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        final removed = _items.removeAt(index);
+        removed.codigoCtrl.dispose();
+        removed.nombreCtrl.dispose();
+        removed.laboresCtrl.dispose();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      AppNotify.error(
+        context,
+        'Error',
+        'No se pudo eliminar el trabajador: $e',
+      );
+    }
+  }
 
   Future<void> _loadLineasExistentes() async {
     debugPrint(
@@ -390,6 +439,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   readOnly: widget.readOnly,
                   onPickInicio: () => _pickHora(_items[i], true),
                   onPickFin: () => scanAndSetHoraFin(_items[i]),
+                  onDelete: () => _confirmDeleteTrabajador(i),
                   onFillFromScan: (result) {
                     debugPrint(
                       'SANEAMIENTO QR raw result=${result.toString()}',
@@ -526,6 +576,7 @@ class _SaneamientoCard extends StatelessWidget {
     required this.api,
     required this.onPickInicio,
     required this.onPickFin,
+    required this.onDelete,
     required this.onFillFromScan,
     required this.readOnly,
   });
@@ -536,6 +587,7 @@ class _SaneamientoCard extends StatelessWidget {
   final bool readOnly;
   final VoidCallback onPickInicio;
   final VoidCallback onPickFin;
+  final VoidCallback onDelete;
   final void Function(Map<String, dynamic> result) onFillFromScan;
 
   String _horaText(TimeOfDay? t) {
@@ -558,124 +610,140 @@ class _SaneamientoCard extends StatelessWidget {
       color: cs.surfaceVariant.withOpacity(.35),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       margin: const EdgeInsets.only(bottom: 14),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Trabajador ${index + 1}',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 12),
-
-            Row(
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _HoraBox(
-                    label: 'Hora inicio',
-                    value: _horaText(model.inicio),
-                    onTap: readOnly
-                        ? null
-                        : (model.inicio == null)
-                        ? onPickInicio
-                        : () {
-                            AppNotify.warning(
-                              context,
-                              'Atención',
-                              'La hora inicio se registra al escanear y no se puede cambiar.',
-                            );
-                          },
-                    locked: readOnly || model.inicio != null,
-                  ),
+                Text(
+                  'Trabajador ${index + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _HoraBox(
-                    label: 'Hora fin (escaneo)',
-                    value: _horaText(model.fin),
-                    onTap: readOnly ? null : onPickFin,
-                    locked: readOnly,
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HoraBox(
+                        label: 'Hora inicio',
+                        value: _horaText(model.inicio),
+                        onTap: readOnly
+                            ? null
+                            : (model.inicio == null)
+                            ? onPickInicio
+                            : () {
+                                AppNotify.warning(
+                                  context,
+                                  'Atención',
+                                  'La hora inicio se registra al escanear y no se puede cambiar.',
+                                );
+                              },
+                        locked: readOnly || model.inicio != null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _HoraBox(
+                        label: 'Hora fin (escaneo)',
+                        value: _horaText(model.fin),
+                        onTap: readOnly ? null : onPickFin,
+                        locked: readOnly,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: model.codigoCtrl,
+                  keyboardType: TextInputType.number,
+                  readOnly: readOnly,
+                  decoration: InputDecoration(
+                    labelText: 'Código del trabajador',
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: readOnly
+                          ? null
+                          : () async {
+                              final result =
+                                  await Navigator.push<Map<String, dynamic>?>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => QrScannerPage(api: api),
+                                    ),
+                                  );
+                              if (result == null) return;
+                              onFillFromScan(result);
+                            },
+                    ),
+                  ),
+                  validator: (v) =>
+                      isActivo() && (v == null || v.trim().isEmpty)
+                      ? 'Ingresa el código'
+                      : null,
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: model.nombreCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del trabajador',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  readOnly: true,
+                ),
+
+                const SizedBox(height: 14),
+
+                // ✅ ESTE ES EL CAMPO QUE MARCASTE (Labores realizadas)
+                TextFormField(
+                  controller: model.laboresCtrl,
+                  maxLines: 3,
+                  readOnly: readOnly,
+                  decoration: const InputDecoration(
+                    labelText: 'Labores realizadas',
+                    prefixIcon: Icon(Icons.work_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (isActivo() && (v == null || v.trim().isEmpty)) {
+                      return 'Describe las labores';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(height: 14),
-
-            TextFormField(
-              controller: model.codigoCtrl,
-              keyboardType: TextInputType.number,
-              readOnly: readOnly,
-              decoration: InputDecoration(
-                labelText: 'Código del trabajador',
-                prefixIcon: const Icon(Icons.badge_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: readOnly
-                      ? null
-                      : () async {
-                          final result =
-                              await Navigator.push<Map<String, dynamic>?>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => QrScannerPage(api: api),
-                                ),
-                              );
-                          if (result == null) return;
-                          onFillFromScan(result);
-                        },
-                ),
-              ),
-              validator: (v) => isActivo() && (v == null || v.trim().isEmpty)
-                  ? 'Ingresa el código'
-                  : null,
-            ),
-
-            const SizedBox(height: 14),
-
-            TextFormField(
-              controller: model.nombreCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del trabajador',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-              readOnly: true,
-            ),
-
-            const SizedBox(height: 14),
-
-            // ✅ ESTE ES EL CAMPO QUE MARCASTE (Labores realizadas)
-            TextFormField(
-              controller: model.laboresCtrl,
-              maxLines: 3,
-              readOnly: readOnly,
-              decoration: const InputDecoration(
-                labelText: 'Labores realizadas',
-                prefixIcon: Icon(Icons.work_outline),
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) {
-                if (isActivo() && (v == null || v.trim().isEmpty)) {
-                  return 'Describe las labores';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: 10),
-
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          if (!readOnly)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                splashRadius: 18,
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onDelete,
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

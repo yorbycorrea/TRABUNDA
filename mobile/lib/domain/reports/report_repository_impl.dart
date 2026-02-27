@@ -332,6 +332,11 @@ class ReportRepositoryImpl implements ReportRepository {
   }
 
   @override
+  Future<void> deleteReporteLinea(int lineaId) async {
+    await _remote.deleteReporteLinea(lineaId);
+  }
+
+  @override
   Future<List<ConteoRapidoArea>> fetchConteoRapidoAreas() async {
     final listAreas = await _remote.fetchConteoRapidoAreas();
 
@@ -457,36 +462,35 @@ class ReportRepositoryImpl implements ReportRepository {
     final recepcionRaw = toList(recepcionMap?['cuadrillas']);
     final fileteadoRaw = toList(fileteadoMap?['cuadrillas']);
 
-    final recepcionCuadrillas = (recepcionRaw.isNotEmpty
-            ? recepcionRaw
-            : allCuadrillasRaw
-                .where((c) => c['tipo'] == 'RECEPCION')
-                .toList())
-        .map(TaCuadrilla.fromJson)
-        .toList();
+    final recepcionCuadrillas =
+        (recepcionRaw.isNotEmpty
+                ? recepcionRaw
+                : allCuadrillasRaw
+                      .where((c) => c['tipo'] == 'RECEPCION')
+                      .toList())
+            .map(TaCuadrilla.fromJson)
+            .toList();
 
-    final fileteadoCuadrillas = (fileteadoRaw.isNotEmpty
-            ? fileteadoRaw
-            : allCuadrillasRaw
-                .where((c) => c['tipo'] == 'FILETEADO')
-                .toList())
-        .map(TaCuadrilla.fromJson)
-        .toList();
+    final fileteadoCuadrillas =
+        (fileteadoRaw.isNotEmpty
+                ? fileteadoRaw
+                : allCuadrillasRaw
+                      .where((c) => c['tipo'] == 'FILETEADO')
+                      .toList())
+            .map(TaCuadrilla.fromJson)
+            .toList();
 
     final apoyosGlobalRaw = toList(apoyosMap?['global']);
     final porCuadrillaRaw =
         apoyosMap?['por_cuadrilla'] ?? apoyosMap?['porCuadrilla'];
 
-    final apoyosGlobal =
-        apoyosGlobalRaw.map(TaCuadrilla.fromJson).toList();
+    final apoyosGlobal = apoyosGlobalRaw.map(TaCuadrilla.fromJson).toList();
     final apoyosPorCuadrilla = <int, List<TaCuadrilla>>{};
 
     if (porCuadrillaRaw is Map) {
       for (final entry in porCuadrillaRaw.entries) {
         final key = int.tryParse(entry.key.toString());
-        final items = toList(entry.value)
-            .map(TaCuadrilla.fromJson)
-            .toList();
+        final items = toList(entry.value).map(TaCuadrilla.fromJson).toList();
         if (key != null) {
           apoyosPorCuadrilla[key] = items;
         } else {

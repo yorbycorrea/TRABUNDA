@@ -379,6 +379,11 @@ class ReportRemoteDataSource {
     return (id is num) ? id.toInt() : null;
   }
 
+  Future<void> deleteReporteLinea(int lineaId) async {
+    final resp = await _api.delete('/reportes/lineas/$lineaId');
+    _ensureSuccess(resp, hint: 'Eliminar línea reporte');
+  }
+
   Future<List<Map<String, dynamic>>> fetchConteoRapidoAreas() async {
     final resp = await _api.get('/areas/conteo-rapido');
     final decoded = _api.decodeJsonOrThrow(resp);

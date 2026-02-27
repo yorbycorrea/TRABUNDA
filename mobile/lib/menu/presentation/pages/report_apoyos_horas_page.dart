@@ -5,7 +5,8 @@ import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/apoyos_horas_use_cases.dart';
-import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart' as hora_fin_scanner;
+import 'package:mobile/menu/presentation/pages/scan_and_set_hora_fin.dart'
+    as hora_fin_scanner;
 
 class ApoyosHorasBackendPage extends StatefulWidget {
   const ApoyosHorasBackendPage({
@@ -40,6 +41,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   late final FetchApoyoAreas _fetchApoyoAreas;
   late final FetchApoyoLineas _fetchApoyoLineas;
   late final UpsertApoyoHorasLinea _upsertApoyoHorasLinea;
+  late final DeleteReporteLinea _deleteReporteLinea;
 
   final _calculateHoras = CalculateHoras();
   final _validateApoyoHorasLineas = ValidateApoyoHorasLineas();
@@ -52,6 +54,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     _fetchApoyoAreas = FetchApoyoAreas(repository);
     _fetchApoyoLineas = FetchApoyoLineas(repository);
     _upsertApoyoHorasLinea = UpsertApoyoHorasLinea(repository);
+    _deleteReporteLinea = DeleteReporteLinea(repository);
     _loadAreas();
     _loadLineasExistentes();
   }
@@ -201,6 +204,52 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
   }
 
   void _addTrabajador() => setState(() => _trabajadores.add(_ApoyoFormModel()));
+
+  Future<void> _confirmDeleteTrabajador(int index) async {
+    if (index < 0 || index >= _trabajadores.length) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar trabajador'),
+        content: const Text('¿Seguro que quieres eliminar este trabajador?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí, eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    final target = _trabajadores[index];
+
+    try {
+      if (target.lineaId != null) {
+        await _deleteReporteLinea.call(target.lineaId!);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        final removed = _trabajadores.removeAt(index);
+        removed.codigoCtrl.dispose();
+        removed.nombreCtrl.dispose();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      AppNotify.error(
+        context,
+        'Error',
+        'No se pudo eliminar el trabajador: $e',
+      );
+    }
+  }
 
   Future<void> _loadLineasExistentes() async {
     try {
@@ -458,6 +507,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     api: widget.api,
                     onPickInicio: () => _pickHora(_trabajadores[i], true),
                     onPickFin: () => scanAndSetHoraFin(_trabajadores[i]),
+                    onDelete: () => _confirmDeleteTrabajador(i),
                     onChangedArea: (a) {
                       setState(() {
                         _trabajadores[i].areaId = a.id;
@@ -578,6 +628,7 @@ class _TrabajadorCard extends StatelessWidget {
     required this.areas,
     required this.onPickInicio,
     required this.onPickFin,
+    required this.onDelete,
     required this.onChangedArea,
     required this.api,
     required this.onFillFromScan,
@@ -588,6 +639,7 @@ class _TrabajadorCard extends StatelessWidget {
   final List<_AreaItem> areas;
   final VoidCallback onPickInicio;
   final VoidCallback onPickFin;
+  final VoidCallback onDelete;
   final void Function(_AreaItem) onChangedArea;
   final ApiClient api;
 
@@ -607,124 +659,143 @@ class _TrabajadorCard extends StatelessWidget {
       color: cs.surfaceVariant.withOpacity(.35),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       margin: const EdgeInsets.only(bottom: 14),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Trabajador ${index + 1}',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 12),
-
-            Row(
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _HoraBox(
-                    label: 'Hora inicio',
-                    value: _horaText(model.inicio),
-                    onTap: model.inicio == null
-                        ? onPickInicio
-                        : () {
-                            AppNotify.warning(
+                Text(
+                  'Trabajador ${index + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HoraBox(
+                        label: 'Hora inicio',
+                        value: _horaText(model.inicio),
+                        onTap: model.inicio == null
+                            ? onPickInicio
+                            : () {
+                                AppNotify.warning(
+                                  context,
+                                  'Atención',
+                                  'La hora inicio ya fue registrada y no se puede cambiar.',
+                                );
+                              },
+                        locked: model.inicio != null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _HoraBox(
+                        label: 'Hora fin (escaneo)',
+                        value: _horaText(model.fin),
+                        onTap: onPickFin,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: model.codigoCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Código del trabajador',
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: () async {
+                        final result =
+                            await Navigator.push<Map<String, dynamic>?>(
                               context,
-                              'Atención',
-                              'La hora inicio ya fue registrada y no se puede cambiar.',
+                              MaterialPageRoute(
+                                builder: (_) => QrScannerPage(api: api),
+                              ),
                             );
-                          },
-                    locked: model.inicio != null,
+
+                        if (result == null) return;
+                        onFillFromScan(result);
+                      },
+                    ),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Ingresa el código'
+                      : null,
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: model.nombreCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del trabajador',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _HoraBox(
-                    label: 'Hora fin (escaneo)',
-                    value: _horaText(model.fin),
-                    onTap: onPickFin,
+
+                const SizedBox(height: 14),
+
+                DropdownButtonFormField<int>(
+                  value: model.areaId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Área de apoyo',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: areas
+                      .map(
+                        (a) => DropdownMenuItem<int>(
+                          value: a.id,
+                          child: Text(
+                            a.nombre,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (id) {
+                    if (id == null) return;
+                    final selected = areas.firstWhere((a) => a.id == id);
+                    model.areaId = selected.id;
+                    model.areaNombre = selected.nombre;
+                    onChangedArea(selected);
+                  },
+                  validator: (v) =>
+                      v == null ? 'Selecciona el área de apoyo' : null,
+                ),
+
+                const SizedBox(height: 10),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(height: 14),
-
-            TextFormField(
-              controller: model.codigoCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Código del trabajador',
-                prefixIcon: const Icon(Icons.badge_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () async {
-                    final result = await Navigator.push<Map<String, dynamic>?>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => QrScannerPage(api: api),
-                      ),
-                    );
-
-                    if (result == null) return;
-                    onFillFromScan(result);
-                  },
-                ),
-              ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Ingresa el código' : null,
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              splashRadius: 18,
+              icon: const Icon(Icons.delete_outline),
+              onPressed: onDelete,
             ),
-
-            const SizedBox(height: 14),
-
-            TextFormField(
-              controller: model.nombreCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del trabajador',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            DropdownButtonFormField<int>(
-              value: model.areaId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Área de apoyo',
-                border: OutlineInputBorder(),
-              ),
-              items: areas
-                  .map(
-                    (a) => DropdownMenuItem<int>(
-                      value: a.id,
-                      child: Text(a.nombre, overflow: TextOverflow.ellipsis),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (id) {
-                if (id == null) return;
-                final selected = areas.firstWhere((a) => a.id == id);
-                model.areaId = selected.id;
-                model.areaNombre = selected.nombre;
-                onChangedArea(selected);
-              },
-              validator: (v) =>
-                  v == null ? 'Selecciona el área de apoyo' : null,
-            ),
-
-            const SizedBox(height: 10),
-
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
