@@ -3012,6 +3012,23 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       labores: labores ?? null,
     });
 
+    const trabajadorCodigoPersist =
+      trabajadorIdFinal !== null
+        ? String(trabajadorIdFinal)
+        : (trabajadorCodigoFinal ?? "").toString().trim();
+    const trabajadorNombrePersist = (trabajadorNombreFinal ?? "")
+      .toString()
+      .trim();
+    const trabajadorDocumentoPersist = (trabajadorDocumentoFinal ?? "")
+      .toString()
+      .trim();
+
+    const preferNuevoNoVacio = (valorNuevo, valorExistente) => {
+      const nuevo = (valorNuevo ?? "").toString().trim();
+      if (nuevo) return nuevo;
+      return (valorExistente ?? "").toString().trim();
+    };
+
     // evitar duplicados por trabajador con pendiente (SANEAMIENTO)
     if (tipo === "SANEAMIENTO") {
         const pendientesParams = [reporteId];
@@ -3029,7 +3046,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         : "";
 
       const [pendiente] = await pool.query(
-        `SELECT id
+        `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
          FROM lineas_reporte
          WHERE reporte_id = ?
            ${whereTrabajador}
@@ -3071,6 +3088,25 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     sets.push("labores = ?");
     params.push(labores ?? null);
   }
+  const trabajadorCodigoUpdate = preferNuevoNoVacio(
+    trabajadorCodigoPersist,
+    pendiente[0].trabajador_codigo
+  );
+  const trabajadorNombreUpdate = preferNuevoNoVacio(
+    trabajadorNombrePersist,
+    pendiente[0].trabajador_nombre
+  );
+  const trabajadorDocumentoUpdate = preferNuevoNoVacio(
+    trabajadorDocumentoPersist,
+    pendiente[0].trabajador_documento
+  );
+
+  sets.push("trabajador_codigo = ?");
+  params.push(trabajadorCodigoUpdate || null);
+  sets.push("trabajador_nombre = ?");
+  params.push(trabajadorNombreUpdate || null);
+  sets.push("trabajador_documento = ?");
+  params.push(trabajadorDocumentoUpdate || null);
 
   if (!sets.length) {
     return res.status(400).json({ error: "No hay campos para actualizar" });
@@ -3111,7 +3147,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         ? `AND (${pendientesCondiciones.join(" OR ")})`
         : "";
       const [pendiente] = await pool.query(
-        `SELECT id
+        `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
          FROM lineas_reporte
          WHERE reporte_id = ?
             ${whereTrabajador}
@@ -3122,10 +3158,26 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       );
 
       if (pendiente.length) {
+         const trabajadorCodigoUpdate = preferNuevoNoVacio(
+          trabajadorCodigoPersist,
+          pendiente[0].trabajador_codigo
+        );
+        const trabajadorNombreUpdate = preferNuevoNoVacio(
+          trabajadorNombrePersist,
+          pendiente[0].trabajador_nombre
+        );
+        const trabajadorDocumentoUpdate = preferNuevoNoVacio(
+          trabajadorDocumentoPersist,
+          pendiente[0].trabajador_documento
+        );
+
         await pool.query(
           `UPDATE lineas_reporte
            SET area_id = ?,
                area_nombre = ?,
+               trabajador_codigo = ?,
+               trabajador_nombre = ?,
+               trabajador_documento = ?,
                hora_inicio = ?,
                hora_fin = ?,
                horas = ?
@@ -3133,6 +3185,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
           [
             areaIdFinal,
             areaNombre,
+            trabajadorCodigoUpdate || null,
+            trabajadorNombreUpdate || null,
+            trabajadorDocumentoUpdate || null,
             hora_inicio ?? null,
             horaFinValue,
             horasValue,
@@ -3174,9 +3229,10 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         cuadrilla_id ?? null,
         areaIdFinal, // ✅
         areaNombre, // ✅
-        trabajadorCodigoFinal,
-        trabajadorNombreFinal,
-        trabajadorDocumentoFinal,
+        trabajadorCodigoPersist || null,
+        trabajadorNombrePersist || null,
+        trabajadorDocumentoPersist || null,
+        horasValue,
         horasValue,
         hora_inicio ?? null,
         horaFinValue,
