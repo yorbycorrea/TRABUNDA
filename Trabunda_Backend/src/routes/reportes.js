@@ -2825,20 +2825,12 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
     let trabajadorIdFinal = trabajadorIdEsNumerico ? Number(trabajadorIdInput) : null;
     let trabajadorCodigoFinal = trabajadorCodigoInput;
     let trabajadorNombreFinal = trabajadorNombreInput;
-    const trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
+    let trabajadorDocumentoFinal = trabajadorDocumentoInput || null;
 
-      if (trabajadorIdEsNumerico) {
-      trabajadorIdFinal = Number(trabajadorIdInput);
-      trabajadorCodigoFinal = String(trabajadorIdFinal);
-      if (!trabajadorNombreFinal) {
-        trabajadorNombreFinal = "";
-      }
-      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
-        fuente: "trabajador_id",
-        trabajador_id: trabajadorIdFinal,
-        trabajador_codigo: trabajadorCodigoFinal,
-      });
-    } else if (tieneCodigoNombre) {
+    const requiereSnapshotLookup =
+      trabajadorIdEsNumerico && (!trabajadorNombreFinal || !trabajadorDocumentoFinal);
+
+    if (tieneCodigoNombre) {
       console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
         fuente: "codigo+nombre",
         trabajador_codigo: trabajadorCodigoFinal,
@@ -2875,18 +2867,66 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       );
 
       
-      trabajadorCodigoFinal = (trabajador?.codigo ?? "").toString().trim();
+      trabajadorCodigoFinal = String(trabajador?.codigo ?? "").trim();
       trabajadorNombreFinal =
         trabajador?.nombre ?? trabajador?.nombre_completo ?? "";
     } else if (trabajadorCodigoInput) {
-       trabajadorCodigoFinal = trabajadorCodigoInput;
-      if (!trabajadorNombreFinal) {
-        trabajadorNombreFinal = "";
-      }
+      trabajadorCodigoFinal = trabajadorCodigoInput;
       console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
         fuente: "codigo_directo",
         trabajador_codigo: trabajadorCodigoFinal,
-        
+      });
+    } else if (trabajadorIdEsNumerico) {
+      console.log("[DEBUG][POST /reportes/:id/lineas] Fuente trabajador:", {
+        fuente: "trabajador_id",
+        trabajador_id: trabajadorIdFinal,
+      });
+    }
+
+    if (!trabajadorNombreFinal || !trabajadorDocumentoFinal || requiereSnapshotLookup) {
+      let trabajadorLookup = null;
+
+      if (trabajadorCodigoFinal) {
+        try {
+          const lookup = await resolveTrabajadorLookup({
+            q: trabajadorCodigoFinal,
+            pool,
+          });
+          trabajadorLookup = lookup?.worker ?? null;
+        } catch (error) {
+          console.warn("[DEBUG][POST /reportes/:id/lineas] Lookup por código falló:", {
+            code: error?.code,
+            message: error?.message,
+            trabajador_codigo: trabajadorCodigoFinal,
+          });
+        }
+      }
+
+      if (!trabajadorLookup && trabajadorIdFinal !== null) {
+        const [rows] = await pool.query(
+          `SELECT TRIM(codigo) AS codigo, nombre_completo AS nombre, dni
+           FROM trabajadores
+           WHERE id = ?
+           LIMIT 1`,
+          [trabajadorIdFinal]
+        );
+        trabajadorLookup = rows[0] ?? null;
+      }
+
+      if (trabajadorLookup) {
+        trabajadorCodigoFinal = trabajadorCodigoFinal || String(trabajadorLookup.codigo ?? "").trim();
+        trabajadorNombreFinal = trabajadorNombreFinal || String(trabajadorLookup.nombre ?? "").trim();
+        trabajadorDocumentoFinal = trabajadorDocumentoFinal || String(trabajadorLookup.dni ?? "").trim() || null;
+      }
+    }
+
+    trabajadorCodigoFinal = String(trabajadorCodigoFinal ?? "").trim();
+    trabajadorNombreFinal = String(trabajadorNombreFinal ?? "").trim();
+    trabajadorDocumentoFinal = String(trabajadorDocumentoFinal ?? "").trim() || null;
+
+    if (!trabajadorNombreFinal) {
+      return res.status(400).json({
+        error: "trabajador_nombre es obligatorio para snapshot",
       });
     }
     
@@ -3122,11 +3162,6 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         trabajador_id: trabajadorIdFinal,
       }
     );
-    if (trabajadorIdFinal !== null) {
-      trabajadorCodigoFinal = String(trabajadorIdFinal);
-    }
-
-
     const [result] = await pool.query(
       `INSERT INTO lineas_reporte
        (reporte_id, trabajador_id, cuadrilla_id, area_id, area_nombre,
