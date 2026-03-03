@@ -304,21 +304,21 @@ class ReportRemoteDataSource {
         'horas': horas,
         'area_id': areaId,
       };
+
+      final codigo = trabajadorCodigo?.trim();
+      final nombre = trabajadorNombre?.trim();
+      final documento = trabajadorDocumento?.trim();
       if (trabajadorId != null) {
         payload['trabajador_id'] = trabajadorId;
-      } else {
-        final codigo = trabajadorCodigo?.trim();
-        final nombre = trabajadorNombre?.trim();
-        final documento = trabajadorDocumento?.trim();
-        if (codigo != null && codigo.isNotEmpty) {
-          payload['trabajador_codigo'] = codigo;
-        }
-        if (nombre != null && nombre.isNotEmpty) {
-          payload['trabajador_nombre'] = nombre;
-        }
-        if (documento != null && documento.isNotEmpty) {
-          payload['trabajador_documento'] = documento;
-        }
+      }
+      if (codigo != null && codigo.isNotEmpty) {
+        payload['trabajador_codigo'] = codigo;
+      }
+      if (nombre != null && nombre.isNotEmpty) {
+        payload['trabajador_nombre'] = nombre;
+      }
+      if (documento != null && documento.isNotEmpty) {
+        payload['trabajador_documento'] = documento;
       }
       payload.removeWhere((key, value) => value == null);
       return payload;

@@ -2918,6 +2918,18 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         trabajadorLookup = rows[0] ?? null;
       }
 
+      if (!trabajadorLookup && trabajadorIdFinal !== null) {
+        const [rowsByCodigoFromId] = await pool.query(
+          `SELECT TRIM(codigo) AS codigo, nombre_completo AS nombre, dni
+           FROM trabajadores
+           WHERE TRIM(codigo) = LPAD(?, 5, '0')
+           LIMIT 1`,
+          [trabajadorIdFinal]
+        );
+        trabajadorLookup = rowsByCodigoFromId[0] ?? null;
+      }
+
+
       if (trabajadorLookup) {
         trabajadorCodigoFinal = trabajadorCodigoFinal || String(trabajadorLookup.codigo ?? "").trim();
         trabajadorNombreFinal = trabajadorNombreFinal || String(trabajadorLookup.nombre ?? "").trim();
@@ -3017,10 +3029,9 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       labores: labores ?? null,
     });
 
-    const trabajadorCodigoPersist =
-      trabajadorIdFinal !== null
-        ? String(trabajadorIdFinal)
-        : (trabajadorCodigoFinal ?? "").toString().trim();
+    const trabajadorCodigoPersist = (trabajadorCodigoFinal ?? "")
+      .toString()
+      .trim();
     const trabajadorNombrePersist = (trabajadorNombreFinal ?? "")
       .toString()
       .trim();
