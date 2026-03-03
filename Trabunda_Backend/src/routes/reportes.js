@@ -2113,13 +2113,18 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
       `
       SELECT
         lr.trabajador_codigo,
-        lr.trabajador_nombre,
+        COALESCE(NULLIF(TRIM(lr.trabajador_nombre), ''), t.nombre_completo, '') AS trabajador_nombre,
+        COALESCE(NULLIF(TRIM(lr.trabajador_documento), ''), t.dni, '') AS trabajador_documento,
         lr.hora_inicio,
         lr.hora_fin,
         lr.horas,
         lr.labores,
         COALESCE(lr.area_nombre, a.nombre) AS area_apoyo
       FROM lineas_reporte lr
+      LEFT JOIN trabajadores t ON (
+        TRIM(t.codigo) = TRIM(lr.trabajador_codigo)
+        OR TRIM(t.codigo) = LPAD(TRIM(lr.trabajador_codigo), 5, '0')
+      )
       LEFT JOIN areas a ON a.id = lr.area_id
       WHERE lr.reporte_id = ?
       ORDER BY lr.id ASC
