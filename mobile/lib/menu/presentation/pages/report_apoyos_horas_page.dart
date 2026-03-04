@@ -1,6 +1,7 @@
 import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/utils/horas_farmatter.dart';
 import 'package:mobile/core/widgets/qr_scanner.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
@@ -371,11 +372,8 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
     try {
       for (final t in _trabajadores) {
-        final double? horas =
-            t.horas ??
-            ((t.inicio != null && t.fin != null)
-                ? _calculateHoras(t.inicio!, t.fin!)
-                : null);
+        final bool debeCalcularBackend = t.inicio != null && t.fin != null;
+        final double? horas = debeCalcularBackend ? null : t.horas;
         // ✅ LOG: lo que vas a mandar (lo más importante para “en espera”)
         debugPrint('🟡 UPSERT LINEA -> reporteId=${widget.reporteId}');
         debugPrint('   lineaId=${t.lineaId}');
@@ -806,7 +804,7 @@ class _TrabajadorCard extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
+                    'Total horas: ${model.horas != null ? formatHoras(model.horas!) : '--'}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),

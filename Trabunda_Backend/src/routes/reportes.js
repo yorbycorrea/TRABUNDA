@@ -125,7 +125,7 @@ function formatearTotalHorasParaPdf(linea) {
 
   if (horaInicio && horaFin) {
     try {
-      return calcularTotalHoras(horaInicio, horaFin).toFixed(2);
+      return calcularTotalHoras(horaInicio, horaFin).toFixed(1);
     } catch (_) {
       // fallback al valor persistido si no se puede recalcular
     }
@@ -133,7 +133,7 @@ function formatearTotalHorasParaPdf(linea) {
 
   const horasPersistidas = Number(linea?.horas);
   if (Number.isFinite(horasPersistidas)) {
-    return Math.abs(horasPersistidas).toFixed(2);
+    return Math.abs(horasPersistidas).toFixed(1);
   }
 
   return linea?.horas ?? "";

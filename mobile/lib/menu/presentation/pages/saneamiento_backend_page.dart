@@ -1,6 +1,7 @@
 import 'package:mobile/core/ui/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/utils/horas_farmatter.dart';
 import 'package:mobile/domain/reports/report_repository_impl.dart';
 import 'package:mobile/domain/reports/usecase/report_use_cases.dart';
 import 'package:mobile/domain/reports/usecase/saneamiento_use_cases.dart';
@@ -318,11 +319,8 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
           trabajadorId: t.trabajadorId,
           trabajadorCodigo: t.trabajadorCodigo ?? t.codigoCtrl.text.trim(),
         );
-        final horas =
-            t.horas ??
-            ((t.inicio != null && t.fin != null)
-                ? _calculateHoras(t.inicio!, t.fin!)
-                : null);
+        final bool debeCalcularBackend = t.inicio != null && t.fin != null;
+        final horas = debeCalcularBackend ? null : t.horas;
         final trabajadorDocumento = (t.trabajadorDocumento ?? t.dniQr ?? '')
             .trim();
         final trabajadorDocumentoOrNull = trabajadorDocumento.isEmpty
@@ -766,7 +764,7 @@ class _SaneamientoCard extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    'Total horas: ${model.horas != null ? model.horas!.toStringAsFixed(2) : '--'}',
+                    'Total horas: ${model.horas != null ? formatHoras(model.horas!) : '--'}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),

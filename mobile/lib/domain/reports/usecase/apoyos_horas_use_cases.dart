@@ -31,10 +31,24 @@ class ApoyoHorasScanResult {
 
 class CalculateHoras {
   double call(TimeOfDay inicio, TimeOfDay fin) {
-    final start = Duration(hours: inicio.hour, minutes: inicio.minute);
-    final end = Duration(hours: fin.hour, minutes: fin.minute);
-    final diff = end - start;
-    return diff.inMinutes / 60.0;
+    final inicioMin = (inicio.hour * 60) + inicio.minute;
+    final finOriginalMin = (fin.hour * 60) + fin.minute;
+
+    var finMin = finOriginalMin;
+    if (finMin < inicioMin) {
+      finMin += 24 * 60;
+    }
+
+    var duracionMin = finMin - inicioMin;
+    duracionMin -= 30;
+
+    if (duracionMin < 0) {
+      return 0;
+    }
+
+    final duracionHoras = duracionMin / 60.0;
+    final redondeadoMediaHora = (duracionHoras * 2).round() / 2;
+    return double.parse(redondeadoMediaHora.toStringAsFixed(1));
   }
 }
 

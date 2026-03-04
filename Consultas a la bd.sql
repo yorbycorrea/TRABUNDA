@@ -45,7 +45,25 @@ SELECT
 FROM reportes
 GROUP BY turno;
 
+-- Verificar que reportes han sido cerrados a tiempo 
+SELECT 
+    creado_por_nombre, 
+    fecha, 
+    vence_en, 
+    cerrado_en,
+    TIMEDIFF(cerrado_en, vence_en) AS retraso
+FROM reportes
+WHERE estado = 'CERRADO' AND cerrado_en > vence_en;
 
+-- Verificar que usuarios han estado activos recientemente en el sistema
+SELECT 
+    u.nombre, 
+    rt.last_used_at, 
+    rt.expires_at
+FROM users u
+JOIN refresh_tokens rt ON u.id = rt.user_id
+WHERE rt.revoked_at IS NULL
+ORDER BY rt.last_used_at DESC;
 
 
 
