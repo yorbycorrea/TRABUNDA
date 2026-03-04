@@ -10,6 +10,7 @@ const { chromium } = require("playwright");
 const ExcelJS = require('exceljs');
 const { getTrabajadorPorCodigo } = require("../services/trabajadorApi");
 const { resolveTrabajadorLookup } = require("../services/trabajadorLookup");
+const { calcHorasConAlmuerzo, calcularDiferenciaMinutos } = require("../utils/horas");
 
 //const { width } = require("pdfkit/js/page");
 
@@ -57,35 +58,8 @@ function textoSeguro(valor) {
   return String(valor);
 }
 
-function timeToMinutes(timeValue) {
-  if (timeValue === null || timeValue === undefined) return null;
-  const [hhRaw, mmRaw] = String(timeValue).split(":");
-  const hh = Number(hhRaw);
-  const mm = Number(mmRaw);
 
-  if (!Number.isInteger(hh) || !Number.isInteger(mm)) return null;
-  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-
-  return hh * 60 + mm;
-}
-
-function calcularDiferenciaMinutos(horaInicio, horaFin) {
-  const inicioMin = timeToMinutes(horaInicio);
-  const finMinOriginal = timeToMinutes(horaFin);
-
-  if (inicioMin === null || finMinOriginal === null) {
-    throw new Error("Formato de hora inválido");
-  }
-
-  let finMin = finMinOriginal;
-  if (finMin < inicioMin) {
-    finMin += 24 * 60;
-  }
-
-  return finMin - inicioMin;
-}
-
-function calcularTotalHoras(horaInicio, horaFin) {
+function calcularTotalHoras(horaInicio, horaFin, options = {}) {
   const totalMin = calcularDiferenciaMinutos(horaInicio, horaFin);
 
   if (totalMin <= 0) {
@@ -98,7 +72,7 @@ function calcularTotalHoras(horaInicio, horaFin) {
     );
   }
 
-  return totalMin / 60;
+  return calcHorasConAlmuerzo(horaInicio, horaFin, options);
 }
 
 function formatearTotalHorasParaPdf(linea) {

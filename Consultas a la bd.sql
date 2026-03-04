@@ -37,6 +37,13 @@ JOIN roles R ON UR.role_id = R.id;
 -- Filtrar por Usuario y por area  y por dia
 SELECT lr.* FROM lineas_reporte lr JOIN reportes r ON lr.reporte_id = r.id WHERE r.fecha = '2026-03-03'   AND r.creado_por_nombre = 'Curay Floriano Luis Martin'   AND r.area = 'SANEAMIENTO';
 
+-- Filtrar que turnos se estan registrando mas reportes
+SELECT 
+    turno, 
+    COUNT(*) AS cantidad_reportes,
+    AVG(CASE WHEN tipo_reporte = 'TRABAJO_AVANCE' THEN 1 ELSE 0 END) as frecuencia_avance
+FROM reportes
+GROUP BY turno;
 
 
 
