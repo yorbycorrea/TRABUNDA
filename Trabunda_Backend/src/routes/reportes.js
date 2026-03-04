@@ -75,6 +75,50 @@ function calcularTotalHoras(horaInicio, horaFin, options = {}) {
   return calcHorasConAlmuerzo(horaInicio, horaFin, options);
 }
 
+const MENSAJE_DURACION_INVALIDA =
+  "La duración del turno es inválida después de descontar almuerzo";
+
+// Excepción de negocio: solo módulos sin reloj aceptan horas manuales.
+function moduloUsaHorasPorReloj(tipoReporte) {
+  return ["APOYO_HORAS", "SANEAMIENTO"].includes(tipoReporte);
+}
+
+function resolverHorasSegunTipo({
+  tipoReporte,
+  horaInicio,
+  horaFin,
+  horasManual,
+  horasFueEnviada = false,
+}) {
+  if (!moduloUsaHorasPorReloj(tipoReporte)) {
+    return { horas: horasFueEnviada ? horasManual ?? null : undefined };
+  }
+
+  if (!horaFin) {
+    return { horas: null };
+  }
+
+  if (!horaInicio) {
+    const error = new Error("hora_inicio es obligatoria cuando se envía hora_fin");
+    error.code = "HORA_INICIO_REQUERIDA";
+    throw error;
+  }
+
+  try {
+    const horasCalculadas = calcularTotalHoras(horaInicio, horaFin);
+    if (!Number.isFinite(horasCalculadas) || horasCalculadas <= 0) {
+      throw new Error(MENSAJE_DURACION_INVALIDA);
+    }
+    return { horas: horasCalculadas };
+  } catch (error) {
+    const wrapped = new Error(MENSAJE_DURACION_INVALIDA);
+    wrapped.code = "DURACION_INVALIDA";
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+
 function formatearTotalHorasParaPdf(linea) {
   const horaInicio = linea?.hora_inicio;
   const horaFin = linea?.hora_fin;
@@ -1629,24 +1673,42 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
     // recalcular horas si llega hora_fin y no mandan horas
     const horaFinLlego = hasField("hora_fin");
     const horaFinValue = horaFinLlego ? body.hora_fin : undefined;
-    const horaFinReal = horaFinLlego && horaFinValue !== null;
-    const permiteCalculoHoras = horaFinReal || clear;
+    
     const horaInicioParaCalculo =
       hasField("hora_inicio")
         ? body.hora_inicio ?? null
         : existingLinea.hora_inicio;
 
-    let horasCalculadas;
-      if (permiteCalculoHoras && horaFinValue && horaInicioParaCalculo) {
-        try {
-          horasCalculadas = calcularTotalHoras(horaInicioParaCalculo, horaFinValue);
-        } catch (error) {
-          return res.status(400).json({ error: error.message });
-        }
+    let horasParaPersistir;
+    const recalcularHoras =
+      moduloUsaHorasPorReloj(tipoReporte) &&
+      (hasField("hora_inicio") || hasField("hora_fin") || hasField("horas"));
+
+      if (recalcularHoras) {
+      const horaFinParaCalculo = horaFinLlego
+        ? horaFinValue ?? null
+        : undefined;
+      try {
+        const resultadoHoras = resolverHorasSegunTipo({
+          tipoReporte,
+          horaInicio: horaInicioParaCalculo,
+          horaFin: horaFinParaCalculo,
+          horasManual: body.horas,
+          horasFueEnviada: hasField("horas"),
+        });
+        horasParaPersistir = resultadoHoras.horas;
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
       }
+    }
 
 
-   if (hasField("horas")) {
+   if (moduloUsaHorasPorReloj(tipoReporte)) {
+      if (horasParaPersistir !== undefined) {
+        updates.push("horas = ?");
+        params.push(horasParaPersistir);
+      }
+    } else if (hasField("horas")) {
       const value = body.horas;
       if (value === null) {
         if (clear) {
@@ -1657,9 +1719,7 @@ router.patch("/lineas/:lineaId", authMiddleware, async (req, res) => {
         updates.push("horas = ?");
         params.push(value);
       }
-    } else if (horaFinReal && horasCalculadas !== undefined) {
-      updates.push("horas = ?");
-      params.push(horasCalculadas);
+    
     }
 
     if (!updates.length) {
@@ -2969,21 +3029,22 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       }
     }
 
-    // calcular horas si llega hora_fin (solo APOYO_HORAS)
-    let horasValue = horas ?? null;
+    
     let horaFinValue = hora_fin ?? null;
-
-    if (tipo === "APOYO_HORAS") {
-      if (horaFinValue) {
-         try {
-          horasValue = calcularTotalHoras(hora_inicio, horaFinValue);
-        } catch (error) {
-          return res.status(400).json({ error: error.message });
-        }
-        
-      } else {
-        horasValue = null; // pendiente
+    let horasValue = horas ?? null;
+ try {
+      const resultadoHoras = resolverHorasSegunTipo({
+        tipoReporte: tipo,
+        horaInicio: hora_inicio ?? null,
+        horaFin: horaFinValue,
+        horasManual: horas,
+        horasFueEnviada: Object.prototype.hasOwnProperty.call(req.body || {}, "horas"),
+      });
+      if (resultadoHoras.horas !== undefined) {
+        horasValue = resultadoHoras.horas;
       }
+      } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
 
      console.log("TEMP LOG (remover luego) POST /reportes/:id/lineas payload final", {
@@ -3064,11 +3125,7 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
   }
 
   // horas
-  if (horas !== undefined) {
-    sets.push("horas = ?");
-    params.push(horasValue ?? null);
-  } else if (hora_fin !== undefined) {
-    // si llegó hora_fin y calculaste horas, actualízalas
+  if (moduloUsaHorasPorReloj(tipo) || horas !== undefined || hora_fin !== undefined) {
     sets.push("horas = ?");
     params.push(horasValue ?? null);
   }
