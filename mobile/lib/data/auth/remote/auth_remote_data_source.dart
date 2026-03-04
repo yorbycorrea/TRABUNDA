@@ -42,9 +42,17 @@ class AuthRemoteDataSource {
     }
 
     final resp = await _api.get('/auth/me');
-    if (resp.statusCode != 200) {
+    if (resp.statusCode == 401 || resp.statusCode == 403) {
       await _api.tokens.clear();
       return null;
+    }
+
+    if (resp.statusCode != 200) {
+      throw AuthLoginException(
+        type: AuthLoginErrorType.server,
+        message: 'No se pudo validar la sesión actual.',
+        statusCode: resp.statusCode,
+      );
     }
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;

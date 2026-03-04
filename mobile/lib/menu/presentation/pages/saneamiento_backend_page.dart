@@ -128,27 +128,6 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
     }).toList();
   }
 
-  Future<void> _pickHora(_SaneaFormModel m, bool inicio) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime:
-          (inicio ? m.inicio : m.fin) ?? const TimeOfDay(hour: 6, minute: 0),
-    );
-    if (picked == null) return;
-
-    setState(() {
-      if (inicio) {
-        m.inicio = picked;
-      } else {
-        m.fin = picked;
-      }
-
-      m.horas = (m.inicio != null && m.fin != null)
-          ? _calculateHoras(m.inicio!, m.fin!)
-          : null;
-    });
-  }
-
   Future<void> scanAndSetHoraFin(_SaneaFormModel model) async {
     if (!mounted) return;
 
@@ -464,7 +443,7 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                   model: _items[i],
                   api: widget.api,
                   readOnly: widget.readOnly,
-                  onPickInicio: () => _pickHora(_items[i], true),
+
                   onPickFin: () => scanAndSetHoraFin(_items[i]),
                   onDelete: () => _confirmDeleteTrabajador(i),
                   onFillFromScan: (result) {
@@ -638,7 +617,7 @@ class _SaneamientoCard extends StatelessWidget {
     required this.index,
     required this.model,
     required this.api,
-    required this.onPickInicio,
+
     required this.onPickFin,
     required this.onDelete,
     required this.onFillFromScan,
@@ -649,7 +628,7 @@ class _SaneamientoCard extends StatelessWidget {
   final _SaneaFormModel model;
   final ApiClient api;
   final bool readOnly;
-  final VoidCallback onPickInicio;
+
   final VoidCallback onPickFin;
   final VoidCallback onDelete;
   final void Function(Map<String, dynamic> result) onFillFromScan;
@@ -695,8 +674,6 @@ class _SaneamientoCard extends StatelessWidget {
                         value: _horaText(model.inicio),
                         onTap: readOnly
                             ? null
-                            : (model.inicio == null)
-                            ? onPickInicio
                             : () {
                                 AppNotify.warning(
                                   context,

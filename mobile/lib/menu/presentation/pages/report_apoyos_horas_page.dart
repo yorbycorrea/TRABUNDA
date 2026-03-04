@@ -173,26 +173,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         .toList();
   }
 
-  Future<void> _pickHora(_ApoyoFormModel m, bool inicio) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime:
-          (inicio ? m.inicio : m.fin) ?? const TimeOfDay(hour: 6, minute: 0),
-    );
-    if (picked == null) return;
-
-    setState(() {
-      if (inicio) {
-        m.inicio = picked;
-      } else {
-        m.fin = picked;
-      }
-      m.horas = (m.inicio != null && m.fin != null)
-          ? _calculateHoras(m.inicio!, m.fin!)
-          : null;
-    });
-  }
-
   Future<void> scanAndSetHoraFin(_ApoyoFormModel model) async {
     if (!mounted) return;
 
@@ -532,7 +512,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     model: _trabajadores[i],
                     areas: _areas,
                     api: widget.api,
-                    onPickInicio: () => _pickHora(_trabajadores[i], true),
+
                     onPickFin: () => scanAndSetHoraFin(_trabajadores[i]),
                     onDelete: () => _confirmDeleteTrabajador(i),
                     onChangedArea: (a) {
@@ -682,7 +662,7 @@ class _TrabajadorCard extends StatelessWidget {
     required this.index,
     required this.model,
     required this.areas,
-    required this.onPickInicio,
+
     required this.onPickFin,
     required this.onDelete,
     required this.onChangedArea,
@@ -693,7 +673,7 @@ class _TrabajadorCard extends StatelessWidget {
   final int index;
   final _ApoyoFormModel model;
   final List<_AreaItem> areas;
-  final VoidCallback onPickInicio;
+
   final VoidCallback onPickFin;
   final VoidCallback onDelete;
   final void Function(_AreaItem) onChangedArea;
@@ -734,15 +714,7 @@ class _TrabajadorCard extends StatelessWidget {
                       child: _HoraBox(
                         label: 'Hora inicio',
                         value: _horaText(model.inicio),
-                        onTap: model.inicio == null
-                            ? onPickInicio
-                            : () {
-                                AppNotify.warning(
-                                  context,
-                                  'Atención',
-                                  'La hora inicio ya fue registrada y no se puede cambiar.',
-                                );
-                              },
+                        onTap: null,
                         locked: model.inicio != null,
                       ),
                     ),

@@ -46,10 +46,10 @@ class AuthController extends ChangeNotifier {
       if (currentUser == null) {
         _user = null;
         nextStatus = AuthStatus.unauthenticated;
-        return;
+      } else {
+        _user = currentUser;
+        nextStatus = AuthStatus.authenticated;
       }
-      _user = currentUser;
-      _updateState((AuthStatus.authenticated));
     } catch (e) {
       _user = null;
       if (_isNetworkError(e)) {
@@ -58,9 +58,9 @@ class AuthController extends ChangeNotifier {
         _errorMessage = 'No se pudo validar la sesión. Intenta de nuevo';
       }
       nextStatus = AuthStatus.error;
-    } finally {
-      _updateState(nextStatus);
     }
+
+    _updateState(nextStatus);
   }
 
   bool _isNetworkError(Object error) {

@@ -3249,7 +3249,6 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         trabajadorNombrePersist || null,
         trabajadorDocumentoPersist || null,
         horasValue,
-        horasValue,
         hora_inicio ?? null,
         horaFinValue,
         kilos ?? null,
