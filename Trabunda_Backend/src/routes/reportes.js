@@ -3074,6 +3074,28 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       .toString()
       .trim();
 
+    const logDuplicateCheck = ({
+      reporteId,
+      trabajadorCodigo,
+      trabajadorDocumento,
+      query,
+      params,
+      rowsEncontradas,
+      resultadoComparacionLocal,
+    }) => {
+      console.log("[DUPLICATE CHECK]");
+      console.log(`reporte_id: ${reporteId}`);
+      console.log(`trabajador_codigo: ${trabajadorCodigo || ""}`);
+      console.log(`trabajador_documento: ${trabajadorDocumento || ""}`);
+      console.log("query:");
+      console.log(query.trim());
+      console.log(`params: ${JSON.stringify(params || [])}`);
+      console.log(`rowsEncontradas: ${rowsEncontradas}`);
+      console.log(`resultadoQueryBD: ${rowsEncontradas > 0}`);
+      console.log(`resultadoComparacionLocal: ${resultadoComparacionLocal}`);
+      console.log(`timestamp: ${new Date().toISOString()}`);
+    };
+
     const preferNuevoNoVacio = (valorNuevo, valorExistente) => {
       const nuevo = (valorNuevo ?? "").toString().trim();
       if (nuevo) return nuevo;
@@ -3096,16 +3118,23 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
         ? `AND (${pendientesCondiciones.join(" OR ")})`
         : "";
 
-      const [pendiente] = await pool.query(
-        `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
+      const duplicateCheckQuery = `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
          FROM lineas_reporte
          WHERE reporte_id = ?
            ${whereTrabajador}
            AND hora_fin IS NULL
          ORDER BY id DESC
-         LIMIT 1`,
-         pendientesParams
-      );
+         LIMIT 1`;
+      const [pendiente] = await pool.query(duplicateCheckQuery, pendientesParams);
+      logDuplicateCheck({
+        reporteId,
+        trabajadorCodigo: trabajadorCodigoFinal,
+        trabajadorDocumento: trabajadorDocumentoFinal,
+        query: duplicateCheckQuery,
+        params: pendientesParams,
+        rowsEncontradas: pendiente.length,
+        resultadoComparacionLocal: pendiente.length > 0,
+      });
 
      if (pendiente.length) {
   const sets = [];
@@ -3193,16 +3222,23 @@ router.post("/:id/lineas", authMiddleware, async (req, res) => {
       const whereTrabajador = pendientesCondiciones.length
         ? `AND (${pendientesCondiciones.join(" OR ")})`
         : "";
-      const [pendiente] = await pool.query(
-        `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
+      const duplicateCheckQuery = `SELECT id, trabajador_codigo, trabajador_nombre, trabajador_documento
          FROM lineas_reporte
          WHERE reporte_id = ?
             ${whereTrabajador}
            AND hora_fin IS NULL
          ORDER BY id DESC
-         LIMIT 1`,
-          pendientesParams
-      );
+         LIMIT 1`;
+      const [pendiente] = await pool.query(duplicateCheckQuery, pendientesParams);
+      logDuplicateCheck({
+        reporteId,
+        trabajadorCodigo: trabajadorCodigoFinal,
+        trabajadorDocumento: trabajadorDocumentoFinal,
+        query: duplicateCheckQuery,
+        params: pendientesParams,
+        rowsEncontradas: pendiente.length,
+        resultadoComparacionLocal: pendiente.length > 0,
+      });
 
       if (pendiente.length) {
          const trabajadorCodigoUpdate = preferNuevoNoVacio(

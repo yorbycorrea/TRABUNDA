@@ -14,7 +14,18 @@ const respondWriteDisabled = (res) =>
     .json({ error: "Operación no disponible sin API de trabajadores." });
 
 const logLookup = (payload) => {
-  console.info("[trabajadores.lookup]", payload);
+  const entries = Object.entries(payload || {}).map(([key, value]) => {
+    const printable =
+      typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? value
+        : JSON.stringify(value);
+    return `${key}: ${printable}`;
+  });
+
+  console.log("[LOOKUP RESULT]");
+  for (const line of entries) {
+    console.log(line);
+  }
 };
 
 
@@ -23,6 +34,12 @@ const logLookup = (payload) => {
 // =======================================
 router.get("/lookup", authMiddleware, async (req, res) => {
    const q = req.query.q;
+   const qResolved = String(q ?? "").trim();
+
+   console.log("[LOOKUP REQUEST]");
+   console.log(`q: ${qResolved}`);
+   console.log(`tipoDetectado: ${/^\d{8}$/.test(qResolved) ? "dni" : "codigo"}`);
+   console.log(`timestamp: ${new Date().toISOString()}`);
 
   try {
     
@@ -30,7 +47,6 @@ router.get("/lookup", authMiddleware, async (req, res) => {
     return res.json({ ok: true, worker });
   } catch (err) {
     const code = err?.code || err?.message;
-    const qResolved = String(q ?? "").trim();
     const status = code === "Q_REQUERIDO" || code === "CODIGO_INVALIDO"
       ? 400
       : code === "TRABAJADOR_NO_ENCONTRADO"

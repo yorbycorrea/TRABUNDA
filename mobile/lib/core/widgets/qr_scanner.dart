@@ -76,6 +76,11 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
     if (rawValue == null || rawValue.isEmpty) return;
 
+    debugPrint('[SCAN]');
+    debugPrint('codigo escaneado: ${rawValue.replaceAll(RegExp(r'\s+'), '')}');
+    debugPrint('dni: ${RegExp(r'^\d{8}$').hasMatch(rawValue.replaceAll(RegExp(r'\s+'), '')) ? rawValue.replaceAll(RegExp(r'\s+'), '') : ''}');
+    debugPrint('timestamp: ${DateTime.now().toIso8601String()}');
+
     // ✅ Bloquea ANTES del await para que no dispare múltiples requests
     if (mounted) setState(() => _processing = true);
 

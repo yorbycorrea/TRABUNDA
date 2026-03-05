@@ -477,13 +477,20 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                         'validations=$validationBefore',
                       );
 
+                      final validacionesActuales = _mapValidations();
+
                       // ✅ Validación duplicado
                       if (_validateSaneamientoLineas.yaExisteTrabajador(
-                        items: _mapValidations(),
+                        items: validacionesActuales,
                         trabajadorId: newTrabId,
                         codigo: codigoFinal,
                         exceptIndex: i,
                       )) {
+                        debugPrint('[DUPLICATE DETECTED]');
+                        debugPrint('codigo: $codigoFinal');
+                        debugPrint('dni: $dni');
+                        debugPrint('motivo: yaExisteTrabajador retornó true en SANEAMIENTO');
+                        debugPrint('listaActual: ${validacionesActuales.map((e) => e.codigo).toList()}');
                         AppNotify.warning(
                           context,
                           'Duplicado',
@@ -491,6 +498,11 @@ class _SaneamientoBackendPageState extends State<SaneamientoBackendPage> {
                         );
                         return;
                       }
+
+                      debugPrint('[ADD WORKER]');
+                      debugPrint('codigo: $codigoFinal');
+                      debugPrint('dni: $dni');
+                      debugPrint('listaActualCodigos: ${validacionesActuales.map((e) => e.codigo).toList()}');
 
                       final m = _items[i];
 
