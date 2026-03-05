@@ -105,21 +105,13 @@ class MapQrToApoyoHorasModel {
 
 class ValidateApoyoHorasLineas {
   String? call(List<ApoyoHorasLineaInput> lineas) {
-    final seenIds = <int>{};
     final seenCods = <String>{};
 
     for (final linea in lineas) {
-      final id = linea.trabajadorId;
       final codigo = linea.codigo.trim();
 
-      if (id != null) {
-        if (!seenIds.add(id)) {
-          return 'Hay trabajadores repetidos. Elimina el duplicado.';
-        }
-      } else if (codigo.isNotEmpty) {
-        if (!seenCods.add(codigo)) {
-          return 'Hay códigos repetidos. Elimina el duplicado.';
-        }
+      if (codigo.isNotEmpty && !seenCods.add(codigo)) {
+        return 'Hay trabajadores repetidos. Elimina el duplicado.';
       }
     }
 
