@@ -167,6 +167,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             lineaId: t.lineaId,
             trabajadorId: t.trabajadorId,
             codigo: t.codigoCtrl.text.trim(),
+            documento: t.trabajadorDocumento,
             inicio: t.inicio,
             areaId: t.areaId,
           ),
@@ -530,6 +531,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         lineas: lineasActuales,
                         trabajadorId: mapped.trabajadorId,
                         codigo: mapped.codigo,
+                        documento: mapped.documento,
                         exceptIndex: i,
                       )) {
                         debugPrint('[DUPLICATE DETECTED]');
