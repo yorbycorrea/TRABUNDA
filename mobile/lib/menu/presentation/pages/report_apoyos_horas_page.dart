@@ -525,6 +525,43 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                       final mapped = _mapQrToApoyoHorasModel(result);
                       final lineasActuales = _buildLineasInput();
 
+                      debugPrint(
+                        '[ADD WORKER] reporteId=${widget.reporteId} newCodigo=${mapped.codigo}(${mapped.codigo.runtimeType}) newDni=${mapped.documento}(${mapped.documento.runtimeType}) newNombre=${mapped.nombre} newTrabajadorId=${mapped.trabajadorId}(${mapped.trabajadorId.runtimeType})',
+                      );
+                      for (var idx = 0; idx < _trabajadores.length; idx++) {
+                        final it = _trabajadores[idx];
+                        final codigoItem = it.codigoCtrl.text;
+                        debugPrint(
+                          '[ITEM][$idx] codigo=$codigoItem(${codigoItem.runtimeType}) dni=${it.trabajadorDocumento}(${it.trabajadorDocumento.runtimeType}) trabajadorId=${it.trabajadorId}(${it.trabajadorId.runtimeType})',
+                        );
+                      }
+
+                      final duplicateByTrabajadorId =
+                          mapped.trabajadorId != null &&
+                          lineasActuales.asMap().entries.any((entry) {
+                            if (entry.key == i) return false;
+                            return entry.value.trabajadorId ==
+                                mapped.trabajadorId;
+                          });
+                      final codigoNormalizado = mapped.codigo.trim();
+                      final duplicateByCodigo =
+                          mapped.trabajadorId == null &&
+                          codigoNormalizado.isNotEmpty &&
+                          lineasActuales.asMap().entries.any((entry) {
+                            if (entry.key == i) return false;
+                            return entry.value.codigo.trim() ==
+                                codigoNormalizado;
+                          });
+                      final dniNormalizado = mapped.documento.trim();
+                      final duplicateByDni =
+                          dniNormalizado.isNotEmpty &&
+                          _trabajadores.asMap().entries.any((entry) {
+                            if (entry.key == i) return false;
+                            return (entry.value.trabajadorDocumento ?? '')
+                                    .trim() ==
+                                dniNormalizado;
+                          });
+
                       // ✅ si ya existe en otra fila -> no permitir
                       if (_validateApoyoHorasLineas.existsDuplicate(
                         lineas: lineasActuales,
@@ -532,11 +569,25 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         codigo: mapped.codigo,
                         exceptIndex: i,
                       )) {
-                        debugPrint('[DUPLICATE DETECTED]');
-                        debugPrint('codigo: ${mapped.codigo}');
-                        debugPrint('dni: ${mapped.documento}');
-                        debugPrint('motivo: existsDuplicate retornó true en APOYO_HORAS');
-                        debugPrint('listaActual: ${lineasActuales.map((e) => e.codigo).toList()}');
+                        final motivo = duplicateByTrabajadorId
+                            ? 'trabajadorId'
+                            : duplicateByCodigo
+                            ? 'codigo'
+                            : duplicateByDni
+                            ? 'dni'
+                            : 'otra_llave';
+                        debugPrint(
+                          '[DUPLICATE DETECTED] motivo=$motivo matchTrabajadorId=$duplicateByTrabajadorId matchCodigo=$duplicateByCodigo matchDni=$duplicateByDni',
+                        );
+                        debugPrint(
+                          '[DUPLICATE DETECTED] reporteId=${widget.reporteId} codigo=${mapped.codigo} dni=${mapped.documento} trabajadorId=${mapped.trabajadorId}',
+                        );
+                        debugPrint(
+                          '[DUPLICATE DETECTED] listaActualCodigos=${lineasActuales.map((e) => e.codigo).toList()}',
+                        );
+                        debugPrint(
+                          '[DUPLICATE DETECTED] mostrando snackbar de duplicado',
+                        );
                         AppNotify.warning(
                           context,
                           'Duplicado',
@@ -545,10 +596,9 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         return;
                       }
 
-                      debugPrint('[ADD WORKER]');
-                      debugPrint('codigo: ${mapped.codigo}');
-                      debugPrint('dni: ${mapped.documento}');
-                      debugPrint('listaActualCodigos: ${lineasActuales.map((e) => e.codigo).toList()}');
+                      debugPrint(
+                        '[ADD WORKER] inserción permitida codigo=${mapped.codigo} dni=${mapped.documento} listaActualCodigos=${lineasActuales.map((e) => e.codigo).toList()}',
+                      );
 
                       setState(() {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
