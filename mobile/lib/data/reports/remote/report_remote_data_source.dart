@@ -308,11 +308,16 @@ class ReportRemoteDataSource {
       final codigo = trabajadorCodigo?.trim();
       final nombre = trabajadorNombre?.trim();
       final documento = trabajadorDocumento?.trim();
-      if (trabajadorId != null) {
-        payload['trabajador_id'] = trabajadorId;
-      }
       if (codigo != null && codigo.isNotEmpty) {
         payload['trabajador_codigo'] = codigo;
+        final codigoAsId = int.tryParse(codigo);
+        if (codigoAsId != null) {
+          payload['trabajador_id'] = codigoAsId;
+        } else if (trabajadorId != null) {
+          payload['trabajador_id'] = trabajadorId;
+        }
+      } else if (trabajadorId != null) {
+        payload['trabajador_id'] = trabajadorId;
       }
       if (nombre != null && nombre.isNotEmpty) {
         payload['trabajador_nombre'] = nombre;

@@ -260,7 +260,7 @@ class ReportRepositoryImpl implements ReportRepository {
           (it) => ApoyoHorasLinea(
             id: (it['id'] as num?)?.toInt(),
             trabajadorId: (it['trabajador_id'] as num?)?.toInt(),
-            trabajadorCodigo: _codigo5(it['trabajador_codigo']),
+            trabajadorCodigo: (it['trabajador_codigo'] ?? '').toString(),
             trabajadorNombre: (it['trabajador_nombre'] ?? '').toString(),
             trabajadorDocumento: (it['trabajador_documento'] ?? '').toString(),
             areaId: (it['area_id'] as num?)?.toInt(),

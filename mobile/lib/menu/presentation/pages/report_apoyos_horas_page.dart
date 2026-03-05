@@ -149,17 +149,6 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     final now = DateTime.now();
     return TimeOfDay(hour: now.hour, minute: now.minute);
   }
-
-  int? _deriveTrabajadorId({
-    required int? trabajadorId,
-    required String? trabajadorCodigo,
-  }) {
-    if (trabajadorId != null) return trabajadorId;
-    final codigo = trabajadorCodigo?.trim() ?? '';
-    if (codigo.isEmpty) return null;
-    return int.tryParse(codigo);
-  }
-
   List<ApoyoHorasLineaInput> _buildLineasInput() {
     return _trabajadores
         .map(
@@ -272,10 +261,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         final m = _ApoyoFormModel();
 
         m.lineaId = it.id;
-        m.trabajadorId = _deriveTrabajadorId(
-          trabajadorId: it.trabajadorId,
-          trabajadorCodigo: it.trabajadorCodigo,
-        );
+        m.trabajadorId = it.trabajadorId;
 
         final trabajadorCodigo = (it.trabajadorCodigo ?? '').trim();
         final trabajadorNombre = (it.trabajadorNombre ?? '').trim();
@@ -288,6 +274,15 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         }
         if (trabajadorDocumento.isNotEmpty) {
           m.trabajadorDocumento = trabajadorDocumento;
+        }
+
+        final parsedCodigoAsId = int.tryParse(trabajadorCodigo);
+        if (m.trabajadorId != null &&
+            parsedCodigoAsId != null &&
+            m.trabajadorId != parsedCodigoAsId) {
+          debugPrint(
+            '[SANITY] incoherencia: lineaId=${it.id} codigo=$trabajadorCodigo trabajadorId=${m.trabajadorId}',
+          );
         }
 
         m.areaId = it.areaId;
@@ -386,12 +381,14 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         );
         debugPrint('   horas=$horas');
 
-        final trabajadorId = t.trabajadorId;
-        if (trabajadorId == null) {
+        final codigo = t.codigoCtrl.text.trim();
+        final trabajadorId = int.tryParse(codigo);
+
+        if (codigo.isEmpty) {
           AppNotify.warning(
             context,
             'Validación',
-            'Falta seleccionar el trabajador para guardar el apoyo.',
+            'Falta código del trabajador para guardar el apoyo.',
           );
           return;
         }
@@ -421,7 +418,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
             trabajadorId: trabajadorId,
-            trabajadorCodigo: t.codigoCtrl.text.trim(),
+            trabajadorCodigo: codigo,
             trabajadorNombre: t.nombreCtrl.text.trim(),
             trabajadorDocumento: t.trabajadorDocumento,
             inicio: inicio,
@@ -434,7 +431,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
             lineaId: t.lineaId,
             reporteId: widget.reporteId,
             trabajadorId: trabajadorId,
-            trabajadorCodigo: t.codigoCtrl.text.trim(),
+            trabajadorCodigo: codigo,
             trabajadorNombre: t.nombreCtrl.text.trim(),
             trabajadorDocumento: t.trabajadorDocumento,
             inicio: inicio,
