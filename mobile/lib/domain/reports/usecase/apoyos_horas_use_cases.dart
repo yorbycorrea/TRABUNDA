@@ -158,9 +158,10 @@ class ValidateApoyoHorasLineas {
       'trabajadorId=$trabajadorId(${trabajadorId.runtimeType}) '
       'exceptIndex=$exceptIndex(${exceptIndex.runtimeType})',
     );
-    debugPrint(
-      '[existsDuplicate] strategy: OR (matchTrabajadorId || matchCodigoFallbackWhenNewIdNull)',
-    );
+    // APOYO_HORAS: no usar trabajadorId para duplicados porque ese campo
+    // puede venir contaminado y no representa el PK real en este flujo.
+    // La unicidad se decide por codigo (String) y opcionalmente por DNI.
+    debugPrint('[existsDuplicate] strategy: matchCodigo || matchDni');
 
     for (var i = 0; i < lineas.length; i++) {
       if (exceptIndex != null && i == exceptIndex) {
@@ -175,38 +176,25 @@ class ValidateApoyoHorasLineas {
       final itemCodigo = linea.codigo.trim();
       final itemDniRaw = linea.documento;
       final itemDni = (linea.documento ?? '').trim();
-      final itemId = linea.trabajadorId;
-
-      final matchTrabajadorId = trabajadorId != null && itemId == trabajadorId;
-      final shouldEvaluateCodigo = trabajadorId == null && cod.isNotEmpty;
-      final matchCodigo = shouldEvaluateCodigo && itemCodigo == cod;
+      final matchCodigo = cod.isNotEmpty && itemCodigo == cod;
       final matchDni = dni.isNotEmpty && itemDni.isNotEmpty && itemDni == dni;
 
       debugPrint(
         '[existsDuplicate] ITEM[$i] '
         'codigo=$itemCodigoRaw(${itemCodigoRaw.runtimeType}) -> trim="$itemCodigo" '
         'dni=$itemDniRaw(${itemDniRaw.runtimeType}) -> trim="$itemDni" '
-        'trabajadorId=$itemId(${itemId.runtimeType})',
+        'trabajadorId=${linea.trabajadorId}(${linea.trabajadorId.runtimeType})',
       );
       debugPrint(
         '[existsDuplicate] ITEM[$i] compare: '
-        'matchCodigo=$matchCodigo (evaluated=$shouldEvaluateCodigo) '
-        'matchDni=$matchDni (solo log, no usado en retorno) '
-        'matchTrabajadorId=$matchTrabajadorId '
-        '| nullChecks: newIdIsNull=${trabajadorId == null} itemIdIsNull=${itemId == null} '
-        'newCodigoEmpty=${cod.isEmpty} newDniEmpty=${dni.isEmpty} itemDniEmpty=${itemDni.isEmpty}',
+        'matchCodigo=$matchCodigo '
+        'matchDni=$matchDni '
+        '| newCodigoEmpty=${cod.isEmpty} newDniEmpty=${dni.isEmpty} itemDniEmpty=${itemDni.isEmpty}',
       );
 
-      if (matchTrabajadorId) {
+      if (matchCodigo || matchDni) {
         debugPrint(
-          '[existsDuplicate] RETURN true by matchTrabajadorId (OR short-circuit)',
-        );
-        return true;
-      }
-
-      if (matchCodigo) {
-        debugPrint(
-          '[existsDuplicate] RETURN true by matchCodigo (OR fallback when new trabajadorId is null)',
+          '[existsDuplicate] RETURN true by ${matchCodigo ? 'matchCodigo' : 'matchDni'}',
         );
         return true;
       }
