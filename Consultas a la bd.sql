@@ -1,4 +1,19 @@
 use trabunda_prod;
+
+-- Ver solo trabajadores inactivos
+SELECT codigo, nombre_completo, dni
+FROM trabajadores
+WHERE activo = 0;
+
+-- Contar cuantos mujeres y hombres existen
+SELECT sexo, COUNT(*) as cantidad
+FROM trabajadores
+GROUP BY sexo;
+
+-- Listar trabajadores creados recientemente (Para validar ingresos de la ultima semana)
+SELECT * FROM trabajadores
+WHERE creado_en >= DATE_SUB(NOW(), INTERVAL 7 DAY);
+
 -- Listar todos los trabajadores activos
 SELECT codigo, nombre_completo, dni FROM trabajadores WHERE activo = 1;
 
@@ -65,10 +80,74 @@ JOIN refresh_tokens rt ON u.id = rt.user_id
 WHERE rt.revoked_at IS NULL
 ORDER BY rt.last_used_at DESC;
 
+-- Verificar el tiempo de trabajo de los trabajadores , por ahora se coloca 8 horas
+SELECT 
+    trabajador_nombre, 
+    fecha, 
+    SUM(horas) AS total_dia
+FROM lineas_reporte lr
+JOIN reportes r ON lr.reporte_id = r.id
+GROUP BY trabajador_nombre, fecha
+HAVING total_dia > 8;
 
 
+-- Verificar que areas necesita mas apoyos 
+SELECT 
+    area_nombre, 
+    COUNT(*) AS veces_solicitado,
+    SUM(horas) AS total_horas_apoyo
+FROM lineas_reporte
+WHERE area_nombre IS NOT NULL
+GROUP BY area_nombre
+ORDER BY total_horas_apoyo DESC;
 
 
+-- Resumen de conteo rapido por dia
+SELECT 
+    a.nombre AS nombre_area, 
+    SUM(crd.cantidad) AS total_unidades
+FROM conteo_rapido_detalle crd
+JOIN areas a ON crd.area_id = a.id
+JOIN reportes r ON crd.reporte_id = r.id
+WHERE r.fecha = '2026-03-03'
+GROUP BY a.nombre
+ORDER BY total_unidades DESC;
+
+-- Para detectar si hay trabajadores que tienen reportes de horas pero no tienen registros de producción (o viceversa)
+SELECT 
+    t.nombre_completo, 
+    r.fecha,
+    lr.horas AS horas_pagadas,
+    IFNULL(SUM(tat.kg), 0) AS kilos_producidos
+FROM trabajadores t
+JOIN lineas_reporte lr ON t.codigo = lr.trabajador_codigo
+JOIN reportes r ON lr.reporte_id = r.id
+LEFT JOIN trabajo_avance_trabajadores tat ON t.codigo = tat.trabajador_codigo
+GROUP BY t.nombre_completo, r.fecha, lr.horas
+HAVING kilos_producidos = 0 AND horas_pagadas > 0;
+
+-- Ver el flujo de Conteo rapido para el tiurnjo dia y noche
+SELECT 
+    r.fecha,
+    r.turno,
+    a.nombre AS area,
+    SUM(crd.cantidad) AS cantidad_total
+FROM reportes r
+JOIN conteo_rapido_detalle crd ON r.id = crd.reporte_id
+JOIN areas a ON crd.area_id = a.id
+WHERE r.tipo_reporte = 'CONTEO_RAPIDO'
+GROUP BY r.fecha, r.turno, a.nombre
+ORDER BY r.fecha DESC, r.turno ASC;
 
 
-
+-- Ver el tiempo de tiempo que le quedan a los tokens para expirar
+SELECT 
+    u.nombre, 
+    rt.created_at AS inicio_sesion,
+    rt.expires_at AS expira_en,
+    TIMESTAMPDIFF(HOUR, NOW(), rt.expires_at) AS horas_restantes
+FROM users u
+JOIN refresh_tokens rt ON u.id = rt.user_id
+WHERE rt.revoked_at IS NULL 
+  AND rt.expires_at > NOW()
+ORDER BY expira_en ASC;
