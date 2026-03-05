@@ -84,6 +84,7 @@ class ApoyoHorasLinea {
   final String? horaInicio;
   final String? horaFin;
   final double? horas;
+  final bool verificarHoraSalida;
 
   const ApoyoHorasLinea({
     required this.id,
@@ -96,6 +97,7 @@ class ApoyoHorasLinea {
     required this.horaInicio,
     required this.horaFin,
     required this.horas,
+    this.verificarHoraSalida = false,
   });
 }
 

@@ -302,6 +302,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
         if (horasValue != null) {
           m.horas = horasValue;
         }
+        m.verificarHoraSalida = it.verificarHoraSalida;
 
         if (m.horas == null && m.inicio != null && m.fin != null) {
           m.horas = _calculateHoras(m.inicio!, m.fin!);
@@ -511,6 +512,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
 
                     onPickFin: () => scanAndSetHoraFin(_trabajadores[i]),
                     onDelete: () => _confirmDeleteTrabajador(i),
+                    verificarHoraSalida: _trabajadores[i].verificarHoraSalida,
                     onChangedArea: (a) {
                       setState(() {
                         _trabajadores[i].areaId = a.id;
@@ -648,6 +650,7 @@ class _ApoyoFormModel {
   TimeOfDay? inicio;
   TimeOfDay? fin;
   double? horas;
+  bool verificarHoraSalida = false;
 
   int? areaId;
   String? areaNombre;
@@ -673,6 +676,7 @@ class _TrabajadorCard extends StatelessWidget {
 
     required this.onPickFin,
     required this.onDelete,
+    required this.verificarHoraSalida,
     required this.onChangedArea,
     required this.api,
     required this.onFillFromScan,
@@ -684,6 +688,7 @@ class _TrabajadorCard extends StatelessWidget {
 
   final VoidCallback onPickFin;
   final VoidCallback onDelete;
+  final bool verificarHoraSalida;
   final void Function(_AreaItem) onChangedArea;
   final ApiClient api;
 
@@ -700,7 +705,9 @@ class _TrabajadorCard extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      color: cs.surfaceVariant.withOpacity(.35),
+      color: verificarHoraSalida
+          ? Colors.yellow.shade100
+          : cs.surfaceVariant.withOpacity(.35),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       margin: const EdgeInsets.only(bottom: 14),
       child: Stack(
@@ -710,11 +717,39 @@ class _TrabajadorCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Trabajador ${index + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                Row(
+                  children: [
+                    if (verificarHoraSalida)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: Text('⚠', style: TextStyle(fontSize: 16)),
+                      ),
+                    Text(
+                      'Trabajador ${index + 1}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
+
+                if (model.nombreCtrl.text.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      if (verificarHoraSalida)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6),
+                          child: Text('⚠', style: TextStyle(fontSize: 14)),
+                        ),
+                      Expanded(
+                        child: Text(
+                          model.nombreCtrl.text.trim(),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
 
                 Row(
                   children: [
@@ -777,6 +812,18 @@ class _TrabajadorCard extends StatelessWidget {
                     border: OutlineInputBorder(),
                   ),
                 ),
+
+                if (verificarHoraSalida)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      '⚠ Verificar hora de salida',
+                      style: TextStyle(
+                        color: Color(0xFFB71C1C),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
 
                 const SizedBox(height: 14),
 

@@ -77,6 +77,7 @@ function calcularTotalHoras(horaInicio, horaFin, options = {}) {
 
 const MENSAJE_DURACION_INVALIDA =
   "La duración del turno es inválida después de descontar almuerzo";
+const MAX_HORAS_SIN_SALIDA = 18;
 
 // Excepción de negocio: solo módulos sin reloj aceptan horas manuales.
 function moduloUsaHorasPorReloj(tipoReporte) {
@@ -137,6 +138,43 @@ function formatearTotalHorasParaPdf(linea) {
   }
 
   return linea?.horas ?? "";
+}
+
+function construirFechaHoraDesdeReporte(fechaReporte, hora) {
+  if (!fechaReporte || !hora) return null;
+
+  const fechaBase = new Date(fechaReporte);
+  if (Number.isNaN(fechaBase.getTime())) return null;
+
+  const [hh, mm, ss = "0"] = String(hora).split(":");
+  const horas = Number(hh);
+  const minutos = Number(mm);
+  const segundos = Number(ss);
+
+  if (![horas, minutos, segundos].every(Number.isFinite)) return null;
+
+  return new Date(
+    fechaBase.getFullYear(),
+    fechaBase.getMonth(),
+    fechaBase.getDate(),
+    horas,
+    minutos,
+    segundos,
+    0
+  );
+}
+
+function calcularVerificarHoraSalida({ fechaReporte, horaInicio, horaFin }) {
+  if (!horaInicio || horaFin) return false;
+
+  const inicio = construirFechaHoraDesdeReporte(fechaReporte, horaInicio);
+  if (!inicio) return false;
+
+  // Regla de negocio APOYO_HORAS:
+  // si pasaron más de 18 horas desde la hora de inicio y no hay hora_fin,
+  // marcar el registro para verificación manual de la salida.
+  const diferenciaHoras = (Date.now() - inicio.getTime()) / (1000 * 60 * 60);
+  return diferenciaHoras > MAX_HORAS_SIN_SALIDA;
 }
 
 async function hidratarTrabajadoresPorCodigo(items = [], dbPool = pool) {
@@ -1830,6 +1868,7 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          lr.reporte_id,
          lr.trabajador_id,
          lr.cuadrilla_id,
+         r.fecha AS reporte_fecha,
 
         CASE
            WHEN TRIM(COALESCE(NULLIF(lr.trabajador_codigo, ''), t.codigo, CAST(lr.trabajador_id AS CHAR))) REGEXP '^[0-9]+$'
@@ -1853,6 +1892,7 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
          c.nombre AS cuadrilla_nombre,
          t.nombre_completo AS trabajador_nombre_join
        FROM lineas_reporte lr
+       INNER JOIN reportes r ON r.id = lr.reporte_id
        LEFT JOIN cuadrillas c ON c.id = lr.cuadrilla_id
        LEFT JOIN trabajadores t
          ON (
@@ -1870,7 +1910,14 @@ router.get("/:id/lineas", authMiddleware, async (req, res) => {
       (item) => !String(item?.trabajador_nombre_origen ?? '').trim() && String(item?.trabajador_nombre_join ?? '').trim()
     ).length;
 
-    const items = rows.map(({ trabajador_nombre_join, trabajador_nombre_origen, ...rest }) => rest);
+    const items = rows.map(({ trabajador_nombre_join, trabajador_nombre_origen, reporte_fecha, ...rest }) => ({
+      ...rest,
+      verificarHoraSalida: calcularVerificarHoraSalida({
+        fechaReporte: reporte_fecha,
+        horaInicio: rest.hora_inicio,
+        horaFin: rest.hora_fin,
+      }),
+    }));
 
     console.log("TEMP LOG (remover luego) GET /reportes/:id/lineas", {
       reporteId,
@@ -2151,10 +2198,12 @@ router.get("/:id/pdf", authMiddleware, async (req, res) => {
         COALESCE(NULLIF(TRIM(lr.trabajador_documento), ''), t.dni, '') AS trabajador_documento,
         lr.hora_inicio,
         lr.hora_fin,
+        r.fecha AS reporte_fecha,
         lr.horas,
         lr.labores,
         COALESCE(lr.area_nombre, a.nombre) AS area_apoyo
       FROM lineas_reporte lr
+      INNER JOIN reportes r ON r.id = lr.reporte_id
       LEFT JOIN trabajadores t ON (
         TRIM(t.codigo) = TRIM(lr.trabajador_codigo)
         OR TRIM(t.codigo) = LPAD(TRIM(lr.trabajador_codigo), 5, '0')
@@ -2501,13 +2550,20 @@ if (reporte.tipo_reporte === "TRABAJO_AVANCE") {
         const labores = (l.labores ?? "").toString();
         const areaOlabores =
         reporte.tipo_reporte === "SANEAMIENTO" ? labores : (l.area_apoyo ?? "");
-
+        const verificarHoraSalida = calcularVerificarHoraSalida({
+          fechaReporte: l.reporte_fecha ?? reporte.fecha,
+          horaInicio: l.hora_inicio,
+          horaFin: l.hora_fin,
+        });
+        const observacionSalida = verificarHoraSalida
+          ? '<div class="warning-salida">⚠ Verificar hora de salida</div>'
+          : '';
 
         return `
           <tr>
             <td class="c">${i + 1}</td>
             <td class="c">${codigo}</td>
-            <td>${nombre}</td>
+            <td>${nombre}${observacionSalida}</td>
             <td class="c">${hIni}</td>
             <td class="c">${hFin}</td>
             <td class="c">${horas}</td>
