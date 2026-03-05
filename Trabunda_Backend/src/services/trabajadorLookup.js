@@ -16,6 +16,16 @@ const normalizeWorkerRow = (row) => ({
   nombre: row?.nombre_completo ?? null,
 });
 
+const logLookupResult = ({ logLookup, worker, cacheHit, graphqlCalled }) => {
+  logLookup({
+    codigo: worker?.codigo ?? null,
+    dni: worker?.dni ?? null,
+    nombre: worker?.nombre ?? null,
+    cacheHit,
+    graphqlCalled,
+  });
+};
+
 const detectWorkerQueryType = (rawInput) => {
   const q = String(rawInput ?? "").trim();
   const isNumeric = /^\d+$/.test(q);
@@ -100,13 +110,6 @@ const resolveTrabajadorLookup = async ({ q, pool, logLookup = () => {} }) => {
     );
 
     const cacheHit = rows.length > 0;
-    logLookup({
-      q: detected.q,
-      tipoDetectado: detected.tipoDetectado,
-      length: detected.length,
-      cacheHit,
-      graphqlCalled: false,
-    });
 
     if (!cacheHit) {
       throw buildLookupError(
@@ -116,9 +119,12 @@ const resolveTrabajadorLookup = async ({ q, pool, logLookup = () => {} }) => {
       );
     }
 
+    const worker = normalizeWorkerRow(rows[0]);
+    logLookupResult({ logLookup, worker, cacheHit, graphqlCalled: false });
+
     return {
       ...detected,
-      worker: normalizeWorkerRow(rows[0]),
+      worker,
       source: "cache",
     };
   }
@@ -132,20 +138,15 @@ const resolveTrabajadorLookup = async ({ q, pool, logLookup = () => {} }) => {
   );
 
   const cacheHit = rows.length > 0;
-  logLookup({
-    q: detected.q,
-    tipoDetectado: detected.tipoDetectado,
-    length: detected.length,
-    cacheHit,
-    graphqlCalled: false,
-  });
 
   if (cacheHit) {
     const row = rows[0];
+    const worker = normalizeWorkerRow(row);
+    logLookupResult({ logLookup, worker, cacheHit, graphqlCalled: false });
     refreshByDniIfStale({ pool, dni: row.dni, actualizadoEn: row.actualizado_en, logLookup });
     return {
       ...detected,
-      worker: normalizeWorkerRow(row),
+      worker,
       source: "cache",
     };
   }
@@ -154,21 +155,22 @@ const resolveTrabajadorLookup = async ({ q, pool, logLookup = () => {} }) => {
     const worker = await getTrabajadorPorDni(detected.dniNormalizado);
     await upsertWorkerCache(pool, worker);
 
-    logLookup({
-      q: detected.q,
-      tipoDetectado: detected.tipoDetectado,
-      length: detected.length,
+    const workerResult = {
+      codigo: worker.codigo,
+      dni: worker.dni ?? detected.dniNormalizado,
+      nombre: worker.nombre,
+    };
+
+    logLookupResult({
+      logLookup,
+      worker: workerResult,
       cacheHit: false,
       graphqlCalled: true,
     });
 
     return {
       ...detected,
-      worker: {
-        codigo: worker.codigo,
-        dni: worker.dni ?? detected.dniNormalizado,
-        nombre: worker.nombre,
-      },
+      worker: workerResult,
       source: "graphql",
     };
   } catch (error) {

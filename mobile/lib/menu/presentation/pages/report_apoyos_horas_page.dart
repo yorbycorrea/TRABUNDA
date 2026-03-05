@@ -523,14 +523,20 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                     // ✅ AQUÍ: validación anti-duplicado al escanear
                     onFillFromScan: (result) {
                       final mapped = _mapQrToApoyoHorasModel(result);
+                      final lineasActuales = _buildLineasInput();
 
                       // ✅ si ya existe en otra fila -> no permitir
                       if (_validateApoyoHorasLineas.existsDuplicate(
-                        lineas: _buildLineasInput(),
+                        lineas: lineasActuales,
                         trabajadorId: mapped.trabajadorId,
                         codigo: mapped.codigo,
                         exceptIndex: i,
                       )) {
+                        debugPrint('[DUPLICATE DETECTED]');
+                        debugPrint('codigo: ${mapped.codigo}');
+                        debugPrint('dni: ${mapped.documento}');
+                        debugPrint('motivo: existsDuplicate retornó true en APOYO_HORAS');
+                        debugPrint('listaActual: ${lineasActuales.map((e) => e.codigo).toList()}');
                         AppNotify.warning(
                           context,
                           'Duplicado',
@@ -538,6 +544,11 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
                         );
                         return;
                       }
+
+                      debugPrint('[ADD WORKER]');
+                      debugPrint('codigo: ${mapped.codigo}');
+                      debugPrint('dni: ${mapped.documento}');
+                      debugPrint('listaActualCodigos: ${lineasActuales.map((e) => e.codigo).toList()}');
 
                       setState(() {
                         _trabajadores[i].trabajadorId = mapped.trabajadorId;
