@@ -270,6 +270,7 @@ class ReportRepositoryImpl implements ReportRepository {
             horas: (it['horas'] is num)
                 ? (it['horas'] as num).toDouble()
                 : null,
+            verificarHoraSalida: it['verificarHoraSalida'] == true,
           ),
         )
         .toList();
