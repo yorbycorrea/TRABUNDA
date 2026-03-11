@@ -4,10 +4,10 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
-# Añade esta línea para los navegadores:
+
 RUN npx playwright install chromium
 
 COPY src ./src
 EXPOSE 3000
 
-CMD ["npx", "nodemon", "--watch", "src", "src/server.js"]
+CMD ["npm", "run", "dev"]

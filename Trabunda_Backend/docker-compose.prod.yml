@@ -1,3 +1,8 @@
+# DEPRECADO: no usar este archivo en el flujo oficial.
+# Producción de servidor debe levantarse con:
+# docker compose -f docker-compose.yml -f docker-composev2.prod.yml up -d --build
+# Se mantiene temporalmente para transición y compatibilidad.
+
 services:
   backend:
     build:

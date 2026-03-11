@@ -1,8 +1,56 @@
 # Trabunda Backend
 
-## Docker (producción)
+## Docker Compose oficial por entorno
 
-El Dockerfile de producción (`Dockerfile.prod`) usa la imagen base de Playwright para incluir las dependencias del sistema necesarias para Chromium/WebKit/Firefox.
+En este repositorio se **estandariza** el uso de Compose así:
+
+- `docker-compose.yml`: **base común** para cualquier entorno.
+- `docker-compose.override.yml`: **solo desarrollo local** (se combina con la base).
+- `docker-composev2.prod.yml`: **despliegue de servidor** (se combina con la base, sin reemplazar de golpe el flujo actual).
+- `docker-compose.prod.yml`: archivo **deprecado**; no debe usarse en el flujo oficial.
+
+> ⚠️ Para evitar errores de operación, usa siempre los comandos de esta sección y valida el archivo pasado con `-f` antes de ejecutar en servidor.
+
+### Desarrollo local (oficial)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --build
+```
+
+Para detener:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml down
+```
+
+### Despliegue en servidor (oficial)
+
+```bash
+docker compose -f docker-compose.yml -f docker-composev2.prod.yml up -d --build
+```
+
+Para actualizar servicios puntuales:
+
+```bash
+docker compose -f docker-compose.yml -f docker-composev2.prod.yml up -d backend
+```
+
+Para detener:
+
+```bash
+docker compose -f docker-compose.yml -f docker-composev2.prod.yml down
+```
+
+### Comando legado a evitar
+
+```bash
+# NO USAR (deprecado)
+docker compose -f docker-compose.prod.yml up -d
+```
+
+## Docker (build de imagen de producción)
+
+El `Dockerfile.prod` usa la imagen base de Playwright para incluir dependencias del sistema necesarias para Chromium/WebKit/Firefox.
 
 ```bash
 docker build -f Dockerfile.prod -t trabunda-backend .
@@ -30,15 +78,12 @@ PLAYWRIGHT_BROWSERS_PATH=0
 
 Puedes definirla en el Dockerfile o en `docker-compose.yml` según tu flujo.
 
-
 ## Entornos
 
 - Desarrollo:
   - `flutter run -t lib/main_dev.dart`
 - Producción:
   - `flutter build -t lib/main_prod.dart`
-
-
 
 # Documentación técnica del repositorio TRABUNDA (inspección estática)
 
@@ -101,58 +146,58 @@ También hay artefactos de infraestructura y respaldo:
 Base URL configurable por entorno.
 Casi todos los endpoints (excepto salud/debug/login) usan Bearer token JWT.
 
-| Método | Ruta | ¿Qué hace (funcional) | Parámetros principales |
-|---|---|---|---|
-| GET | `/health` | Healthcheck simple del backend. | - |
-| GET | `/health/workers` | Verifica conectividad al servicio externo de trabajadores. | usa `WORKERS_HEALTHCHECK_CODIGO` |
-| GET | `/debug/workers-url` | Muestra URL configurada del servicio workers (debug). | - |
-| GET | `/debug/test-worker?q=` | Prueba lookup de trabajador en modo no producción. | `q` (código/DNI) |
-| POST | `/auth/login` | Autentica usuario y devuelve `token` + `refreshToken`. | body: `username`, `password` |
-| POST | `/auth/register` | Crea usuario (solo ADMINISTRADOR). | body: `username`, `password`, `nombre`, `roles[]` |
-| GET | `/auth/me` | Devuelve perfil y roles del usuario autenticado. | header Bearer |
-| POST | `/auth/refresh` | Emite nuevo access token con refresh token válido. | body: `refreshToken` |
-| POST | `/auth/logout` | Revoca refresh token actual. | body: `refreshToken` |
-| GET | `/users/pickers?roles=...` | Lista usuarios “seleccionables” por roles (admin). | query `roles=PLANILLERO,SANEAMIENTO` |
-| GET | `/trabajadores/lookup?q=` | Busca trabajador por código/DNI (cache + fallback servicio externo). | query `q` |
-| GET | `/trabajadores/:id` | Obtiene trabajador por código/id. | path `id` |
-| GET | `/trabajadores` | Listado no disponible (retorna 501). | - |
-| POST | `/trabajadores` | Alta no disponible (501). | - |
-| DELETE | `/trabajadores/:id` | Baja no disponible (501). | path `id` |
-| PATCH | `/trabajadores/:id/activar` | Activación no disponible (501). | path `id`, body `activo` |
-| GET | `/areas` | Lista áreas activas. | query opcional `tipo=APOYO_HORAS|TRABAJO_AVANCE|SANEAMIENTO` |
-| POST | `/areas` | Crea área con flags de módulo. | body: `nombre`, flags `es_*`, `activo` |
-| PUT | `/areas/:id` | Actualiza nombre/flags/estado de área. | path `id`, body completo de flags |
-| PATCH | `/areas/:id/activar` | Activa/desactiva un área. | path `id`, body `activo` |
-| GET | `/areas/conteo-rapido` | Lista áreas habilitadas para conteo rápido, ordenadas. | - |
-| GET | `/reportes` | Lista reportes con filtros y paginación. | `fecha`,`desde`,`hasta`,`tipo`,`area_id`,`turno`,`activo`,`creador_id`,`q`,`page`,`limit`,`ordenar`,`dir` |
-| GET | `/reportes/:id` | Devuelve cabecera de un reporte. | path `id` |
-| POST | `/reportes` | Crea cabecera de reporte (tipo, turno, fecha, área según tipo). | body: `fecha`,`turno`,`tipo_reporte`,`area_id?`,`observaciones?` |
-| PUT | `/reportes/:id` | Edita cabecera (fecha/turno/área/observaciones según tipo). | path `id`, body parcial |
-| PATCH | `/reportes/:id/activar` | Activa/desactiva reporte. | path `id`, body `activo` |
-| PATCH | `/reportes/:id/observaciones` | Actualiza observaciones (solo APOYO_HORAS/SANEAMIENTO). | path `id`, body `observaciones` |
-| GET | `/reportes/:id/lineas` | Lista líneas (detalle) del reporte. | path `id` |
-| POST | `/reportes/:id/lineas` | Crea línea de detalle; valida reglas por tipo y evita duplicados pendientes. | body trabajador + tiempos + área/labores |
-| PATCH | `/reportes/lineas/:lineaId` | Actualiza campos de una línea; recalcula estado del reporte. | path `lineaId`, body parcial, `clear` opcional |
-| DELETE | `/reportes/lineas/:lineaId` | Elimina línea y recalcula estado del reporte. | path `lineaId` |
-| GET | `/reportes/:id/pdf` | Genera PDF del reporte (usa plantilla por tipo). | path `id` |
-| GET | `/reportes/apoyo-horas/open` | Abre o crea reporte APOYO_HORAS del usuario para fecha/turno. | query `turno`,`fecha`,`create?` |
-| GET | `/reportes/apoyo-horas/pendientes` | Lista reportes/líneas pendientes sin `hora_fin`. | query `horas|hours`,`fecha?`,`turno?` |
-| GET | `/reportes/saneamiento/open` | Busca reporte saneamiento del usuario para fecha/turno (continuar/ver). | query `turno`,`fecha?` |
-| GET | `/reportes/saneamiento/pendientes` | Lista pendientes de saneamiento (`hora_fin` o `labores` faltantes). | query `horas|hours` |
-| GET | `/reportes/conteo-rapido/open` | Abre o crea cabecera de conteo rápido y devuelve items si existen. | query `turno`,`fecha?` |
-| POST | `/reportes/conteo-rapido` | Guarda conteo rápido (upsert por área) y cierra reporte. | body `fecha`,`turno`,`items[{area_id,cantidad}]` |
-| GET | `/reportes/conteo-rapido/:id` | Devuelve detalle funcional de conteo rápido por áreas. | path `id` |
-| GET | `/reportes/conteo-rapido/:id/excel` | Exporta conteo rápido a `.xlsx`. | path `id` |
-| GET | `/reportes/trabajo-avance/open` | Busca si ya existe trabajo avance para fecha/turno del usuario. | query `fecha`,`turno` |
-| POST | `/reportes/trabajo-avance/start` | Inicia trabajo avance (si no existe). | body `fecha`,`turno` |
-| GET | `/reportes/trabajo-avance/:id/resumen` | Resumen de cuadrillas y totales por sección. | path `id` |
-| POST | `/reportes/trabajo-avance/:id/cuadrillas` | Crea cuadrilla (recepción/fileteado/apoyo). | body `tipo`,`nombre`,`apoyo_scope?`,`apoyo_de_cuadrilla_id?` |
-| GET | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId` | Obtiene detalle de cuadrilla y trabajadores asignados. | path `cuadrillaId` |
-| PUT | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId` | Actualiza tiempos y producción kg de cuadrilla. | body `hora_inicio`,`hora_fin`,`produccion_kg` |
-| POST | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores` | Agrega trabajador a cuadrilla por lookup (`q`/`codigo`). | body `q` o `codigo` |
-| DELETE | `/reportes/trabajo-avance/trabajadores/:id` | Quita trabajador de cuadrilla. | path `id` |
-| PUT | `/reportes/trabajo-avance/:reporteId` | Actualiza estado de reporte trabajo avance. | path `reporteId`, body `estado?` |
-| GET | `/reportes/test` | Endpoint de prueba. | - |
+| Método | Ruta                                                            | ¿Qué hace (funcional)                                                        | Parámetros principales                                                                                    |
+| ------ | --------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------ | ------------ |
+| GET    | `/health`                                                       | Healthcheck simple del backend.                                              | -                                                                                                         |
+| GET    | `/health/workers`                                               | Verifica conectividad al servicio externo de trabajadores.                   | usa `WORKERS_HEALTHCHECK_CODIGO`                                                                          |
+| GET    | `/debug/workers-url`                                            | Muestra URL configurada del servicio workers (debug).                        | -                                                                                                         |
+| GET    | `/debug/test-worker?q=`                                         | Prueba lookup de trabajador en modo no producción.                           | `q` (código/DNI)                                                                                          |
+| POST   | `/auth/login`                                                   | Autentica usuario y devuelve `token` + `refreshToken`.                       | body: `username`, `password`                                                                              |
+| POST   | `/auth/register`                                                | Crea usuario (solo ADMINISTRADOR).                                           | body: `username`, `password`, `nombre`, `roles[]`                                                         |
+| GET    | `/auth/me`                                                      | Devuelve perfil y roles del usuario autenticado.                             | header Bearer                                                                                             |
+| POST   | `/auth/refresh`                                                 | Emite nuevo access token con refresh token válido.                           | body: `refreshToken`                                                                                      |
+| POST   | `/auth/logout`                                                  | Revoca refresh token actual.                                                 | body: `refreshToken`                                                                                      |
+| GET    | `/users/pickers?roles=...`                                      | Lista usuarios “seleccionables” por roles (admin).                           | query `roles=PLANILLERO,SANEAMIENTO`                                                                      |
+| GET    | `/trabajadores/lookup?q=`                                       | Busca trabajador por código/DNI (cache + fallback servicio externo).         | query `q`                                                                                                 |
+| GET    | `/trabajadores/:id`                                             | Obtiene trabajador por código/id.                                            | path `id`                                                                                                 |
+| GET    | `/trabajadores`                                                 | Listado no disponible (retorna 501).                                         | -                                                                                                         |
+| POST   | `/trabajadores`                                                 | Alta no disponible (501).                                                    | -                                                                                                         |
+| DELETE | `/trabajadores/:id`                                             | Baja no disponible (501).                                                    | path `id`                                                                                                 |
+| PATCH  | `/trabajadores/:id/activar`                                     | Activación no disponible (501).                                              | path `id`, body `activo`                                                                                  |
+| GET    | `/areas`                                                        | Lista áreas activas.                                                         | query opcional `tipo=APOYO_HORAS                                                                          | TRABAJO_AVANCE           | SANEAMIENTO` |
+| POST   | `/areas`                                                        | Crea área con flags de módulo.                                               | body: `nombre`, flags `es_*`, `activo`                                                                    |
+| PUT    | `/areas/:id`                                                    | Actualiza nombre/flags/estado de área.                                       | path `id`, body completo de flags                                                                         |
+| PATCH  | `/areas/:id/activar`                                            | Activa/desactiva un área.                                                    | path `id`, body `activo`                                                                                  |
+| GET    | `/areas/conteo-rapido`                                          | Lista áreas habilitadas para conteo rápido, ordenadas.                       | -                                                                                                         |
+| GET    | `/reportes`                                                     | Lista reportes con filtros y paginación.                                     | `fecha`,`desde`,`hasta`,`tipo`,`area_id`,`turno`,`activo`,`creador_id`,`q`,`page`,`limit`,`ordenar`,`dir` |
+| GET    | `/reportes/:id`                                                 | Devuelve cabecera de un reporte.                                             | path `id`                                                                                                 |
+| POST   | `/reportes`                                                     | Crea cabecera de reporte (tipo, turno, fecha, área según tipo).              | body: `fecha`,`turno`,`tipo_reporte`,`area_id?`,`observaciones?`                                          |
+| PUT    | `/reportes/:id`                                                 | Edita cabecera (fecha/turno/área/observaciones según tipo).                  | path `id`, body parcial                                                                                   |
+| PATCH  | `/reportes/:id/activar`                                         | Activa/desactiva reporte.                                                    | path `id`, body `activo`                                                                                  |
+| PATCH  | `/reportes/:id/observaciones`                                   | Actualiza observaciones (solo APOYO_HORAS/SANEAMIENTO).                      | path `id`, body `observaciones`                                                                           |
+| GET    | `/reportes/:id/lineas`                                          | Lista líneas (detalle) del reporte.                                          | path `id`                                                                                                 |
+| POST   | `/reportes/:id/lineas`                                          | Crea línea de detalle; valida reglas por tipo y evita duplicados pendientes. | body trabajador + tiempos + área/labores                                                                  |
+| PATCH  | `/reportes/lineas/:lineaId`                                     | Actualiza campos de una línea; recalcula estado del reporte.                 | path `lineaId`, body parcial, `clear` opcional                                                            |
+| DELETE | `/reportes/lineas/:lineaId`                                     | Elimina línea y recalcula estado del reporte.                                | path `lineaId`                                                                                            |
+| GET    | `/reportes/:id/pdf`                                             | Genera PDF del reporte (usa plantilla por tipo).                             | path `id`                                                                                                 |
+| GET    | `/reportes/apoyo-horas/open`                                    | Abre o crea reporte APOYO_HORAS del usuario para fecha/turno.                | query `turno`,`fecha`,`create?`                                                                           |
+| GET    | `/reportes/apoyo-horas/pendientes`                              | Lista reportes/líneas pendientes sin `hora_fin`.                             | query `horas                                                                                              | hours`,`fecha?`,`turno?` |
+| GET    | `/reportes/saneamiento/open`                                    | Busca reporte saneamiento del usuario para fecha/turno (continuar/ver).      | query `turno`,`fecha?`                                                                                    |
+| GET    | `/reportes/saneamiento/pendientes`                              | Lista pendientes de saneamiento (`hora_fin` o `labores` faltantes).          | query `horas                                                                                              | hours`                   |
+| GET    | `/reportes/conteo-rapido/open`                                  | Abre o crea cabecera de conteo rápido y devuelve items si existen.           | query `turno`,`fecha?`                                                                                    |
+| POST   | `/reportes/conteo-rapido`                                       | Guarda conteo rápido (upsert por área) y cierra reporte.                     | body `fecha`,`turno`,`items[{area_id,cantidad}]`                                                          |
+| GET    | `/reportes/conteo-rapido/:id`                                   | Devuelve detalle funcional de conteo rápido por áreas.                       | path `id`                                                                                                 |
+| GET    | `/reportes/conteo-rapido/:id/excel`                             | Exporta conteo rápido a `.xlsx`.                                             | path `id`                                                                                                 |
+| GET    | `/reportes/trabajo-avance/open`                                 | Busca si ya existe trabajo avance para fecha/turno del usuario.              | query `fecha`,`turno`                                                                                     |
+| POST   | `/reportes/trabajo-avance/start`                                | Inicia trabajo avance (si no existe).                                        | body `fecha`,`turno`                                                                                      |
+| GET    | `/reportes/trabajo-avance/:id/resumen`                          | Resumen de cuadrillas y totales por sección.                                 | path `id`                                                                                                 |
+| POST   | `/reportes/trabajo-avance/:id/cuadrillas`                       | Crea cuadrilla (recepción/fileteado/apoyo).                                  | body `tipo`,`nombre`,`apoyo_scope?`,`apoyo_de_cuadrilla_id?`                                              |
+| GET    | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId`              | Obtiene detalle de cuadrilla y trabajadores asignados.                       | path `cuadrillaId`                                                                                        |
+| PUT    | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId`              | Actualiza tiempos y producción kg de cuadrilla.                              | body `hora_inicio`,`hora_fin`,`produccion_kg`                                                             |
+| POST   | `/reportes/trabajo-avance/cuadrillas/:cuadrillaId/trabajadores` | Agrega trabajador a cuadrilla por lookup (`q`/`codigo`).                     | body `q` o `codigo`                                                                                       |
+| DELETE | `/reportes/trabajo-avance/trabajadores/:id`                     | Quita trabajador de cuadrilla.                                               | path `id`                                                                                                 |
+| PUT    | `/reportes/trabajo-avance/:reporteId`                           | Actualiza estado de reporte trabajo avance.                                  | path `reporteId`, body `estado?`                                                                          |
+| GET    | `/reportes/test`                                                | Endpoint de prueba.                                                          | -                                                                                                         |
 
 ---
 
@@ -175,6 +220,7 @@ Flujo de reportes:
 ## 4) Dependencias críticas
 
 ### Backend (imprescindibles)
+
 - `express`: servidor HTTP.
 - `mysql2`: acceso a MySQL (pool/transacciones).
 - `jsonwebtoken`: emisión/validación JWT.
@@ -184,11 +230,13 @@ Flujo de reportes:
 - `exceljs`: exportación Excel de conteo rápido.
 
 ### Servicios externos críticos
+
 - MySQL (DB principal).
 - Servicio GraphQL de trabajadores (`WORKERS_API_URL`).
 - Variables sensibles: `JWT_SECRET`, `DB_*`, `DB_NAME_*`, etc.
 
 ### Mobile (críticas)
+
 - `flutter_secure_storage` (tokens).
 - `ApiClient` centralizado.
 - `flutter_dotenv` para ambientes.
@@ -198,6 +246,7 @@ Flujo de reportes:
 ## 5) Esquema de Base de Datos y Relaciones
 
 ### Entidades y propósito
+
 - `users`, `roles`, `user_roles`: identidad, permisos y autorización por rol.
 - `reportes`: cabecera de los módulos operativos.
 - `lineas_reporte`: detalle operativo por trabajador/actividad/hora.
@@ -209,6 +258,7 @@ Flujo de reportes:
 - `refresh_tokens`: almacenamiento de refresh token hasheado y revocable.
 
 ### Llaves foráneas y cardinalidades
+
 - `reportes.creado_por_user_id -> users.id` (**1:N** users→reportes).
 - `reportes.area_id -> areas.id` (**1:N** areas→reportes, opcional por tipo).
 - `lineas_reporte.reporte_id -> reportes.id` (**1:N** reportes→lineas).
@@ -223,6 +273,7 @@ Flujo de reportes:
 - `refresh_tokens.user_id -> users.id` (**1:N** users→refresh_tokens).
 
 ### Restricciones relevantes
+
 - `users.username` único.
 - `trabajadores.codigo` único.
 - `refresh_tokens.token_hash` único.
@@ -234,6 +285,7 @@ Flujo de reportes:
 ## 6) Estrategia de Manejo de Errores y Códigos HTTP
 
 ### Códigos más usados
+
 - **200**: consulta/actualización exitosa.
 - **201**: creación exitosa.
 - **400**: validación de entrada.
@@ -245,19 +297,25 @@ Flujo de reportes:
 - **501**: operación no habilitada (ciertos endpoints de trabajadores).
 
 ### Estructura JSON de error para mobile
+
 Patrón principal:
+
 ```json
 { "error": "mensaje" }
 ```
+
 Variantes:
+
 ```json
 { "error": "Ruta no encontrada", "method": "GET", "url": "/x" }
 ```
+
 ```json
 { "error": "Error consultando reporte", "details": "..." }
 ```
 
 ### Comportamiento en cliente móvil
+
 - `decodeJsonOrThrow` extrae `error` y eleva excepción de dominio.
 - Login traduce `401/403` a credenciales inválidas y `404` a ruta inexistente.
 - Red/SSL/timeout se normalizan a: `network_timeout`, `network_unreachable`, `ssl_error`, `bad_response`.
@@ -267,11 +325,13 @@ Variantes:
 ## 7) Seguridad y Ciclo de Vida de Tokens
 
 ### Access Token
+
 - Emitido en `/auth/login` con `sub`, `username`, `roles`.
 - Firmado con `JWT_SECRET`.
 - Expira según `JWT_EXPIRES_IN` (fallback: **12h**).
 
 ### Refresh Token
+
 - Generado criptográficamente.
 - Persistido como hash SHA-256 en `refresh_tokens` (no texto plano).
 - Expira por `REFRESH_TOKEN_EXPIRES_DAYS` (fallback: **30 días**).
@@ -279,6 +339,7 @@ Variantes:
 - `/auth/logout`: revoca token (`revoked_at`).
 
 ### Protección de rutas
+
 - `authMiddleware`: valida Bearer JWT y monta `req.user`.
 - `requireRole(...roles)`: autoriza por rol.
 - Regla adicional en múltiples rutas: no-admin solo puede acceder a sus propios recursos.
@@ -288,6 +349,7 @@ Variantes:
 ## 8) Lógica de Sincronización y Cache
 
 ### Lookup de trabajadores (backend)
+
 1. Entra `q` (código o DNI).
 2. Se detecta tipo de búsqueda.
 3. Se intenta resolver desde tabla local `trabajadores`.
@@ -296,10 +358,12 @@ Variantes:
 6. Si no hay hit y aplica, consulta `WORKERS_API_URL`, hace upsert local y retorna.
 
 ### Si GraphQL falla
+
 - El backend retorna errores de dominio (`TRABAJADOR_GQL_ERROR`, `TRABAJADOR_NO_ENCONTRADO`) y códigos HTTP de error según endpoint (404/5xx/502).
 - Si hay cache local utilizable, la operación puede continuar sin depender del servicio externo.
 
 ### Manejo móvil sin conexión
+
 - `ApiClient` aplica timeout y mapea errores de red (`network_timeout`, `network_unreachable`, `ssl_error`).
 - La capa auth muestra mensajes amigables al usuario.
 - Los tokens se conservan en `flutter_secure_storage`.

@@ -6,7 +6,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - .:/usr/src/app # Sincroniza tu código en tiempo real
+      - .:/app # Sincroniza tu código en tiempo real
+      - /app/node_modules
     environment:
       - NODE_ENV=development
       - DB_HOST=db
