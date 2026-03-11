@@ -5,6 +5,11 @@ SELECT codigo, nombre_completo, dni
 FROM trabajadores
 WHERE activo = 0;
 
+-- Cambiar contraseña de usuario
+UPDATE users 
+SET password_hash = 'NUEVO_HASH_AQUÍ' 
+WHERE id = 5; -- O usa WHERE username = 'nombre_usuario';
+
 -- Contar cuantos mujeres y hombres existen
 SELECT sexo, COUNT(*) as cantidad
 FROM trabajadores

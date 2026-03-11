@@ -149,6 +149,7 @@ class _ApoyosHorasBackendPageState extends State<ApoyosHorasBackendPage> {
     final now = DateTime.now();
     return TimeOfDay(hour: now.hour, minute: now.minute);
   }
+
   List<ApoyoHorasLineaInput> _buildLineasInput() {
     return _trabajadores
         .map(
